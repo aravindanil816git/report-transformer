@@ -1,0 +1,17 @@
+
+{
+  "name": "report-app",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "vite"
+  },
+  "dependencies": {
+    "antd": "^5.0.0",
+    "axios": "^1.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}

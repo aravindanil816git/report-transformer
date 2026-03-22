@@ -1,0 +1,75 @@
+# ----------------------
+# Python / FastAPI
+# ----------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+
+# Virtual environment
+venv/
+.env/
+.env.*
+
+# Python build / packaging
+build/
+dist/
+*.egg-info/
+
+# ----------------------
+# Logs
+# ----------------------
+*.log
+
+# ----------------------
+# Uploads / Generated files
+# ----------------------
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Optional: ignore raw data files if not needed
+backend/data/*
+!backend/data/.gitkeep
+
+# ----------------------
+# Node / Frontend (Vite + React)
+# ----------------------
+frontend/node_modules/
+node_modules/
+
+# Build output
+frontend/dist/
+dist/
+
+# Vite cache
+.vite/
+
+# ----------------------
+# Environment files
+# ----------------------
+*.env
+*.env.local
+*.env.development
+*.env.production
+
+# ----------------------
+# IDE / Editor
+# ----------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ----------------------
+# OS files
+# ----------------------
+.DS_Store
+Thumbs.db
+
+# ----------------------
+# Misc
+# ----------------------
+*.tmp
+*.temp
