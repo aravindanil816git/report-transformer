@@ -3,8 +3,8 @@ import axios from "axios";
 const API = "http://localhost:8000";
 
 export const listReports = () => axios.get(`${API}/reports`);
-export const createReport = (name) =>
-  axios.post(`${API}/reports?name=${name}`);
+export const createReport = (name, type) =>
+  axios.post(`${API}/reports?name=${name}&type=${type}`);
 
 export const uploadFile = (id, file, from, to) => {
   const fd = new FormData();

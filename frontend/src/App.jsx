@@ -1,33 +1,23 @@
 
-import { Layout, Menu } from "antd";
-import { Routes, Route, useNavigate } from "react-router-dom";
-import DataPage from "./DataPage";
-import ReportPage from "./ReportPage";
+import { Layout } from "antd";
+import { Routes, Route } from "react-router-dom";
+import Sidebar from "./components/Sidebar";
+import DataPage from "./pages/DataPage";
+import { REPORT_REGISTRY } from "./reports";
 
-const { Sider, Content } = Layout;
+const { Content } = Layout;
 
 export default function App() {
-  const navigate = useNavigate();
-
   return (
     <Layout style={{ height: "100vh" }}>
-      <Sider>
-        <Menu
-          theme="dark"
-          defaultSelectedKeys={["data"]}
-          items={[
-            { key: "data", label: "Data" },
-          ]}
-          onClick={(e) => {
-            if (e.key === "data") navigate("/");
-          }}
-        />
-      </Sider>
-
+      <Sidebar />
       <Content style={{ padding: 20 }}>
         <Routes>
           <Route path="/" element={<DataPage />} />
-          <Route path="/report/:id" element={<ReportPage />} />
+          {Object.entries(REPORT_REGISTRY).map(([k, r]) => {
+            const C = r.component;
+            return <Route key={k} path={r.route} element={<C />} />;
+          })}
         </Routes>
       </Content>
     </Layout>

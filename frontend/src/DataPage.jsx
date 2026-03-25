@@ -1,6 +1,14 @@
-
 import { useEffect, useState } from "react";
-import { Table, Button, Modal, Input, Upload, DatePicker, Space } from "antd";
+import {
+  Table,
+  Button,
+  Modal,
+  Input,
+  Upload,
+  DatePicker,
+  Space,
+  Select,
+} from "antd";
 import { useNavigate } from "react-router-dom";
 import {
   listReports,
@@ -15,9 +23,10 @@ export default function DataPage() {
   const [data, setData] = useState([]);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [type, setType] = useState("shopwise");
 
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [file, setFile] = useState();
+  const [file, setFile] = useState(null);
   const [dates, setDates] = useState([]);
   const [current, setCurrent] = useState(null);
 
@@ -27,43 +36,72 @@ export default function DataPage() {
     listReports().then((r) => setData(r.data || []));
   };
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, []);
 
+  // ===== CREATE =====
   const handleCreate = async () => {
     if (!name) return;
-    await createReport(name);
+
+    await createReport(name, type);
+
     setOpen(false);
     setName("");
+    setType("shopwise");
+
     load();
   };
 
+  // ===== UPLOAD =====
   const handleUpload = async () => {
     if (!file || dates.length !== 2) return;
-    await uploadFile(current, file, dates[0], dates[1]);
+
+    await uploadFile(
+      current,
+      file,
+      dates[0]?.format("YYYY-MM-DD"),
+      dates[1]?.format("YYYY-MM-DD")
+    );
+
     setUploadOpen(false);
+    setFile(null);
+    setDates([]);
+
     load();
   };
 
+  // ===== PROCESS =====
   const handleProcess = async (id) => {
     await processReport(id);
     load();
   };
 
+  // ===== TABLE =====
   const columns = [
     { title: "Name", dataIndex: "name" },
+    {
+      title: "Type",
+      dataIndex: "type",
+      render: (t) =>
+        t === "cleanup" ? "Daily Warehouse Report" : "Shopwise Stock",
+    },
     { title: "Status", dataIndex: "status" },
     {
       title: "Actions",
       render: (_, r) => (
         <Space>
-          <Button onClick={() => { setCurrent(r.id); setUploadOpen(true); }}>
+          <Button
+            onClick={() => {
+              setCurrent(r.id);
+              setUploadOpen(true);
+            }}
+          >
             Upload
           </Button>
 
           {r.status === "Uploaded" && (
-            <Button onClick={() => handleProcess(r.id)}>
-              Process
-            </Button>
+            <Button onClick={() => handleProcess(r.id)}>Process</Button>
           )}
 
           {r.status === "Processed" && (
@@ -92,7 +130,7 @@ export default function DataPage() {
             <ul>
               {(r.uploads || []).map((u, i) => (
                 <li key={i}>
-                  {u.file} ({u.from} - {u.to})
+                  {u.file} ({u.from} → {u.to})
                 </li>
               ))}
             </ul>
@@ -100,6 +138,7 @@ export default function DataPage() {
         }}
       />
 
+      {/* CREATE */}
       <Modal
         title="Create Report"
         open={open}
@@ -111,21 +150,40 @@ export default function DataPage() {
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
+
+        <Select
+          style={{ marginTop: 10, width: "100%" }}
+          value={type}
+          onChange={setType}
+          options={[
+            { label: "Shopwise Stock", value: "shopwise" },
+            { label: "Daily Warehouse Report", value: "cleanup" },
+          ]}
+        />
       </Modal>
 
+      {/* UPLOAD */}
       <Modal
         title="Upload File"
         open={uploadOpen}
         onOk={handleUpload}
         onCancel={() => setUploadOpen(false)}
       >
-        <Upload beforeUpload={(f) => { setFile(f); return false; }}>
+        // only change Upload modal
+
+<Upload
+  beforeUpload={(f) => {
+    setFile(f);
+    return false;
+  }}
+  multiple={false}
+>
           <Button>Select File</Button>
         </Upload>
 
         <RangePicker
-          style={{ marginTop: 10 }}
-          onChange={(d, s) => setDates(s)}
+          style={{ marginTop: 10, width: "100%" }}
+          onChange={(d) => setDates(d || [])}
         />
       </Modal>
     </>
