@@ -127,7 +127,13 @@ def process(rid: str):
 
 # ================= GET REPORT =================
 @router.get("/report/{rid}")
-def get_report(rid: str, shop_code: str = None, view: str = "daywise"):
+def get_report(
+    rid: str,
+    shop_code: str = None,
+    view: str = "daywise",
+    start_idx: int = None,
+    end_idx: int = None
+):
     report = reports.get(rid)
 
     if not report:
@@ -135,7 +141,13 @@ def get_report(rid: str, shop_code: str = None, view: str = "daywise"):
 
     svc = get_service(report["type"])
 
-    return svc.get_report(report, shop_code=shop_code, view=view)
+    return svc.get_report(
+        report,
+        shop_code=shop_code,
+        view=view,
+        start_idx=start_idx,
+        end_idx=end_idx
+    )
 
 
 # ================= FILTERS =================

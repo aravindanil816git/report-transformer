@@ -1,19 +1,30 @@
 import pandas as pd
 import re
+import json
 from datetime import datetime, timedelta
 from .base import BaseReportService
 from core.utils import normalize, clean_df
 
 
+# ✅ LOAD MAPPING
+with open("mapping.json") as f:
+    MAPPING = json.load(f)
+
+# ✅ FLATTEN LOOKUP
+SHOP_LOOKUP = {}
+
+for wh, w_data in MAPPING.items():
+    for shop_code, s_data in w_data["shops"].items():
+        SHOP_LOOKUP[str(shop_code).strip()] = {
+            "warehouse": wh,
+            "warehouse_code": w_data["warehouse_code"],
+            "shop_name": s_data["shop_name"],
+            "staffs": s_data["staffs"]
+        }
+
+
 class CumulativeShopwiseReportService(BaseReportService):
     type_name = "cumulative_shopwise"
-
-    def _clean_warehouse(self, val):
-        if not val:
-            return None
-        val = str(val).upper()
-        match = re.search(r"(WH-[A-Z]+)", val)
-        return match.group(1) if match else val
 
     def _generate_labels(self, start_date, num_days):
         start = datetime.strptime(start_date, "%Y-%m-%d")
@@ -35,7 +46,8 @@ class CumulativeShopwiseReportService(BaseReportService):
                 break
 
     def _compute(self, df):
-        wh_col = next((c for c in df.columns if "warehouse" in c), None)
+        # 🔍 Detect columns
+        shop_col = next((c for c in df.columns if "shop" in c and "code" in c), None)
         bpc_col = next((c for c in df.columns if "bottle" in c and "case" in c), None)
 
         open_case_col = next((c for c in df.columns if "opening" in c and "case" in c), None)
@@ -47,9 +59,11 @@ class CumulativeShopwiseReportService(BaseReportService):
         out_case_col = next((c for c in df.columns if "out" in c and "case" in c), None)
         out_bottle_col = next((c for c in df.columns if "out" in c and "bottle" in c), None)
 
-        if not all([wh_col, bpc_col, open_case_col, open_bottle_col]):
+        if not all([shop_col, bpc_col, open_case_col, open_bottle_col]):
             return pd.DataFrame()
 
+        # ✅ Normalize
+        df[shop_col] = df[shop_col].astype(str).str.strip()
         df[bpc_col] = pd.to_numeric(df[bpc_col], errors="coerce").fillna(1)
 
         for col in [
@@ -60,13 +74,30 @@ class CumulativeShopwiseReportService(BaseReportService):
             if col:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
+        # ✅ Calculations
         df["opening"] = ((df[open_case_col] * df[bpc_col]) + df[open_bottle_col]) / df[bpc_col]
         df["receipt"] = ((df[in_case_col] * df[bpc_col]) + df[in_bottle_col]) / df[bpc_col] if in_case_col and in_bottle_col else 0
         df["sales"] = ((df[out_case_col] * df[bpc_col]) + df[out_bottle_col]) / df[bpc_col] if out_case_col and out_bottle_col else 0
 
-        df["warehouse"] = df[wh_col].apply(self._clean_warehouse)
+        # ✅ MAP USING SHOP CODE (KEY FIX)
+        df["shop_code"] = df[shop_col]
 
-        return df[["warehouse", "opening", "receipt", "sales"]]
+        def map_meta(code):
+            return SHOP_LOOKUP.get(code, {})
+
+        df["warehouse"] = df["shop_code"].apply(lambda x: map_meta(x).get("warehouse"))
+        df["warehouse_code"] = df["shop_code"].apply(lambda x: map_meta(x).get("warehouse_code"))
+        df["shop_name"] = df["shop_code"].apply(lambda x: map_meta(x).get("shop_name"))
+        df["staff"] = df["shop_code"].apply(lambda x: ", ".join(map_meta(x).get("staffs", [])))
+
+        # ❗ Remove unmapped rows
+        df = df[df["warehouse"].notna()]
+
+        return df[[
+            "warehouse", "warehouse_code",
+            "shop_code", "shop_name", "staff",
+            "opening", "receipt", "sales"
+        ]]
 
     def process(self, report):
         uploads = report.get("uploads", [])
@@ -100,6 +131,7 @@ class CumulativeShopwiseReportService(BaseReportService):
             if df_calc.empty:
                 continue
 
+            # ✅ GROUP BY MAPPED WAREHOUSE
             grouped = (
                 df_calc.groupby("warehouse")[["opening", "receipt", "sales"]]
                 .sum()
@@ -131,7 +163,7 @@ class CumulativeShopwiseReportService(BaseReportService):
                 cumulative_map[wh]["receipt"] += receipt
                 cumulative_map[wh]["sales"] += sales
 
-        # fill missing days
+        # fill missing labels
         for store in [daywise_opening, daywise_sales, daywise_receipt]:
             for wh in store:
                 for label in labels:
@@ -166,12 +198,83 @@ class CumulativeShopwiseReportService(BaseReportService):
             "labels": labels
         }
 
-    def get_report(self, report, view="daywise_opening", **kwargs):
+    def get_report(self, report, view="daywise_opening", start_idx=None, end_idx=None, **kwargs):
         processed = report.get("processed") or {}
+        labels = processed.get("labels", [])
+
+        data = processed.get(view, [])
+
+        # ✅ STRICT INDEX VALIDATION
+        if (
+            start_idx is not None and end_idx is not None and
+            isinstance(start_idx, int) and isinstance(end_idx, int) and
+            0 <= start_idx < len(labels) and
+            0 <= end_idx < len(labels) and
+            start_idx <= end_idx
+        ):
+            selected_indices = list(range(start_idx, end_idx + 1))
+            selected_labels = [labels[i] for i in selected_indices]
+        else:
+            selected_indices = list(range(len(labels)))
+            selected_labels = labels
+
+        # 🔥 DAYWISE VIEWS (Opening / Receipt / Sales)
+        if view in ["daywise_opening", "daywise_receipt", "daywise_sales"]:
+            result = []
+
+            for row in data:
+                new_row = {"warehouse": row["warehouse"]}
+                total = 0
+
+                for i in selected_indices:
+                    label = labels[i]
+                    val = row.get(label, 0)
+                    new_row[label] = val
+                    total += val
+
+                new_row["total"] = total
+                result.append(new_row)
+
+            return {
+                "data": result,
+                "labels": selected_labels,
+                "config": report.get("config", {})
+            }
+
+        # 🔥 CUMULATIVE VIEW (RECOMPUTE BASED ON FILTER)
+        if view == "cumulative":
+            # reconstruct from daywise_sales (or opening/receipt depending on need)
+            base_data = processed.get("daywise_sales", [])
+
+            cumulative = []
+
+            for row in base_data:
+                total_sales = 0
+
+                for i in selected_indices:
+                    label = labels[i]
+                    total_sales += row.get(label, 0)
+
+                num_days = len(selected_indices) if selected_indices else 1
+
+                cumulative.append({
+                    "warehouse": row["warehouse"],
+                    "opening": 0,  # optional: you can enhance if needed
+                    "receipt": 0,
+                    "sales": total_sales,
+                    "closing": total_sales,
+                    "difference": total_sales,
+                    "avg_sales_per_day": round(total_sales / num_days)
+                })
+
+            return {
+                "data": cumulative,
+                "labels": selected_labels,
+                "config": report.get("config", {})
+            }
 
         return {
-            "data": processed.get(view, []),
-            "labels": processed.get("labels", []),
-            "uploads": report.get("uploads", []),
+            "data": [],
+            "labels": selected_labels,
             "config": report.get("config", {})
         }
