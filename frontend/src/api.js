@@ -34,10 +34,13 @@ export const uploadFile = (id, file, from, to = null) => {
 export const processReport = (id) =>
   axios.post(`${API}/process/${id}`);
 
-export const getReport = (id, shop, view) =>
+export const getReport = (id, shop, view, extraParams = {}) =>
   axios.get(`${API}/report/${id}`, {
-    params: { shop_code: shop, view }
+    params: {
+      shop_code: shop,
+      view,
+      ...extraParams
+    }
   });
-
 export const getShops = (id) =>
   axios.get(`${API}/shops/${id}`);

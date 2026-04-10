@@ -53,7 +53,7 @@ export default function DataPage() {
             <Button
               onClick={() => {
                 setCurrent(r);
-                if (r.type === "cumulative_shopwise") {
+                if (["cumulative_shopwise", "cumulative_warehouse"].includes(r.type)) {
                   setUploadOpen("cumulative");
                 } else {
                   setUploadOpen("normal");
@@ -124,7 +124,7 @@ export default function DataPage() {
         />
 
         {/* ✅ CONDITIONAL FIELDS */}
-        {type === "cumulative_shopwise" && (
+        {["cumulative_shopwise", "cumulative_warehouse"].includes(type) && (
           <>
             <DatePicker onChange={setStartDate} />
             <Input

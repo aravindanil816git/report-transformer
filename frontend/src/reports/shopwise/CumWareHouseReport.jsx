@@ -6,19 +6,19 @@ import dayjs from "dayjs";
 
 const { RangePicker } = DatePicker;
 
-export default function CumulativeShopwiseReport() {
+export default function CumulativeWarehouseReport() {
   const { id } = useParams();
 
   const [data, setData] = useState([]);
   const [labels, setLabels] = useState([]);
   const [allLabels, setAllLabels] = useState([]);
   const [config, setConfig] = useState({});
-  const [view, setView] = useState("daywise_opening");
+  const [view, setView] = useState("daywise");
 
   const [warehouseFilter, setWarehouseFilter] = useState(null);
   const [dateRange, setDateRange] = useState([]);
 
-  // 🔹 load
+  // 🔹 load data from backend
   const load = async (startIdx = null, endIdx = null) => {
     const res = await getReport(id, null, view, {
       start_idx: startIdx,
@@ -36,20 +36,24 @@ export default function CumulativeShopwiseReport() {
     }
   };
 
-  // 🔥 retain filters on view switch
+  // 🔥 auto apply filters when view changes
   useEffect(() => {
     applyFilters();
   }, [view]);
 
-  const labelToDate = (label) => dayjs(label.split(" ")[0], "DD-MMM");
+  // 🔹 convert label → date
+  const labelToDate = (label) => {
+    return dayjs(label.split(" ")[0], "DD-MMM");
+  };
 
+  // 🔹 get index from date
   const getIndexFromDate = (date) => {
     return allLabels.findIndex(l =>
       labelToDate(l).isSame(date, "day")
     );
   };
 
-  // 🔥 APPLY
+  // 🔥 APPLY FILTERS
   const applyFilters = () => {
     let startIdx = null;
     let endIdx = null;
@@ -62,20 +66,21 @@ export default function CumulativeShopwiseReport() {
     load(startIdx, endIdx);
   };
 
-  // 🔥 RESET
+  // 🔥 RESET FILTERS
   const resetFilters = () => {
     setWarehouseFilter(null);
     setDateRange([]);
     load();
   };
 
+  // 🔹 warehouse filter
   const filteredData = warehouseFilter
     ? data.filter(d => d.warehouse === warehouseFilter)
     : data;
 
   const uniqueWarehouses = [...new Set(data.map(d => d.warehouse))];
 
-  // 🔒 strict date range
+  // 🔹 strict date limits
   const minDate = config.start_date ? dayjs(config.start_date) : null;
   const maxDate = minDate ? minDate.add(config.num_days - 1, "day") : null;
 
@@ -84,45 +89,28 @@ export default function CumulativeShopwiseReport() {
     return current.isBefore(minDate, "day") || current.isAfter(maxDate, "day");
   };
 
-  // 🔹 daywise + total
+  // 🔹 columns
   const daywiseColumns = [
     { title: "Warehouse", dataIndex: "warehouse", fixed: "left" },
     ...labels.map(l => ({ title: l, dataIndex: l })),
-    {
-      title: "Total",
-      dataIndex: "total",
-      render: (_, row) => {
-        let total = 0;
-        labels.forEach(l => total += row[l] || 0);
-        return total;
-      }
-    }
+    { title: "Total", dataIndex: "total" }
   ];
 
   const cumulativeColumns = [
     { title: "Warehouse", dataIndex: "warehouse" },
-    { title: "Opening", dataIndex: "opening" },
-    { title: "Receipt", dataIndex: "receipt" },
-    { title: "Sales", dataIndex: "sales" },
-    { title: "Closing", dataIndex: "closing" },
-    { title: "Difference", dataIndex: "difference" },
-    { title: "Avg Sales / Day", dataIndex: "avg_sales_per_day" }
+    { title: "Total Issues", dataIndex: "total" },
+    { title: "Avg / Day", dataIndex: "avg" }
   ];
 
   return (
     <div style={{ padding: 20 }}>
-      <h2>Cumulative Shopwise Report</h2>
-
-      <div style={{ marginBottom: 12 }}>
-        <b>Start Date:</b> {config.start_date} &nbsp;&nbsp;
-        <b>Days:</b> {config.num_days}
-      </div>
+      <h2>Warehouse Daily Offtake Report</h2>
 
       {/* 🔥 FILTERS */}
       <Space style={{ marginBottom: 16 }}>
         <Select
           placeholder="Warehouse"
-          style={{ width: 250 }}
+          style={{ width: 200 }}
           value={warehouseFilter}
           onChange={setWarehouseFilter}
           allowClear
@@ -147,29 +135,13 @@ export default function CumulativeShopwiseReport() {
         </Button>
       </Space>
 
-      {/* 🔥 VIEW PILLS */}
+      {/* 🔥 VIEW TOGGLE */}
       <div style={{ marginBottom: 16 }}>
         <Button
-          type={view === "daywise_opening" ? "primary" : "default"}
-          onClick={() => setView("daywise_opening")}
+          type={view === "daywise" ? "primary" : "default"}
+          onClick={() => setView("daywise")}
         >
-          Opening
-        </Button>
-
-        <Button
-          type={view === "daywise_receipt" ? "primary" : "default"}
-          onClick={() => setView("daywise_receipt")}
-          style={{ marginLeft: 8 }}
-        >
-          Receipt
-        </Button>
-
-        <Button
-          type={view === "daywise_sales" ? "primary" : "default"}
-          onClick={() => setView("daywise_sales")}
-          style={{ marginLeft: 8 }}
-        >
-          Sales
+          Daywise
         </Button>
 
         <Button
@@ -183,9 +155,11 @@ export default function CumulativeShopwiseReport() {
 
       {/* 🔥 TABLE */}
       <Table
+        bordered
         columns={view === "cumulative" ? cumulativeColumns : daywiseColumns}
         dataSource={filteredData}
         rowKey="warehouse"
+        pagination={false}
         scroll={{ x: true }}
       />
     </div>

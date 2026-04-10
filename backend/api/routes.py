@@ -25,7 +25,7 @@ def generate_days(start_date, num_days):
 def create_report(name: str, type: str, start_date: str = None, num_days: int = None):
     rid = str(uuid.uuid4())
 
-    if type == "cumulative_shopwise":
+    if type in ["cumulative_shopwise", "cumulative_warehouse"]:
         days = generate_days(start_date, int(num_days))
         uploads = [
             {"date": d, "file": None, "status": "pending", "data": None}
@@ -73,7 +73,7 @@ async def upload(
         shutil.copyfileobj(file.file, f)
 
     # ================= CUMULATIVE =================
-    if report["type"] == "cumulative_shopwise":
+    if report["type"] in ["cumulative_shopwise", "cumulative_warehouse"]:
 
         from core.utils import normalize, clean_df
 
@@ -127,7 +127,13 @@ def process(rid: str):
 
 # ================= GET REPORT =================
 @router.get("/report/{rid}")
-def get_report(rid: str, shop_code: str = None, view: str = "daywise"):
+def get_report(
+    rid: str,
+    shop_code: str = None,
+    view: str = "daywise",
+    start_idx: int = None,
+    end_idx: int = None
+):
     report = reports.get(rid)
 
     if not report:
@@ -135,7 +141,13 @@ def get_report(rid: str, shop_code: str = None, view: str = "daywise"):
 
     svc = get_service(report["type"])
 
-    return svc.get_report(report, shop_code=shop_code, view=view)
+    return svc.get_report(
+        report,
+        shop_code=shop_code,
+        view=view,
+        start_idx=start_idx,
+        end_idx=end_idx
+    )
 
 
 # ================= FILTERS =================
