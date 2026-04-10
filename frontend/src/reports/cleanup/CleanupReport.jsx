@@ -1,20 +1,14 @@
 import { useEffect, useState, useMemo } from "react";
-import { Table, Select } from "antd";
+import { Table, Select, Row, Col } from "antd";
 import { useParams } from "react-router-dom";
+import mapping from "../../data/mapping.json";
 
 export default function CleanupReport() {
   const { id } = useParams();
 
   const [data, setData] = useState([]);
-  const [warehouses, setWarehouses] = useState([]);
-  const [wh, setWh] = useState();
-
-  // ===== LOAD FILTERS =====
-  useEffect(() => {
-    fetch(`http://localhost:8000/warehouses/${id}`)
-      .then((r) => r.json())
-      .then(setWarehouses);
-  }, [id]);
+  const [warehouse, setWarehouse] = useState();
+  const [shop, setShop] = useState();
 
   // ===== LOAD DATA =====
   useEffect(() => {
@@ -23,109 +17,110 @@ export default function CleanupReport() {
       .then((r) => setData(r.data || []));
   }, [id]);
 
-  // ===== FILTERED DATA =====
+  // ===== WAREHOUSE OPTIONS =====
+  const warehouseOptions = Object.keys(mapping).map((w) => ({
+    value: w,
+    label: w,
+  }));
+
+  // ===== SHOP OPTIONS =====
+  const shopOptions = useMemo(() => {
+    if (!warehouse) return [];
+
+    const shops = mapping[warehouse]?.shops || {};
+
+    return Object.entries(shops).map(([code, s]) => ({
+      value: code,
+      label: `${s.shop_name} (${code})`,
+    }));
+  }, [warehouse]);
+
+  // ===== FILTER =====
   const filtered = useMemo(() => {
-    return wh ? data.filter((d) => d.warehouse === wh) : data;
-  }, [data, wh]);
+    let rows = data;
+
+    if (warehouse) {
+      rows = rows.filter((d) => d.warehouse === warehouse);
+    }
+
+    if (shop) {
+      rows = rows.filter((d) => d.shop_code === shop);
+    }
+
+    return rows;
+  }, [data, warehouse, shop]);
 
   // ===== COLUMNS =====
   const columns = [
+  {
+    title: "Item Name",
+    dataIndex: "Item Name",
+  },
+  {
+    title: "Product Code",
+    dataIndex: "Product Code",
+  },
     {
       title: "Physical Stock",
       children: [
         { title: "Case", dataIndex: "Physical Case" },
-        { title: "Bottle", dataIndex: "Physical Bottle" },
+        // { title: "Bottle", dataIndex: "Physical Bottle" },
       ],
     },
     {
       title: "Allotted Stock",
       children: [
         { title: "Case", dataIndex: "Allotted Case" },
-        { title: "Bottle", dataIndex: "Allotted Bottle" },
+        // { title: "Bottle", dataIndex: "Allotted Bottle" },
       ],
     },
     {
       title: "Pending Stock",
       children: [
         { title: "Case", dataIndex: "Pending Case" },
-        { title: "Bottle", dataIndex: "Pending Bottle" },
+        // { title: "Bottle", dataIndex: "Pending Bottle" },
       ],
     },
-    {
-      title: "WH Price",
-      dataIndex: "WH Price",
-    },
-    {
-      title: "Landed Cost",
-      dataIndex: "Landed Cost",
-    },
-  ];
-
-  // ===== TOTAL KEYS (avoid double count) =====
-  const KEYS = [
-    "Physical Case",
-    "Physical Bottle",
-    "Allotted Case",
-    "Allotted Bottle",
-    "Pending Case",
-    "Pending Bottle",
-    "WH Price",
-    "Landed Cost",
-  ];
-
-  // ===== TOTAL CALCULATION =====
-  const totals = useMemo(() => {
-    const t = {};
-    KEYS.forEach((k) => (t[k] = 0));
-
-    filtered.forEach((row) => {
-      KEYS.forEach((key) => {
-        t[key] += Number(row[key]) || 0;
-      });
-    });
-    console.log(t)
-
-    return t;
-  }, [filtered]);
-
-  // ===== DROPDOWN OPTIONS =====
-  const options = [
-    { label: "All", value: "" },
-    ...warehouses.map((w) => ({
-      value: w.warehouse,
-      label: w.warehouse,
-    })),
+    { title: "WH Price", dataIndex: "WH Price" },
+    { title: "Landed Cost", dataIndex: "Landed Cost" },
   ];
 
   return (
     <>
-      {/* ===== FILTER ===== */}
-      <Select
-        placeholder="Warehouse"
-        style={{ width: 220, marginBottom: 16 }}
-        onChange={(v) => setWh(v || undefined)}
-        options={options}
-      />
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+        {/* ===== WAREHOUSE ===== */}
+        <Col>
+          <Select
+            placeholder="Warehouse"
+            showSearch
+            style={{ width: 260 }}
+            options={warehouseOptions}
+            onChange={(v) => {
+              setWarehouse(v);
+              setShop(undefined);
+            }}
+          />
+        </Col>
 
-      {/* ===== TABLE ===== */}
+        {/* ===== SHOP ===== */}
+        {/* <Col>
+          <Select
+            placeholder="Shop"
+            showSearch
+            style={{ width: 300 }}
+            value={shop}
+            options={shopOptions}
+            onChange={setShop}
+            disabled={!warehouse}
+          />
+        </Col> */}
+      </Row>
+
       <Table
         dataSource={filtered}
         columns={columns}
         rowKey={(r, i) => i}
         pagination={false}
-        summary={() => (
-          <Table.Summary.Row>
-            <Table.Summary.Cell index={0}>
-              <b>Total</b>
-            </Table.Summary.Cell>
-
-            {KEYS.map((key, i) => (
-              <Table.Summary.Cell key={i}>
-                <b>{totals[key]?.toLocaleString()}</b>
-              </Table.Summary.Cell>
-            ))}
-          </Table.Summary.Row>
-        )}
       />
     </>
   );

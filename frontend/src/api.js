@@ -3,12 +3,30 @@ import axios from "axios";
 const API = "http://localhost:8000";
 
 export const listReports = () => axios.get(`${API}/reports`);
-export const createReport = (name, type) =>
-  axios.post(`${API}/reports?name=${name}&type=${type}`);
+export const createReport = (name, type, extra = {}) => {
+  const clean = Object.fromEntries(
+    Object.entries({
+      name,
+      type,
+      ...extra
+    }).filter(([_, v]) => v !== undefined && v !== null && v !== "")
+  );
 
-export const uploadFile = (id, file, from, to) => {
+  const params = new URLSearchParams(clean);
+
+  return axios.post(`${API}/reports?${params.toString()}`);
+};
+
+export const uploadFile = (id, file, from, to = null) => {
   const fd = new FormData();
   fd.append("file", file);
+
+  // ✅ cumulative case (single date)
+  if (from && !to) {
+    return axios.post(`${API}/upload/${id}?date=${from}`, fd);
+  }
+
+  // ✅ normal case (range)
   return axios.post(`${API}/upload/${id}?from_date=${from}&to_date=${to}`, fd);
 };
 

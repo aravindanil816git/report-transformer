@@ -82,7 +82,7 @@ class WarehouseReportService(BaseReportService):
     def _process_cleanup(self, df):
         # 🔍 Find columns safely
         phys_case, phys_bottle = self._find_pair(df, "physical")
-        alloc_case, alloc_bottle = self._find_pair(df, "alloc")
+        alloc_case, alloc_bottle = self._find_pair(df, "allotable")
         pend_case, pend_bottle = self._find_pair(df, "pending")
 
         wh_price = next(
@@ -94,6 +94,12 @@ class WarehouseReportService(BaseReportService):
             None,
         )
 
+        item_name = next((c for c in df.columns if "item" in c and "name" in c), None)
+        product_code = next((c for c in df.columns if "product" in c and "code" in c), None)
+
+
+
+
         cols = []
         rename = {}
 
@@ -103,11 +109,15 @@ class WarehouseReportService(BaseReportService):
                 rename[col] = name
 
         # ===== STOCK =====
+
+        add(item_name, "Item Name")
+        add(product_code, "Product Code")
+
         add(phys_case, "Physical Case")
         add(phys_bottle, "Physical Bottle")
 
-        add(alloc_case, "Allotted Case")
-        add(alloc_bottle, "Allotted Bottle")
+        add(alloc_case, "Allotable Case")
+        add(alloc_bottle, "Allotable Bottle")
 
         add(pend_case, "Pending Case")
         add(pend_bottle, "Pending Bottle")
@@ -121,11 +131,21 @@ class WarehouseReportService(BaseReportService):
             cols.append("warehouse")
 
         df = df[cols].rename(columns=rename)
+        NUMERIC_COLUMNS = [
+            "Physical Case",
+            "Physical Bottle",
+            "Allotable Case",
+            "Allotable Bottle",
+            "Pending Case",
+            "Pending Bottle",
+            "WH Price",
+            "Landed Cost",
+        ]
 
-        # 🔥 Ensure numeric values (CRITICAL)
-        for col in df.columns:
-            if col != "warehouse":
+        for col in NUMERIC_COLUMNS:
+            if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
 
         return df
 

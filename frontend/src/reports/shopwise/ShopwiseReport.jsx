@@ -1,51 +1,182 @@
-
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Table, Select, Segmented, Row, Col, Button } from "antd";
 import { useParams } from "react-router-dom";
-import { getReport, getShops } from "../../api";
+import { getReport } from "../../api";
+import mapping from "../../data/mapping.json";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 
 export default function ShopwiseReport() {
   const { id } = useParams();
+
   const [data, setData] = useState([]);
-  const [shops, setShops] = useState([]);
+  const [warehouse, setWarehouse] = useState();
   const [shop, setShop] = useState();
   const [view, setView] = useState("case");
 
-  useEffect(() => {
-    getShops(id).then(r => setShops(r.data || []));
-  }, [id]);
+  // ===== FILTER OPTIONS =====
+  const warehouseOptions = Object.keys(mapping).map((w) => ({
+    value: w,
+    label: w,
+  }));
 
+  const shopOptions = useMemo(() => {
+    if (!warehouse) return [];
+    const shops = mapping[warehouse]?.shops || {};
+    return Object.entries(shops).map(([code, s]) => ({
+      value: code,
+      label: `${s.shop_name} (${code})`,
+    }));
+  }, [warehouse]);
+
+  // ===== LOAD =====
   const load = () => {
-    getReport(id, shop, view).then(res => setData(res.data.data || []));
+    getReport(id, shop, view).then((res) =>
+      setData(res.data.data || [])
+    );
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
-  const columns = data[0] ? Object.keys(data[0]).map(k => ({ title: k, dataIndex: k })) : [];
+  // ===== GROUP DATA =====
+  const groupedData = useMemo(() => {
+    const grouped = {};
+
+    data.forEach((row) => {
+      const item = row["brand"];
+      if (!grouped[item]) grouped[item] = [];
+      grouped[item].push(row);
+    });
+
+    return Object.entries(grouped).map(([item, rows]) => {
+      const total = {};
+
+      rows.forEach((r) => {
+        Object.keys(r).forEach((k) => {
+          if (typeof r[k] === "number") {
+            total[k] = (total[k] || 0) + r[k];
+          }
+        });
+      });
+
+      return {
+        key: item,
+        "Item Name": item,
+        ...total,
+        children: rows.map((r, i) => ({
+          ...r,
+          key: item + "_" + i,
+        })),
+      };
+    });
+  }, [data]);
+
+  // ===== COLUMNS =====
+  const columns = [
+    {
+      title: "Item Name",
+      dataIndex: "Item Name",
+      render: (text) => <b>{text}</b>,
+    },
+    ...(
+      data[0]
+        ? Object.keys(data[0])
+            .filter((k) => k !== "Item Name")
+            .map((k) => ({
+              title: k,
+              dataIndex: k,
+            }))
+        : []
+    ),
+  ];
+
+  // ===== DOWNLOAD =====
+  const downloadExcel = () => {
+    const flat = [];
+
+    groupedData.forEach((group) => {
+      flat.push({ "Item Name": group["Item Name"] });
+
+      group.children.forEach((child) => {
+        flat.push(child);
+      });
+
+      flat.push({
+        "Item Name": group["Item Name"] + " Total",
+        ...group,
+      });
+    });
+
+    const ws = XLSX.utils.json_to_sheet(flat);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Shopwise");
+
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    saveAs(new Blob([buf]), "shopwise_report.xlsx");
+  };
 
   return (
     <>
+      {/* ===== FILTER BAR ===== */}
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col>
           <Select
-            placeholder="Shop"
-            style={{ width: 200 }}
-            onChange={setShop}
-            options={shops.map(s => ({ value: s.shop_code, label: s.shop_name }))}
+            placeholder="Warehouse"
+            showSearch
+            style={{ width: 250 }}
+            options={warehouseOptions}
+            onChange={(v) => {
+              setWarehouse(v);
+              setShop(undefined);
+            }}
           />
         </Col>
+
+        <Col>
+          <Select
+            placeholder="Shop"
+            showSearch
+            style={{ width: 300 }}
+            value={shop}
+            options={shopOptions}
+            onChange={setShop}
+            disabled={!warehouse}
+          />
+        </Col>
+
         <Col>
           <Segmented
-            options={[{ label: "Case", value: "case" }, { label: "Bottle", value: "bottle" }]}
+            options={[
+              { label: "Case", value: "case" },
+              { label: "Bottle", value: "bottle" },
+            ]}
             value={view}
             onChange={setView}
           />
         </Col>
+
         <Col>
           <Button onClick={load}>Apply</Button>
         </Col>
+
+        <Col>
+          <Button type="primary" onClick={downloadExcel}>
+            Download
+          </Button>
+        </Col>
       </Row>
-      <Table dataSource={data} columns={columns} rowKey={(r,i)=>i} />
+
+      {/* ===== TABLE ===== */}
+      <Table
+        columns={columns}
+        dataSource={groupedData}
+        pagination={false}
+        expandable={{
+          defaultExpandAllRows: false,
+        }}
+      />
     </>
   );
 }
