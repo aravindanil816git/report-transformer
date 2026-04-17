@@ -15,18 +15,23 @@ export default function ShopwiseReport() {
   const [view, setView] = useState("case");
 
   // ===== FILTER OPTIONS =====
-  const warehouseOptions = Object.keys(mapping).map((w) => ({
-    value: w,
-    label: w,
-  }));
+  const warehouseOptions = Object.entries(mapping.bonds || {}).flatMap(
+  ([bond, bData]) =>
+    Object.entries(bData.warehouses || {}).map(([wh, wData]) => ({
+      value: wh,
+      label: wData.warehouse_name || wh,
+    }))
+);
 
   const shopOptions = useMemo(() => {
     if (!warehouse) return [];
-    const shops = mapping[warehouse]?.shops || {};
-    return Object.entries(shops).map(([code, s]) => ({
-      value: code,
-      label: `${s.shop_name} (${code})`,
-    }));
+    let shops = {};
+
+    Object.values(mapping.bonds || {}).forEach((b) => {
+      if (b.warehouses?.[warehouse]) {
+        shops = b.warehouses[warehouse].shops || {};
+      }
+    });
   }, [warehouse]);
 
   // ===== LOAD =====

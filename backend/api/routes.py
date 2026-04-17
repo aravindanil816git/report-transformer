@@ -3,7 +3,7 @@ import shutil
 import uuid
 import pandas as pd
 import os
-from datetime import datetime, timedelta
+import math
 
 from services.store import reports
 from services.registry import get_service
@@ -11,30 +11,52 @@ from services.registry import get_service
 router = APIRouter()
 
 
-# ================= HELPER =================
-def generate_days(start_date, num_days):
-    start = datetime.strptime(start_date, "%Y-%m-%d")
-    return [
-        (start + timedelta(days=i)).strftime("%Y-%m-%d")
-        for i in range(num_days)
-    ]
+# ================= GLOBAL CLEANER =================
+def clean_nan(obj):
+    if isinstance(obj, dict):
+        return {k: clean_nan(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_nan(v) for v in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    return obj
 
 
 # ================= CREATE REPORT =================
 @router.post("/reports")
-def create_report(name: str, type: str, start_date: str = None, num_days: int = None):
+def create_report(
+    name: str,
+    type: str,
+    date: str = None,
+    date1: str = None,
+    date2: str = None
+):
     rid = str(uuid.uuid4())
 
-    if type in ["cumulative_shopwise", "cumulative_warehouse"]:
-        days = generate_days(start_date, int(num_days))
+    uploads = []
+    config = {}
+
+    # 🔥 DAILY SECONDARY
+    if type == "daily_secondary_sales":
+        from services.reports.cumulative_warehouse import WAREHOUSE_TO_BOND
+
         uploads = [
-            {"date": d, "file": None, "status": "pending", "data": None}
-            for d in days
+            {
+                "warehouse": wh,
+                "file": None,
+                "status": "pending",
+                "data": None
+            }
+            for wh in WAREHOUSE_TO_BOND.keys()
         ]
-        config = {"start_date": start_date, "num_days": int(num_days)}
-    else:
-        uploads = []
-        config = {}
+
+        config = {"date": date}
+
+    # 🔥 MONTH COMPARATIVE
+    elif type == "month_comparative":
+        config = {"date1": date1, "date2": date2}
 
     reports[rid] = {
         "id": rid,
@@ -42,18 +64,32 @@ def create_report(name: str, type: str, start_date: str = None, num_days: int = 
         "type": type,
         "status": "Created",
         "uploads": uploads,
-        "data": None,
         "processed": None,
         "config": config
     }
 
-    return reports[rid]
+    return clean_nan(reports[rid])
 
 
 # ================= LIST REPORTS =================
 @router.get("/reports")
 def list_reports():
-    return list(reports.values())
+    clean = []
+
+    for r in reports.values():
+        r_copy = dict(r)
+
+        # 🔥 remove raw data (prevents NaN crash + heavy payload)
+        uploads = []
+        for u in r_copy.get("uploads", []):
+            u_copy = dict(u)
+            u_copy.pop("data", None)
+            uploads.append(u_copy)
+
+        r_copy["uploads"] = uploads
+        clean.append(r_copy)
+
+    return clean_nan(clean)
 
 
 # ================= UPLOAD =================
@@ -61,49 +97,46 @@ def list_reports():
 async def upload(
     rid: str,
     file: UploadFile = File(...),
-    from_date: str = "",
-    to_date: str = "",
-    date: str = ""
+    key: str = ""   # warehouse key
 ):
     report = reports[rid]
 
-    # save file temporarily
     path = f"temp_{file.filename}"
     with open(path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    # ================= CUMULATIVE =================
-    if report["type"] in ["cumulative_shopwise", "cumulative_warehouse"]:
+    # 🔥 DAILY SECONDARY
+    if report["type"] == "daily_secondary_sales":
 
-        from core.utils import normalize, clean_df
-
-        df = pd.read_excel(path)
-        df = normalize(df)
-        df = clean_df(df)
-
-        # store data for that specific date
         for u in report["uploads"]:
-            if u["date"] == date:
+            if u["warehouse"].strip().upper() == key.strip().upper():
+
+                df = pd.read_excel(path)
+
+                # 🔥 STRONG CLEANING (CRITICAL)
+                df = df.replace({pd.NA: None})
+                df = df.astype(object).where(pd.notnull(df), None)
+
                 u["file"] = file.filename
                 u["status"] = "uploaded"
                 u["data"] = df.to_dict("records")
                 break
 
-        # update overall report status
-        uploaded_count = sum(
-            1 for u in report["uploads"] if u.get("status") == "uploaded"
-        )
+        uploaded = sum(1 for u in report["uploads"] if u["status"] == "uploaded")
 
-        if uploaded_count > 0:
+        # 🔥 STATUS LOGIC
+        if uploaded > 0:
             report["status"] = "Uploaded"
 
-    # ================= NORMAL REPORTS =================
+        if uploaded == len(report["uploads"]):
+            report["status"] = "Ready"
+
+    # 🔥 OTHER REPORT TYPES
     else:
         svc = get_service(report["type"])
-        svc.upload(report, path, file.filename, from_date, to_date)
+        svc.upload(report, path, file.filename)
         report["status"] = "Uploaded"
 
-    # cleanup temp file
     try:
         os.remove(path)
     except:
@@ -116,8 +149,23 @@ async def upload(
 @router.post("/process/{rid}")
 def process(rid: str):
     report = reports[rid]
-    svc = get_service(report["type"])
 
+    # 🔥 MONTH COMPARATIVE DEPENDENCY
+    if report["type"] == "month_comparative":
+    # 🔥 collect ALL daily reports
+        daily_reports = [
+            r for r in reports.values()
+            if r["type"] == "daily_secondary_sales"
+        ]
+
+        # 🔥 merge all processed data
+        combined = []
+        for d in daily_reports:
+            combined.extend(d.get("processed", []))
+
+        report["_live_source"] = combined
+
+    svc = get_service(report["type"])
     svc.process(report)
 
     report["status"] = "Processed"
@@ -127,49 +175,13 @@ def process(rid: str):
 
 # ================= GET REPORT =================
 @router.get("/report/{rid}")
-def get_report(
-    rid: str,
-    shop_code: str = None,
-    view: str = "daywise",
-    start_idx: int = None,
-    end_idx: int = None
-):
+def get_report(rid: str):
     report = reports.get(rid)
 
     if not report:
-        return {"data": [], "uploads": []}
+        return {"data": []}
 
     svc = get_service(report["type"])
+    result = svc.get_report(report)
 
-    return svc.get_report(
-        report,
-        shop_code=shop_code,
-        view=view,
-        start_idx=start_idx,
-        end_idx=end_idx
-    )
-
-
-# ================= FILTERS =================
-@router.get("/shops/{rid}")
-def get_shops(rid: str):
-    report = reports.get(rid)
-    if not report:
-        return []
-
-    svc = get_service(report["type"])
-    filters = svc.get_filters(report)
-
-    return filters.get("shops", [])
-
-
-@router.get("/warehouses/{rid}")
-def get_warehouses(rid: str):
-    report = reports.get(rid)
-    if not report:
-        return []
-
-    svc = get_service(report["type"])
-    filters = svc.get_filters(report)
-
-    return filters.get("warehouses", [])
+    return clean_nan(result)   # 🔥 CRITICAL FIX

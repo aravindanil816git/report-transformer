@@ -10,13 +10,19 @@ with open("mapping.json") as f:
 
 # ✅ FLATTEN LOOKUP
 SHOP_LOOKUP = {}
+WAREHOUSE_TO_BOND = {}
 
-for wh, w_data in MAPPING.items():
-    for shop_code, s_data in w_data["shops"].items():
-        SHOP_LOOKUP[str(shop_code).strip()] = {
-            "warehouse": wh
-        }
+for bond, b_data in MAPPING["bonds"].items():
+    for wh, w_data in b_data["warehouses"].items():
+        WAREHOUSE_TO_BOND[wh] = bond
 
+        for shop_code, s_data in w_data["shops"].items():
+            SHOP_LOOKUP[shop_code] = {
+                "warehouse": wh,
+                "bond": bond,
+                "shop_name": s_data["shop_name"],
+                "staffs": s_data["staffs"]
+            }
 
 class CumulativeWarehouseMatrixService(BaseReportService):
     type_name = "cumulative_warehouse"
@@ -117,24 +123,30 @@ class CumulativeWarehouseMatrixService(BaseReportService):
             "labels": labels
         }
 
-    def get_report(self, report, view="daywise", start_idx=None, end_idx=None, **kwargs):
+    def get_report(
+        self,
+        report,
+        shop_code=None,
+        view="daywise",
+        start_idx=None,
+        end_idx=None,
+        mode="warehouse",
+        **kwargs
+    ):
         processed = report.get("processed") or {}
         labels = processed.get("labels", [])
         data = processed.get("daywise", [])
 
-        # ✅ STRICT INDEX VALIDATION
         if (
             start_idx is not None and end_idx is not None and
-            isinstance(start_idx, int) and isinstance(end_idx, int) and
             0 <= start_idx < len(labels) and
             0 <= end_idx < len(labels) and
             start_idx <= end_idx
         ):
-            selected_indices = list(range(start_idx, end_idx + 1))
-            selected_labels = [labels[i] for i in selected_indices]
+            idxs = list(range(start_idx, end_idx + 1))
+            selected_labels = [labels[i] for i in idxs]
         else:
-            # fallback → full range
-            selected_indices = list(range(len(labels)))
+            idxs = list(range(len(labels)))
             selected_labels = labels
 
         result = []
@@ -143,30 +155,48 @@ class CumulativeWarehouseMatrixService(BaseReportService):
             new_row = {"warehouse": row["warehouse"]}
             total = 0
 
-            for i in selected_indices:
-                label = labels[i]
-                val = row.get(label, 0)
-                new_row[label] = val
+            for i in idxs:
+                l = labels[i]
+                val = row.get(l, 0)
+                new_row[l] = val
                 total += val
 
             new_row["total"] = total
             result.append(new_row)
 
-        # ✅ cumulative (filtered)
-        if view == "cumulative":
-            num_days = len(selected_indices) if selected_indices else 1
+        # 🔥 BOND MODE
+        if mode == "bond":
+            bond_map = {}
 
-            cumulative = [
-                {
-                    "warehouse": r["warehouse"],
-                    "total": r["total"],
-                    "avg": round(r["total"] / num_days)
-                }
-                for r in result
-            ]
+            for row in result:
+                wh = row["warehouse"]
+                bond = WAREHOUSE_TO_BOND.get(wh, "UNKNOWN")
+
+                if bond not in bond_map:
+                    bond_map[bond] = {"warehouse": bond}
+                    for k in row:
+                        if k != "warehouse":
+                            bond_map[bond][k] = 0
+
+                for k, v in row.items():
+                    if k != "warehouse":
+                        bond_map[bond][k] += v
+
+            result = list(bond_map.values())
+
+        # cumulative
+        if view == "cumulative":
+            days = len(idxs) or 1
 
             return {
-                "data": cumulative,
+                "data": [
+                    {
+                        "warehouse": r["warehouse"],
+                        "total": r["total"],
+                        "avg": round(r["total"] / days)
+                    }
+                    for r in result
+                ],
                 "labels": selected_labels,
                 "config": report.get("config", {})
             }

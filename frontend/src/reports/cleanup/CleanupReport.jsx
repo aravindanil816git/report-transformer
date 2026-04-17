@@ -9,6 +9,7 @@ export default function CleanupReport() {
   const [data, setData] = useState([]);
   const [warehouse, setWarehouse] = useState();
   const [shop, setShop] = useState();
+  
 
   // ===== LOAD DATA =====
   useEffect(() => {
@@ -18,10 +19,13 @@ export default function CleanupReport() {
   }, [id]);
 
   // ===== WAREHOUSE OPTIONS =====
-  const warehouseOptions = Object.keys(mapping).map((w) => ({
-    value: w,
-    label: w,
-  }));
+  const warehouseOptions = Object.entries(mapping.bonds || {}).flatMap(
+  ([bond, bData]) =>
+    Object.entries(bData.warehouses || {}).map(([wh, wData]) => ({
+      value: wh,
+      label: wData.warehouse_name || wh,
+    }))
+);
 
   // ===== SHOP OPTIONS =====
   const shopOptions = useMemo(() => {

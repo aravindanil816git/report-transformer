@@ -1,7 +1,8 @@
-
 import ShopwiseReport from "./shopwise/ShopwiseReport";
 import CumShopwiseReport from "./shopwise/CumShopwiseReport";
 import CleanupReport from "./cleanup/CleanupReport";
+import DailySecondaryReport from "./comparitive/DailySecondaryReport";
+import MonthlyComparitive from "./comparitive/MonthComparative";
 import CumulativeWarehouseReport from "./shopwise/CumWareHouseReport";
 
 export const REPORT_REGISTRY = {
@@ -25,4 +26,14 @@ export const REPORT_REGISTRY = {
   route: "/report/cumulative_warehouse/:id",
   label: "Cumulative Warehouse Offtake",
 },
+daily_secondary_sales: {
+  label: "Daily Secondary Sales",
+  component: DailySecondaryReport,
+  route: "/daily-secondary/:id"
+},
+month_comparative: {
+  label: "Month Comparative",
+  component: MonthlyComparitive,
+  route: "/month-compare/:id"
+}
 };

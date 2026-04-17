@@ -18,11 +18,14 @@ export default function CumulativeShopwiseReport() {
   const [warehouseFilter, setWarehouseFilter] = useState(null);
   const [dateRange, setDateRange] = useState([]);
 
+  const [mode, setMode] = useState("warehouse");
+
   // 🔹 load
   const load = async (startIdx = null, endIdx = null) => {
     const res = await getReport(id, null, view, {
       start_idx: startIdx,
-      end_idx: endIdx
+      end_idx: endIdx,
+      mode
     });
 
     const cleaned = (res.data.data || []).filter(d => d.warehouse);
@@ -37,9 +40,9 @@ export default function CumulativeShopwiseReport() {
   };
 
   // 🔥 retain filters on view switch
-  useEffect(() => {
-    applyFilters();
-  }, [view]);
+useEffect(() => {
+  applyFilters();
+}, [view, mode]);
 
   const labelToDate = (label) => dayjs(label.split(" ")[0], "DD-MMM");
 
@@ -112,6 +115,23 @@ export default function CumulativeShopwiseReport() {
   return (
     <div style={{ padding: 20 }}>
       <h2>Cumulative Shopwise Report</h2>
+
+      <div style={{ marginBottom: 16 }}>
+  <Button
+    type={mode === "warehouse" ? "primary" : "default"}
+    onClick={() => setMode("warehouse")}
+  >
+    Warehouse
+  </Button>
+
+  <Button
+    type={mode === "bond" ? "primary" : "default"}
+    onClick={() => setMode("bond")}
+    style={{ marginLeft: 8 }}
+  >
+    Bond
+  </Button>
+</div>
 
       <div style={{ marginBottom: 12 }}>
         <b>Start Date:</b> {config.start_date} &nbsp;&nbsp;
