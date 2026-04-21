@@ -6,6 +6,8 @@ import {
   Input,
   Select,
   DatePicker,
+  Form,
+  Space,
 } from "antd";
 import {
   listReports,
@@ -13,10 +15,15 @@ import {
   processReport,
 } from "../api";
 import { REPORT_REGISTRY } from "../reports";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import dayjs from "dayjs";
 
 import DailySecondaryUploadModal from "./DailySecondaryUploadModal";
+import CumulativeUploadModal from "./CumShopUpload";
+import SingleFileUploadModal from "./SingleFileUploadModal";
 
 export default function DataPage() {
   const [data, setData] = useState([]);
@@ -44,12 +51,29 @@ export default function DataPage() {
     load();
   }, []);
 
+  useEffect(() => {
+    if (typeFilter) {
+      setType(typeFilter);
+    }
+  }, [typeFilter, open]);
+
+  const handleAddReport = () => {
+    setName("");
+    setReportDate(null);
+    setDate1(null);
+    setDate2(null);
+    if (typeFilter) {
+      setType(typeFilter);
+    }
+    setOpen(true);
+  };
+
   const handleProcess = async (id) => {
     await processReport(id);
     load();
   };
 
-  // 🔥 available dates from daily reports
+  // 🔥 available dates for comparative
   const dailyDates = data
     .filter((d) => d.type === "daily_secondary_sales")
     .map((d) => d.config?.date)
@@ -69,7 +93,7 @@ export default function DataPage() {
     {
       title: "Date",
       render: (_, r) => {
-        if (r.type === "daily_secondary_sales") {
+        if (["daily_secondary_sales", "shopwise", "daily_warehouse"].includes(r.type)) {
           return r.config?.date
             ? dayjs(r.config.date).format("DD MMM YYYY")
             : "-";
@@ -94,8 +118,10 @@ export default function DataPage() {
 
         return (
           <>
-            {/* 🔥 Upload only for Daily */}
-            {r.type === "daily_secondary_sales" && (
+            {/* 🔥 Upload for DAILY + CLEANUP + CUMULATIVE */}
+            {["shopwise", "daily_secondary_sales", "daily_warehouse", "cumulative_shopwise", "cumulative_warehouse"].includes(
+              r.type
+            ) && (
               <Button
                 onClick={() => {
                   setCurrent(r);
@@ -114,7 +140,8 @@ export default function DataPage() {
             )}
 
             {/* 🔥 View */}
-            {r.status === "Processed" && (
+            {r.status === "Processed" 
+&& (
               <Button
                 onClick={() =>
                   navigate(config.route.replace(":id", r.id))
@@ -131,7 +158,7 @@ export default function DataPage() {
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>Add Report</Button>
+      <Button onClick={handleAddReport}>Add Report</Button>
 
       <Table
         columns={columns}
@@ -140,8 +167,8 @@ export default function DataPage() {
         style={{ marginTop: 20 }}
       />
 
-      {/* CREATE MODAL */}
       <Modal
+        title="Create New Report"
         open={open}
         onOk={async () => {
           if (type === "month_comparative") {
@@ -152,7 +179,19 @@ export default function DataPage() {
 
             // 🔥 auto process
             await processReport(res.data.id);
-          } else {
+          }
+          else if (type === "monthly_stock_sales") {
+            await createReport(name, type, {
+              date: reportDate?.format("YYYY-MM"),
+            });
+          } 
+          else if (["cumulative_shopwise", "cumulative_warehouse"].includes(type)) {
+            await createReport(name, type, {
+              date1: date1?.format("YYYY-MM-DD"),
+              date2: date2?.format("YYYY-MM-DD"),
+            });
+          }
+          else {
             await createReport(name, type, {
               date: reportDate?.format("YYYY-MM-DD"),
             });
@@ -162,59 +201,100 @@ export default function DataPage() {
           load();
         }}
         onCancel={() => setOpen(false)}
+        width={500}
       >
-        <Input
-          placeholder="Report Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+        <Form layout="vertical" style={{ marginTop: 20 }}>
+          <Form.Item label="Report Name">
+            <Input
+              placeholder="Enter report name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </Form.Item>
 
-        <Select
-          value={type}
-          onChange={setType}
-          options={Object.entries(REPORT_REGISTRY).map(
-            ([k, v]) => ({
-              value: k,
-              label: v.label,
-            })
+          <Form.Item label="Report Type">
+            <Select
+              showSearch
+              value={type}
+              onChange={setType}
+              style={{ width: '100%' }}
+              placeholder="Select report type"
+              optionFilterProp="label"
+              options={Object.entries(REPORT_REGISTRY).map(
+                ([k, v]) => ({
+                  value: k,
+                  label: v.label,
+                })
+              )}
+            />
+          </Form.Item>
+
+          {/* 🔥 DAILY */}
+          {["daily_secondary_sales", "shopwise"].includes(type) && (
+            <Form.Item label="Report Date">
+              <DatePicker style={{ width: '100%' }} onChange={setReportDate} />
+            </Form.Item>
           )}
-        />
 
-        {/* DAILY */}
-        {type === "daily_secondary_sales" && (
-          <DatePicker onChange={setReportDate} />
-        )}
+          {/* 🔥 CLEANUP */}
+          {type === "daily_warehouse" && (
+            <Form.Item label="Report Date">
+              <DatePicker style={{ width: '100%' }} onChange={setReportDate} />
+            </Form.Item>
+          )}
 
-        {/* MONTH COMPARATIVE */}
-        {type === "month_comparative" && (
-          <>
-            <DatePicker
-              placeholder="Date 1"
-              onChange={setDate1}
-              disabledDate={(current) =>
-                !dailyDates.includes(
-                  current.format("YYYY-MM-DD")
-                )
-              }
-            />
+          {type === "monthly_stock_sales" && (
+            <Form.Item label="Select Month">
+              <DatePicker picker="month" style={{ width: '100%' }} onChange={setReportDate} />
+            </Form.Item>
+          )}
 
-            <DatePicker
-              placeholder="Date 2"
-              onChange={setDate2}
-              disabledDate={(current) =>
-                !dailyDates.includes(
-                  current.format("YYYY-MM-DD")
-                )
-              }
-            />
-          </>
-        )}
+          {["month_comparative", "cumulative_shopwise", "cumulative_warehouse"].includes(type) && (
+            <Form.Item label="Date Range">
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <DatePicker
+                  placeholder="Start Date"
+                  style={{ width: '100%' }}
+                  onChange={setDate1}
+                />
+                <DatePicker
+                  placeholder="End Date"
+                  style={{ width: '100%' }}
+                  onChange={setDate2}
+                />
+              </Space>
+            </Form.Item>
+          )}
+        </Form>
       </Modal>
 
-      {/* UPLOAD MODAL */}
+      {/* 🔥 UPLOAD MODAL */}
       {uploadOpen &&
-        current?.type === "daily_secondary_sales" && (
+        ["daily_secondary_sales", "daily_warehouse"].includes(
+          current?.type
+        ) && (
           <DailySecondaryUploadModal
+            report={current}
+            onClose={() => setUploadOpen(false)}
+            reload={load}
+          />
+        )}
+
+      {/* 🔥 SINGLE FILE UPLOAD MODAL */}
+      {uploadOpen && current?.type === "shopwise" && (
+        <SingleFileUploadModal
+          report={current}
+          onClose={() => setUploadOpen(false)}
+          reload={load}
+        />
+      )}
+
+      {/* 🔥 CUMULATIVE UPLOAD MODAL */}
+      {uploadOpen &&
+        ["cumulative_shopwise", "cumulative_warehouse"].includes(
+          current?.type
+        ) && (
+          <CumulativeUploadModal
             report={current}
             onClose={() => setUploadOpen(false)}
             reload={load}

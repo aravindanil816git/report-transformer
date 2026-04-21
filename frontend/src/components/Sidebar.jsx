@@ -16,21 +16,45 @@ export default function Sidebar() {
 
   const items = [
     {
-      key: "data",
-      label: "Data Centre",
+      key: "data-home",
+      label: "All Reports",
+    },
+    {
+      key: "grp-daily",
+      label: "Daily Uploads",
+      type: 'group',
       children: [
-        { key: "data-home", label: "All Reports" },
-        ...reportItems,
+        { key: "report-shopwise", label: REPORT_REGISTRY.shopwise.label },
+        { key: "report-daily_warehouse", label: REPORT_REGISTRY.daily_warehouse.label },
+        { key: "report-daily_secondary_sales", label: REPORT_REGISTRY.daily_secondary_sales.label },
+      ],
+    },
+    {
+      key: "grp-cumulative",
+      label: "Cumulative Uploads",
+      type: 'group',
+      children: [
+        { key: "report-cumulative_warehouse", label: REPORT_REGISTRY.cumulative_warehouse.label },
+        { key: "report-cumulative_shopwise", label: REPORT_REGISTRY.cumulative_shopwise.label },
+      ],
+    },
+    {
+      key: "grp-reports",
+      label: "Reports",
+      type: 'group',
+      children: [
+        { key: "report-month_comparative", label: REPORT_REGISTRY.month_comparative.label },
+        { key: "report-monthly_stock_sales", label: REPORT_REGISTRY.monthly_stock_sales.label },
       ],
     },
   ];
 
   return (
-    <Sider>
+    <Sider width={250}>
       <Menu
         theme="dark"
         mode="inline"
-        selectedKeys={[location.pathname]}
+        selectedKeys={[location.search ? `report-${new URLSearchParams(location.search).get('type')}` : 'data-home']}
         items={items}
         onClick={(e) => {
           if (e.key === "data-home") navigate("/");

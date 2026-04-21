@@ -58,7 +58,7 @@ export default function DailySecondaryUploadModal({
       open
       onCancel={onClose}
       footer={null}
-      title="Upload Daily Secondary Sales"
+      title="Upload Daily data"
       width={800}
     >
       <Table

@@ -22,7 +22,7 @@ export default function CumulativeShopwiseReport() {
 
   // 🔹 load
   const load = async (startIdx = null, endIdx = null) => {
-    const res = await getReport(id, null, view, {
+    const res = await getReportgetReport(id, null, view, {
       start_idx: startIdx,
       end_idx: endIdx,
       mode

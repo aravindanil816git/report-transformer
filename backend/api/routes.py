@@ -54,11 +54,58 @@ def create_report(
 
         config = {"date": date}
 
+    # 🔥 DAILY WAREHOUSE
+    elif type == "daily_warehouse":
+        from services.reports.cumulative_warehouse import WAREHOUSE_TO_BOND
+
+        uploads = [
+            {
+                "warehouse": wh,
+                "file": None,
+                "status": "pending",
+                "data": None
+            }
+            for wh in WAREHOUSE_TO_BOND.keys()
+        ]
+
+        config = {"date": date}
+
+    # 🔥 SHOPWISE
+    elif type == "shopwise":
+        config = {"date": date}
+
+    # 🔥 MONTHLY STOCK SALES (FIXED)
+    elif type == "monthly_stock_sales":
+        config = {"month": date}
+
     # 🔥 MONTH COMPARATIVE
     elif type == "month_comparative":
         config = {"date1": date1, "date2": date2}
 
-    reports[rid] = {
+    # 🔥 CUMULATIVE REPORTS
+    elif type in ["cumulative_shopwise", "cumulative_warehouse"]:
+        from datetime import datetime, timedelta
+        start = datetime.strptime(date1, "%Y-%m-%d")
+        end = datetime.strptime(date2, "%Y-%m-%d")
+        num_days = (end - start).days + 1
+
+        uploads = [
+            {
+                "date": (start + timedelta(days=i)).strftime("%Y-%m-%d"),
+                "file": None,
+                "status": "pending",
+                "data": None
+            }
+            for i in range(num_days)
+        ]
+
+        config = {
+            "start_date": date1,
+            "end_date": date2,
+            "num_days": num_days
+        }
+
+    report = {
         "id": rid,
         "name": name,
         "type": type,
@@ -68,7 +115,21 @@ def create_report(
         "config": config
     }
 
-    return clean_nan(reports[rid])
+    reports[rid] = report
+
+    # 🔥 AUTO PROCESS FOR MONTHLY REPORT
+    if type == "monthly_stock_sales":
+        svc = get_service(type)
+
+        report["all_reports"] = [
+            r for r in reports.values() if r["id"] != rid
+        ]
+
+        svc.process(report)
+
+        report["status"] = "Processed"
+
+    return clean_nan(report)
 
 
 # ================= LIST REPORTS =================
@@ -79,7 +140,6 @@ def list_reports():
     for r in reports.values():
         r_copy = dict(r)
 
-        # 🔥 remove raw data (prevents NaN crash + heavy payload)
         uploads = []
         for u in r_copy.get("uploads", []):
             u_copy = dict(u)
@@ -97,23 +157,19 @@ def list_reports():
 async def upload(
     rid: str,
     file: UploadFile = File(...),
-    key: str = ""   # warehouse key
+    key: str = ""
 ):
     report = reports[rid]
 
-    path = f"temp_{file.filename}"
+    path = f"temp_{rid}_{file.filename}"
     with open(path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    # 🔥 DAILY SECONDARY
     if report["type"] == "daily_secondary_sales":
-
         for u in report["uploads"]:
             if u["warehouse"].strip().upper() == key.strip().upper():
-
                 df = pd.read_excel(path)
 
-                # 🔥 STRONG CLEANING (CRITICAL)
                 df = df.replace({pd.NA: None})
                 df = df.astype(object).where(pd.notnull(df), None)
 
@@ -122,25 +178,39 @@ async def upload(
                 u["data"] = df.to_dict("records")
                 break
 
-        uploaded = sum(1 for u in report["uploads"] if u["status"] == "uploaded")
+    elif report["type"] == "daily_warehouse":
+        for u in report["uploads"]:
+            if u["warehouse"].strip().upper() == key.strip().upper():
+                u["file"] = file.filename
+                u["status"] = "uploaded"
+                u["path"] = path
+                break
 
-        # 🔥 STATUS LOGIC
-        if uploaded > 0:
-            report["status"] = "Uploaded"
+    elif report["type"] == "shopwise":
+        svc = get_service("shopwise")
+        svc.upload(report, path, file.filename, None, None)
+        report["status"] = "Ready"
+        return {"status": "uploaded"}
 
-        if uploaded == len(report["uploads"]):
-            report["status"] = "Ready"
+    elif report["type"] in ["cumulative_shopwise", "cumulative_warehouse"]:
+        for u in report["uploads"]:
+            if u["date"] == key:
+                df = pd.read_excel(path)
+                u["file"] = file.filename
+                u["status"] = "uploaded"
+                u["data"] = df.replace({pd.NA: None}).astype(object).where(pd.notnull(df), None).to_dict("records")
+                break
 
-    # 🔥 OTHER REPORT TYPES
-    else:
-        svc = get_service(report["type"])
-        svc.upload(report, path, file.filename)
+    if not report.get("uploads"):
+        return {"status": "uploaded"}
+
+    uploaded = sum(1 for u in report["uploads"] if u.get("status") == "uploaded")
+
+    if uploaded > 0:
         report["status"] = "Uploaded"
 
-    try:
-        os.remove(path)
-    except:
-        pass
+    if uploaded == len(report["uploads"]):
+        report["status"] = "Ready"
 
     return {"status": "uploaded"}
 
@@ -150,15 +220,15 @@ async def upload(
 def process(rid: str):
     report = reports[rid]
 
-    # 🔥 MONTH COMPARATIVE DEPENDENCY
+    if report["type"] == "monthly_stock_sales":
+        report["all_reports"] = list(reports.values())
+
     if report["type"] == "month_comparative":
-    # 🔥 collect ALL daily reports
         daily_reports = [
             r for r in reports.values()
             if r["type"] == "daily_secondary_sales"
         ]
 
-        # 🔥 merge all processed data
         combined = []
         for d in daily_reports:
             combined.extend(d.get("processed", []))
@@ -184,4 +254,4 @@ def get_report(rid: str):
     svc = get_service(report["type"])
     result = svc.get_report(report)
 
-    return clean_nan(result)   # 🔥 CRITICAL FIX
+    return clean_nan(result)
