@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { Table, Select, Segmented, Row, Col, Button } from "antd";
 import { useParams } from "react-router-dom";
-import { getReport } from "../../api";
+import { getReport, getWarehouses, getShops } from "../../api";
 import mapping from "../../data/mapping.json";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
@@ -14,20 +14,32 @@ export default function ShopwiseReport() {
   const [shop, setShop] = useState();
   const [view, setView] = useState("case");
 
-  // ===== FILTER OPTIONS =====
-  const warehouseOptions = Object.keys(mapping).map((w) => ({
-    value: w,
-    label: w,
-  }));
+  const [warehouseOptions, setWarehouseOptions] = useState([]);
+  const [shopOptions, setShopOptions] = useState([]);
 
-  const shopOptions = useMemo(() => {
-    if (!warehouse) return [];
-    const shops = mapping[warehouse]?.shops || {};
-    return Object.entries(shops).map(([code, s]) => ({
-      value: code,
-      label: `${s.shop_name} (${code})`,
-    }));
-  }, [warehouse]);
+  useEffect(() => {
+    getWarehouses(id).then((res) => {
+      setWarehouseOptions(
+        (res.data || []).map((wh) => ({ value: wh, label: wh }))
+      );
+    });
+  }, [id]);
+
+  useEffect(() => {
+    if (warehouse) {
+      // Re-fetch with warehouse param for better accuracy
+      fetch(
+        `http://localhost:8000/shops/${id}?warehouse=${encodeURIComponent(
+          warehouse
+        )}`
+      )
+        .then((r) => r.json())
+        .then((data) => setShopOptions(data));
+    } else {
+      setShopOptions([]);
+    }
+  }, [id, warehouse]);
+
 
   // ===== LOAD =====
   const load = () => {

@@ -12,16 +12,22 @@ with open("mapping.json") as f:
 
 # ✅ FLATTEN LOOKUP
 SHOP_LOOKUP = {}
+WAREHOUSE_TO_BOND = {}
 
-for wh, w_data in MAPPING.items():
-    for shop_code, s_data in w_data["shops"].items():
-        SHOP_LOOKUP[str(shop_code).strip()] = {
-            "warehouse": wh,
-            "warehouse_code": w_data["warehouse_code"],
-            "shop_name": s_data["shop_name"],
-            "staffs": s_data["staffs"]
-        }
+for bond, b_data in MAPPING.get("bonds", {}).items():
+    for wh, w_data in b_data.get("warehouses", {}).items():
 
+        WAREHOUSE_TO_BOND[wh] = bond
+
+        for shop_code, s_data in w_data.get("shops", {}).items():
+            key = str(shop_code).strip()
+
+            SHOP_LOOKUP[key] = {
+                "warehouse": wh,
+                "bond": bond,
+                "shop_name": s_data.get("shop_name"),
+                "staffs": s_data.get("staffs")
+            }
 
 class CumulativeShopwiseReportService(BaseReportService):
     type_name = "cumulative_shopwise"
@@ -198,83 +204,77 @@ class CumulativeShopwiseReportService(BaseReportService):
             "labels": labels
         }
 
-    def get_report(self, report, view="daywise_opening", start_idx=None, end_idx=None, **kwargs):
+    def get_report(
+        self,
+        report,
+        shop_code=None,
+        view="daywise",
+        start_idx=None,
+        end_idx=None,
+        mode="warehouse",
+        **kwargs
+    ):
         processed = report.get("processed") or {}
         labels = processed.get("labels", [])
-
         data = processed.get(view, [])
 
-        # ✅ STRICT INDEX VALIDATION
         if (
             start_idx is not None and end_idx is not None and
-            isinstance(start_idx, int) and isinstance(end_idx, int) and
             0 <= start_idx < len(labels) and
             0 <= end_idx < len(labels) and
             start_idx <= end_idx
         ):
-            selected_indices = list(range(start_idx, end_idx + 1))
-            selected_labels = [labels[i] for i in selected_indices]
+            idxs = list(range(start_idx, end_idx + 1))
+            selected_labels = [labels[i] for i in idxs]
         else:
-            selected_indices = list(range(len(labels)))
+            idxs = list(range(len(labels)))
             selected_labels = labels
 
-        # 🔥 DAYWISE VIEWS (Opening / Receipt / Sales)
-        if view in ["daywise_opening", "daywise_receipt", "daywise_sales"]:
-            result = []
+        result = []
 
-            for row in data:
-                new_row = {"warehouse": row["warehouse"]}
-                total = 0
+        for row in data:
+            new_row = {"warehouse": row["warehouse"]}
+            total = 0
 
-                for i in selected_indices:
-                    label = labels[i]
-                    val = row.get(label, 0)
-                    new_row[label] = val
-                    total += val
+            for i in idxs:
+                l = labels[i]
+                val = row.get(l, 0)
+                new_row[l] = val
+                total += val
 
-                new_row["total"] = total
-                result.append(new_row)
+            new_row["total"] = total
+            result.append(new_row)
 
-            return {
-                "data": result,
-                "labels": selected_labels,
-                "config": report.get("config", {})
-            }
+        # 🔥 BOND MODE
+        if mode == "bond":
+            bond_map = {}
 
-        # 🔥 CUMULATIVE VIEW (RECOMPUTE BASED ON FILTER)
+            for row in result:
+                wh = row["warehouse"]
+                bond = WAREHOUSE_TO_BOND.get(wh, "UNKNOWN")
+
+                if bond not in bond_map:
+                    bond_map[bond] = {"warehouse": bond}
+                    for k in row:
+                        if k != "warehouse":
+                            bond_map[bond][k] = 0
+
+                for k, v in row.items():
+                    if k != "warehouse":
+                        bond_map[bond][k] += v
+
+            result = list(bond_map.values())
+
+        # cumulative
         if view == "cumulative":
-            # reconstruct from daywise_sales (or opening/receipt depending on need)
-            base_data = processed.get("daywise_sales", [])
-
-            cumulative = []
-
-            for row in base_data:
-                total_sales = 0
-
-                for i in selected_indices:
-                    label = labels[i]
-                    total_sales += row.get(label, 0)
-
-                num_days = len(selected_indices) if selected_indices else 1
-
-                cumulative.append({
-                    "warehouse": row["warehouse"],
-                    "opening": 0,  # optional: you can enhance if needed
-                    "receipt": 0,
-                    "sales": total_sales,
-                    "closing": total_sales,
-                    "difference": total_sales,
-                    "avg_sales_per_day": round(total_sales / num_days)
-                })
-
             return {
-                "data": cumulative,
+                "data": processed.get("cumulative", []),
                 "labels": selected_labels,
                 "config": report.get("config", {})
             }
 
         return {
-            "data": [],
+            "data": result,
             "labels": selected_labels,
             "config": report.get("config", {})
         }

@@ -1,46 +1,69 @@
-
 import axios from "axios";
-// const API = process.env.REACT_APP_API_URL || "http://localhost:8000";
-const API = import.meta.env.VITE_REACT_APP_API_URL;
 
-export const listReports = () => axios.get(`${API}/reports`);
+const API_BASE = "http://localhost:8000";
+
+// 🔥 single axios instance (important)
+const api = axios.create({
+  baseURL: API_BASE,
+});
+
+// ================= REPORTS =================
+
+export const listReports = () => api.get("/reports");
+
 export const createReport = (name, type, extra = {}) => {
   const clean = Object.fromEntries(
     Object.entries({
       name,
       type,
-      ...extra
+      ...extra,
     }).filter(([_, v]) => v !== undefined && v !== null && v !== "")
   );
 
-  const params = new URLSearchParams(clean);
-
-  return axios.post(`${API}/reports?${params.toString()}`);
+  return api.post("/reports", null, { params: clean });
 };
 
-export const uploadFile = (id, file, from, to = null) => {
-  const fd = new FormData();
-  fd.append("file", file);
+// ================= UPLOAD =================
 
-  // ✅ cumulative case (single date)
-  if (from && !to) {
-    return axios.post(`${API}/upload/${id}?date=${from}`, fd);
-  }
+export const uploadFile = (
+  id,
+  file,
+  from = null,
+  to = null,
+  key = null
+) => {
+  const form = new FormData();
+  form.append("file", file);
 
-  // ✅ normal case (range)
-  return axios.post(`${API}/upload/${id}?from_date=${from}&to_date=${to}`, fd);
+  const params = {};
+
+  if (from) params.from_date = from;
+  if (to) params.to_date = to;
+  if (key) params.key = key; // 🔥 CRITICAL (warehouse)
+
+  return api.post(`/upload/${id}`, form, { params });
 };
 
-export const processReport = (id) =>
-  axios.post(`${API}/process/${id}`);
+// ================= PROCESS =================
 
-export const getReport = (id, shop, view, extraParams = {}) =>
-  axios.get(`${API}/report/${id}`, {
+export const processReport = (id) => {
+  return api.post(`/process/${id}`);
+};
+
+// ================= GET REPORT =================
+
+export const getReport = (id, shop = null, view = null, extra = {}) => {
+  return api.get(`/report/${id}`, {
     params: {
       shop_code: shop,
       view,
-      ...extraParams
-    }
+      ...extra,
+    },
   });
-export const getShops = (id) =>
-  axios.get(`${API}/shops/${id}`);
+};
+
+// ================= FILTERS =================
+
+export const getShops = (id) => api.get(`/shops/${id}`);
+
+export const getWarehouses = (id) => api.get(`/warehouses/${id}`);

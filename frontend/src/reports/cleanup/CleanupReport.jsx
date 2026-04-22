@@ -1,127 +1,111 @@
 import { useEffect, useState, useMemo } from "react";
 import { Table, Select, Row, Col } from "antd";
 import { useParams } from "react-router-dom";
-import mapping from "../../data/mapping.json";
+import { getReport, getWarehouses, getShops } from "../../api";
 
 export default function CleanupReport() {
   const { id } = useParams();
 
   const [data, setData] = useState([]);
   const [warehouse, setWarehouse] = useState();
-  const [shop, setShop] = useState();
+  const [warehouseOptions, setWarehouseOptions] = useState([]);
 
   // ===== LOAD DATA =====
   useEffect(() => {
-    fetch(`http://localhost:8000/report/${id}`)
-      .then((r) => r.json())
-      .then((r) => setData(r.data || []));
+    getReport(id).then((res) => {
+      setData(res.data.data || []);
+    });
+    
+    getWarehouses(id).then(res => {
+      setWarehouseOptions((res.data || []).map(wh => ({ value: wh, label: wh })));
+    });
   }, [id]);
 
-  // ===== WAREHOUSE OPTIONS =====
-  const warehouseOptions = Object.keys(mapping).map((w) => ({
-    value: w,
-    label: w,
-  }));
-
-  // ===== SHOP OPTIONS =====
-  const shopOptions = useMemo(() => {
-    if (!warehouse) return [];
-
-    const shops = mapping[warehouse]?.shops || {};
-
-    return Object.entries(shops).map(([code, s]) => ({
-      value: code,
-      label: `${s.shop_name} (${code})`,
-    }));
-  }, [warehouse]);
+  // ===== FLATTEN DATA =====
+  const flattened = useMemo(() => {
+    return data.flatMap((w) =>
+      (w.items || []).map((item) => ({
+        ...item,
+        warehouse_name: w.warehouse,
+      }))
+    );
+  }, [data]);
 
   // ===== FILTER =====
   const filtered = useMemo(() => {
-    let rows = data;
+    if (!warehouse) return flattened;
 
-    if (warehouse) {
-      rows = rows.filter((d) => d.warehouse === warehouse);
-    }
-
-    if (shop) {
-      rows = rows.filter((d) => d.shop_code === shop);
-    }
-
-    return rows;
-  }, [data, warehouse, shop]);
+    return flattened.filter((d) => {
+      const dw = (d.warehouse_name || "").toUpperCase();
+      const fw = warehouse.toUpperCase();
+      return dw.includes(fw) || fw.includes(dw);
+    });
+  }, [flattened, warehouse]);
 
   // ===== COLUMNS =====
   const columns = [
-  {
-    title: "Item Name",
-    dataIndex: "Item Name",
-  },
-  {
-    title: "Product Code",
-    dataIndex: "Product Code",
-  },
+    {
+      title: "Warehouse",
+      dataIndex: "warehouse_name",
+      width: 150,
+    },
+    {
+      title: "Item Name",
+      dataIndex: "item_name",
+      sorter: (a, b) => a.item_name.localeCompare(b.item_name),
+    },
+    {
+      title: "Product Code",
+      dataIndex: "product_code",
+    },
     {
       title: "Physical Stock",
-      children: [
-        { title: "Case", dataIndex: "Physical Case" },
-        // { title: "Bottle", dataIndex: "Physical Bottle" },
-      ],
+      children: [{ title: "Case", dataIndex: "physical" }],
     },
     {
       title: "Allotted Stock",
-      children: [
-        { title: "Case", dataIndex: "Allotted Case" },
-        // { title: "Bottle", dataIndex: "Allotted Bottle" },
-      ],
+      children: [{ title: "Case", dataIndex: "allotted" }],
     },
     {
       title: "Pending Stock",
-      children: [
-        { title: "Case", dataIndex: "Pending Case" },
-        // { title: "Bottle", dataIndex: "Pending Bottle" },
-      ],
+      children: [{ title: "Case", dataIndex: "pending" }],
     },
-    { title: "WH Price", dataIndex: "WH Price" },
-    { title: "Landed Cost", dataIndex: "Landed Cost" },
+    { 
+      title: "WH Price", 
+      dataIndex: "wh_price",
+      render: (v) => v?.toLocaleString(undefined, { minimumFractionDigits: 2 })
+    },
+    { 
+      title: "Landed Cost", 
+      dataIndex: "landed_cost",
+      render: (v) => v?.toLocaleString(undefined, { minimumFractionDigits: 2 })
+    },
   ];
 
   return (
-    <>
+    <div style={{ padding: 20 }}>
       <Row gutter={16} style={{ marginBottom: 16 }}>
-        {/* ===== WAREHOUSE ===== */}
         <Col>
           <Select
-            placeholder="Warehouse"
+            placeholder="Select Warehouse"
             showSearch
-            style={{ width: 260 }}
+            allowClear
+            style={{ width: 300 }}
             options={warehouseOptions}
-            onChange={(v) => {
-              setWarehouse(v);
-              setShop(undefined);
-            }}
+            value={warehouse}
+            onChange={setWarehouse}
           />
         </Col>
-
-        {/* ===== SHOP ===== */}
-        {/* <Col>
-          <Select
-            placeholder="Shop"
-            showSearch
-            style={{ width: 300 }}
-            value={shop}
-            options={shopOptions}
-            onChange={setShop}
-            disabled={!warehouse}
-          />
-        </Col> */}
       </Row>
 
       <Table
         dataSource={filtered}
         columns={columns}
-        rowKey={(r, i) => i}
+        rowKey={(r, i) => `${r.product_code}_${i}`}
         pagination={false}
+        size="small"
+        bordered
       />
-    </>
+    </div>
   );
 }

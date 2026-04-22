@@ -2,12 +2,18 @@ from services.reports.shopwise import ShopwiseReportService
 from services.reports.warehouse import WarehouseReportService
 from services.reports.cumulative_shopwise import CumulativeShopwiseReportService
 from services.reports.cumulative_warehouse import CumulativeWarehouseMatrixService
+from services.reports.daily_secondary_sales import DailySecondarySalesService
+from services.reports.month_comparative import MonthComparativeService
+from services.reports.monthly_stock_sales import MonthlyStockSalesService
 
 _registry = {
     "shopwise": ShopwiseReportService(),
-    "cleanup": WarehouseReportService(),
+    "daily_warehouse": WarehouseReportService(),
     "cumulative_shopwise": CumulativeShopwiseReportService(),
     "cumulative_warehouse": CumulativeWarehouseMatrixService(),
+    "daily_secondary_sales": DailySecondarySalesService(),
+    "month_comparative": MonthComparativeService(),
+    "monthly_stock_sales": MonthlyStockSalesService(),
 }
 
 def get_service(report_type: str):

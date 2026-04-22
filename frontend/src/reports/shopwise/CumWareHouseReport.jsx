@@ -18,13 +18,15 @@ export default function CumulativeWarehouseReport() {
   const [warehouseFilter, setWarehouseFilter] = useState(null);
   const [dateRange, setDateRange] = useState([]);
 
+const [mode, setMode] = useState("warehouse");
+
   // 🔹 load data from backend
   const load = async (startIdx = null, endIdx = null) => {
     const res = await getReport(id, null, view, {
-      start_idx: startIdx,
-      end_idx: endIdx
+        start_idx: startIdx,
+        end_idx: endIdx,
+        mode
     });
-
     const cleaned = (res.data.data || []).filter(d => d.warehouse);
 
     setData(cleaned);
@@ -37,9 +39,9 @@ export default function CumulativeWarehouseReport() {
   };
 
   // 🔥 auto apply filters when view changes
-  useEffect(() => {
-    applyFilters();
-  }, [view]);
+useEffect(() => {
+  applyFilters();
+}, [view, mode]);
 
   // 🔹 convert label → date
   const labelToDate = (label) => {
@@ -105,6 +107,23 @@ export default function CumulativeWarehouseReport() {
   return (
     <div style={{ padding: 20 }}>
       <h2>Warehouse Daily Offtake Report</h2>
+
+      <div style={{ marginBottom: 16 }}>
+  <Button
+    type={mode === "warehouse" ? "primary" : "default"}
+    onClick={() => setMode("warehouse")}
+  >
+    Warehouse
+  </Button>
+
+  <Button
+    type={mode === "bond" ? "primary" : "default"}
+    onClick={() => setMode("bond")}
+    style={{ marginLeft: 8 }}
+  >
+    Bond
+  </Button>
+</div>
 
       {/* 🔥 FILTERS */}
       <Space style={{ marginBottom: 16 }}>

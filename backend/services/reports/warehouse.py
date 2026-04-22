@@ -5,7 +5,7 @@ from core.utils import clean_df
 
 
 class WarehouseReportService(BaseReportService):
-    type_name = "cleanup"
+    type_name = "daily_warehouse"
 
     # ================= PARSE =================
     def _parse_cleanup_excel(self, path):
@@ -24,21 +24,17 @@ class WarehouseReportService(BaseReportService):
                 if match:
                     warehouse = match.group(1).strip().upper()
 
-        # Multi-header read
         df = pd.read_excel(path, header=[4, 5])
 
-        # Flatten columns safely
         df.columns = [
             "_".join([str(i) for i in col if str(i) != "nan"])
             .lower()
-            .replace(" ", "_")
             for col in df.columns
         ]
 
         df = df.dropna(how="all")
         df = clean_df(df)
 
-        # 🔥 Remove duplicate columns
         df = df.loc[:, ~df.columns.duplicated()]
 
         if len(df) > 0:
@@ -48,149 +44,118 @@ class WarehouseReportService(BaseReportService):
 
         return df
 
-    # ================= UPLOAD =================
-    def upload(self, report, path, file_name, from_date, to_date):
-        df = self._parse_cleanup_excel(path)
+    # ================= SAFE COLUMN FIND =================
+    def _normalize(self, col):
+        return re.sub(r"[^a-z0-9]", "", col.lower())
 
-        report.setdefault("uploads", []).append(
-            {
-                "file": file_name,
-                "from": from_date,
-                "to": to_date,
-                "data": df.to_dict("records"),
-            }
-        )
-
-    # ================= COLUMN FIND =================
-    def _find_pair(self, df, keyword):
-        case_col = None
-        bottle_col = None
-
+    def _find_col(self, df, keywords):
         for col in df.columns:
-            c = col.lower()
+            c = self._normalize(col)
+            if all(k in c for k in keywords):
+                return col
+        return None
 
-            if keyword in c:
-                # STRICT matching
-                if "case" in c and "total" not in c:
-                    case_col = col
-                elif "bottle" in c and "total" not in c:
-                    bottle_col = col
-
-        return case_col, bottle_col
-
-    # ================= PROCESS =================
+    # ================= PROCESS CORE =================
     def _process_cleanup(self, df):
-        # 🔍 Find columns safely
-        phys_case, phys_bottle = self._find_pair(df, "physical")
-        alloc_case, alloc_bottle = self._find_pair(df, "allotable")
-        pend_case, pend_bottle = self._find_pair(df, "pending")
 
-        wh_price = next(
-            (c for c in df.columns if "price" in c and "wh" in c), None
-        )
+        item_name = self._find_col(df, ["item", "name"])
+        product_code = self._find_col(df, ["product", "code"])
 
-        landed_cost = next(
-            (c for c in df.columns if "landed" in c or "total_value" in c),
-            None,
-        )
+        physical = self._find_col(df, ["physical", "case"])
+        allotted = self._find_col(df, ["allotable", "case"])
+        pending = self._find_col(df, ["pending", "case"])
 
-        item_name = next((c for c in df.columns if "item" in c and "name" in c), None)
-        product_code = next((c for c in df.columns if "product" in c and "code" in c), None)
+        if not pending:
+            pending = self._find_col(df, ["dead", "case"])
 
+        wh_price = self._find_col(df, ["wh", "price"])
+        landed_cost = self._find_col(df, ["total", "value"])
 
+        # 🔥 DEBUG (remove later if needed)
+        print("---- DEBUG START ----")
+        print("COLUMNS:", df.columns.tolist())
+        print("item_name:", item_name)
+        print("product_code:", product_code)
+        print("physical:", physical)
+        print("allotted:", allotted)
+        print("pending:", pending)
+        print("wh_price:", wh_price)
+        print("landed_cost:", landed_cost)
+        print("---- DEBUG END ----")
 
+        # 🔥 CRITICAL CHECK
+        if not item_name or not product_code:
+            print("❌ Critical columns missing — skipping")
+            return []
 
         cols = []
         rename = {}
 
         def add(col, name):
-            if col and col in df.columns:
+            if col:
                 cols.append(col)
                 rename[col] = name
 
-        # ===== STOCK =====
+        add(item_name, "item_name")
+        add(product_code, "product_code")
+        add(physical, "physical")
+        add(allotted, "allotted")
+        add(pending, "pending")
+        add(wh_price, "wh_price")
+        add(landed_cost, "landed_cost")
 
-        add(item_name, "Item Name")
-        add(product_code, "Product Code")
-
-        add(phys_case, "Physical Case")
-        add(phys_bottle, "Physical Bottle")
-
-        add(alloc_case, "Allotable Case")
-        add(alloc_bottle, "Allotable Bottle")
-
-        add(pend_case, "Pending Case")
-        add(pend_bottle, "Pending Bottle")
-
-        # ===== PRICE =====
-        add(wh_price, "WH Price")
-        add(landed_cost, "Landed Cost")
-
-        # ===== WAREHOUSE =====
-        if "warehouse" in df.columns:
-            cols.append("warehouse")
+        if not cols:
+            print("⚠️ No valid columns found")
+            return []
 
         df = df[cols].rename(columns=rename)
-        NUMERIC_COLUMNS = [
-            "Physical Case",
-            "Physical Bottle",
-            "Allotable Case",
-            "Allotable Bottle",
-            "Pending Case",
-            "Pending Bottle",
-            "WH Price",
-            "Landed Cost",
-        ]
 
-        for col in NUMERIC_COLUMNS:
+        # 🔥 CLEAN NUMERIC
+        for col in ["physical", "allotted", "pending", "wh_price", "landed_cost"]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
+        return df.to_dict("records")
 
-        return df
-
-    # ================= PROCESS ENTRY =================
+    # ================= PROCESS =================
     def process(self, report):
-        dfs = [
-            pd.DataFrame(u.get("data", []))
-            for u in report.get("uploads", [])
-        ]
+        final = []
 
-        if not dfs:
-            report["processed"] = []
-            return
+        report_date = report.get("config", {}).get("date")
 
-        combined = pd.concat(dfs, ignore_index=True)
+        for u in report.get("uploads", []):
+            if u.get("status") != "uploaded":
+                continue
 
-        # 🔥 Remove duplicates again (safety)
-        combined = combined.loc[:, ~combined.columns.duplicated()]
+            path = u.get("path")
+            if not path:
+                continue
 
-        processed = self._process_cleanup(combined)
+            # 🔥 PARSE AGAIN (CORRECT WAY)
+            df = self._parse_cleanup_excel(path)
 
-        report["processed"] = processed.to_dict("records")
+            if df.empty:
+                print("⚠️ Parsed DF empty for:", path)
+                continue
+
+            warehouse = u.get("warehouse")
+
+            items = self._process_cleanup(df)
+
+            print("ITEM COUNT:", len(items))  # DEBUG
+
+            final.append({
+                "warehouse": warehouse,
+                "date": report_date,
+                "items": items
+            })
+
+        report["processed"] = final
 
     # ================= RESPONSE =================
     def get_report(self, report, **kwargs):
         return {
             "data": report.get("processed", []) or [],
             "uploads": report.get("uploads", []) or [],
+            "config": report.get("config", {})
         }
-
-    # ================= FILTER =================
-    def get_filters(self, report):
-        data = report.get("processed") or []
-
-        if not data:
-            return {"warehouses": []}
-
-        df = pd.DataFrame(data)
-
-        if "warehouse" not in df.columns:
-            return {"warehouses": []}
-
-        warehouses = [
-            {"warehouse": w}
-            for w in df["warehouse"].dropna().unique()
-        ]
-
-        return {"warehouses": warehouses}
