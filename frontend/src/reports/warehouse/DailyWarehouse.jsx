@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Table, Select } from "antd";
+import { Table, Select, Button, Space } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport } from "../../api";
+import { exportToExcel } from "../../utils/exportUtils";
 
 export default function CleanupReport() {
   const { id } = useParams();
@@ -65,18 +66,49 @@ export default function CleanupReport() {
     },
   ];
 
+  // ✅ DOWNLOAD
+  const downloadExcel = () => {
+    if (!selectedWarehouse) return;
+
+    const exportData = data.map(item => ({
+      "Item Name": item.item_name,
+      "Product Code": item.product_code,
+      "Physical Stock (Case)": item.physical,
+      "Allotted Stock (Case)": item.allotted,
+      "Pending Stock (Case)": item.pending,
+      "WH Price": item.wh_price,
+      "Landed Cost": item.landed_cost
+    }));
+
+    exportToExcel(
+      exportData,
+      {
+        Warehouse: selectedWarehouse
+      },
+      `daily_warehouse_report_${selectedWarehouse}.xlsx`,
+      "Daily Warehouse"
+    );
+  };
+
   return (
     <div>
-      {/* 🔥 Warehouse dropdown */}
-      <Select
-        placeholder="Select Warehouse"
-        style={{ width: 300, marginBottom: 20 }}
-        onChange={setSelectedWarehouse}
-        options={warehouses.map((w) => ({
-          label: w,
-          value: w,
-        }))}
-      />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <h2>Daily Warehouse Report</h2>
+        <Space>
+          <Select
+            placeholder="Select Warehouse"
+            style={{ width: 300 }}
+            onChange={setSelectedWarehouse}
+            options={warehouses.map((w) => ({
+              label: w,
+              value: w,
+            }))}
+          />
+          <Button type="primary" onClick={downloadExcel} disabled={!selectedWarehouse}>
+            Download Excel
+          </Button>
+        </Space>
+      </div>
 
       {/* 🔥 Table */}
       <Table

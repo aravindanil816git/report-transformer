@@ -333,3 +333,12 @@ def get_report(rid: str):
     result = svc.get_report(report)
 
     return clean_nan(result)
+
+
+# ================= DELETE REPORT =================
+@router.delete("/reports/{rid}")
+def delete_report(rid: str):
+    if rid in reports:
+        del reports[rid]
+        return {"status": "deleted"}
+    return {"status": "error", "message": "Report not found"}

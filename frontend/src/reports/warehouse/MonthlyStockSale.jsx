@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Table } from "antd";
+import { Table, Button } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport } from "../../api";
+import { exportToExcel } from "../../utils/exportUtils";
 
 export default function MonthlyStockSales() {
   const { id } = useParams();
@@ -34,22 +35,57 @@ export default function MonthlyStockSales() {
     { title: "CL STOCK", dataIndex: "cl" },
   ];
 
+  // ✅ DOWNLOAD
+  const downloadExcel = () => {
+    const exportData = data.map(d => ({
+      ITEM: d.warehouse,
+      "OP STOCK": d.op,
+      "INWARD": d.inward,
+      "TOTAL": d.total,
+      "SALES": d.sales,
+      "CL STOCK": d.cl
+    }));
+
+    // Add total row
+    exportData.push({
+      ITEM: "Grand Total",
+      "OP STOCK": totals.op,
+      "INWARD": totals.inward,
+      "TOTAL": totals.total,
+      "SALES": totals.sales,
+      "CL STOCK": totals.cl
+    });
+
+    exportToExcel(
+      exportData,
+      {},
+      "monthly_stock_sales_report.xlsx",
+      "Monthly Stock Sales"
+    );
+  };
+
   return (
-    <Table
-      columns={columns}
-      dataSource={data}
-      rowKey="warehouse"
-      pagination={false}
-      summary={() => (
-        <Table.Summary.Row>
-          <Table.Summary.Cell>Grand Total</Table.Summary.Cell>
-          <Table.Summary.Cell>{totals.op}</Table.Summary.Cell>
-          <Table.Summary.Cell>{totals.inward}</Table.Summary.Cell>
-          <Table.Summary.Cell>{totals.total}</Table.Summary.Cell>
-          <Table.Summary.Cell>{totals.sales}</Table.Summary.Cell>
-          <Table.Summary.Cell>{totals.cl}</Table.Summary.Cell>
-        </Table.Summary.Row>
-      )}
-    />
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h2>Monthly Stock Sales Report</h2>
+        <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
+      </div>
+      <Table
+        columns={columns}
+        dataSource={data}
+        rowKey="warehouse"
+        pagination={false}
+        summary={() => (
+          <Table.Summary.Row>
+            <Table.Summary.Cell>Grand Total</Table.Summary.Cell>
+            <Table.Summary.Cell>{totals.op}</Table.Summary.Cell>
+            <Table.Summary.Cell>{totals.inward}</Table.Summary.Cell>
+            <Table.Summary.Cell>{totals.total}</Table.Summary.Cell>
+            <Table.Summary.Cell>{totals.sales}</Table.Summary.Cell>
+            <Table.Summary.Cell>{totals.cl}</Table.Summary.Cell>
+          </Table.Summary.Row>
+        )}
+      />
+    </div>
   );
 }

@@ -3,6 +3,7 @@ import { Table, Button, Select, DatePicker, Space } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport } from "../../api";
 import dayjs from "dayjs";
+import { exportToExcel } from "../../utils/exportUtils";
 
 const { RangePicker } = DatePicker;
 
@@ -112,9 +113,53 @@ useEffect(() => {
     { title: "Avg Sales / Day", dataIndex: "avg_sales_per_day" }
   ];
 
+  // 🔥 DOWNLOAD
+  const downloadExcel = () => {
+    let exportData = [];
+    if (view === "cumulative") {
+      exportData = filteredData.map(d => ({
+        Warehouse: d.warehouse,
+        Opening: d.opening,
+        Receipt: d.receipt,
+        Sales: d.sales,
+        Closing: d.closing,
+        Difference: d.difference,
+        "Avg Sales / Day": d.avg_sales_per_day
+      }));
+    } else {
+      exportData = filteredData.map(row => {
+        const obj = { Warehouse: row.warehouse };
+        let total = 0;
+        labels.forEach(l => {
+          obj[l] = row[l] || 0;
+          total += row[l] || 0;
+        });
+        obj["Total"] = total;
+        return obj;
+      });
+    }
+
+    exportToExcel(
+      exportData,
+      {
+        Mode: mode,
+        View: view,
+        Warehouse: warehouseFilter,
+        "Date Range": dateRange.length === 2 ? `${dateRange[0].format("YYYY-MM-DD")} to ${dateRange[1].format("YYYY-MM-DD")}` : "All",
+        "Start Date": config.start_date,
+        "Total Days": config.num_days
+      },
+      "cumulative_shopwise_report.xlsx",
+      "Cumulative Shopwise"
+    );
+  };
+
   return (
     <div style={{ padding: 20 }}>
-      <h2>Cumulative Shopwise Report</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2>Cumulative Shopwise Report</h2>
+        <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
+      </div>
 
       <div style={{ marginBottom: 16 }}>
   <Button

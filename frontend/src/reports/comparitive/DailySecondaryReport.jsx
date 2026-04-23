@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Table } from "antd";
+import { Table, Button } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport } from "../../api";
+import { exportToExcel } from "../../utils/exportUtils";
 
 export default function DailySecondaryReport() {
   const { id } = useParams();
@@ -22,5 +23,23 @@ export default function DailySecondaryReport() {
     { title: "BAR", dataIndex: "BAR" },
   ];
 
-  return <Table columns={columns} dataSource={data} rowKey="warehouse" />;
+  // ✅ DOWNLOAD
+  const downloadExcel = () => {
+    exportToExcel(
+      data,
+      {},
+      "daily_secondary_sales_report.xlsx",
+      "Daily Secondary Sales"
+    );
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h2>Daily Secondary Sales Report</h2>
+        <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
+      </div>
+      <Table columns={columns} dataSource={data} rowKey="warehouse" />
+    </div>
+  );
 }

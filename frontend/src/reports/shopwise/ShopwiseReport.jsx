@@ -3,8 +3,7 @@ import { Table, Select, Segmented, Row, Col, Button } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport, getWarehouses, getShops } from "../../api";
 import mapping from "../../data/mapping.json";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
+import { exportToExcel } from "../../utils/exportUtils";
 
 export default function ShopwiseReport() {
   const { id } = useParams();
@@ -121,12 +120,16 @@ export default function ShopwiseReport() {
       });
     });
 
-    const ws = XLSX.utils.json_to_sheet(flat);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Shopwise");
-
-    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    saveAs(new Blob([buf]), "shopwise_report.xlsx");
+    exportToExcel(
+      flat,
+      {
+        Warehouse: warehouse,
+        Shop: shop,
+        View: view,
+      },
+      "shopwise_report.xlsx",
+      "Shopwise"
+    );
   };
 
   return (

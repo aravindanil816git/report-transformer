@@ -13,6 +13,8 @@ const api = axios.create({
 
 export const listReports = () => api.get("/reports");
 
+export const deleteReport = (id) => api.delete(`/reports/${id}`);
+
 export const createReport = (name, type, extra = {}) => {
   const clean = Object.fromEntries(
     Object.entries({

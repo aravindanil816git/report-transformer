@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo } from "react";
-import { Table, Select, Row, Col } from "antd";
+import { Table, Select, Row, Col, Button, Space } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport, getWarehouses, getShops } from "../../api";
+import { exportToExcel } from "../../utils/exportUtils";
 
 export default function CleanupReport() {
   const { id } = useParams();
@@ -82,9 +83,32 @@ export default function CleanupReport() {
     },
   ];
 
+  // ===== DOWNLOAD =====
+  const downloadExcel = () => {
+    const exportData = filtered.map(item => ({
+      Warehouse: item.warehouse_name,
+      "Item Name": item.item_name,
+      "Product Code": item.product_code,
+      "Physical Stock (Case)": item.physical,
+      "Allotted Stock (Case)": item.allotted,
+      "Pending Stock (Case)": item.pending,
+      "WH Price": item.wh_price,
+      "Landed Cost": item.landed_cost
+    }));
+
+    exportToExcel(
+      exportData,
+      {
+        Warehouse: warehouse || "All"
+      },
+      "cleanup_report.xlsx",
+      "Cleanup Report"
+    );
+  };
+
   return (
     <div style={{ padding: 20 }}>
-      <Row gutter={16} style={{ marginBottom: 16 }}>
+      <Row gutter={16} style={{ marginBottom: 16 }} align="middle">
         <Col>
           <Select
             placeholder="Select Warehouse"
@@ -95,6 +119,11 @@ export default function CleanupReport() {
             value={warehouse}
             onChange={setWarehouse}
           />
+        </Col>
+        <Col>
+          <Button type="primary" onClick={downloadExcel}>
+            Download Excel
+          </Button>
         </Col>
       </Row>
 
