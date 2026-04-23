@@ -1,10 +1,9 @@
 import { useEffect, useState, useMemo } from "react";
 import { Table, Select, Segmented, Row, Col, Button } from "antd";
 import { useParams } from "react-router-dom";
-import { getReport } from "../../api";
+import { getReport, getWarehouses, getShops } from "../../api";
 import mapping from "../../data/mapping.json";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
+import { exportToExcel } from "../../utils/exportUtils";
 
 export default function ShopwiseReport() {
   const { id } = useParams();
@@ -14,25 +13,32 @@ export default function ShopwiseReport() {
   const [shop, setShop] = useState();
   const [view, setView] = useState("case");
 
-  // ===== FILTER OPTIONS =====
-  const warehouseOptions = Object.entries(mapping.bonds || {}).flatMap(
-  ([bond, bData]) =>
-    Object.entries(bData.warehouses || {}).map(([wh, wData]) => ({
-      value: wh,
-      label: wData.warehouse_name || wh,
-    }))
-);
+  const [warehouseOptions, setWarehouseOptions] = useState([]);
+  const [shopOptions, setShopOptions] = useState([]);
 
-  const shopOptions = useMemo(() => {
-    if (!warehouse) return [];
-    let shops = {};
-
-    Object.values(mapping.bonds || {}).forEach((b) => {
-      if (b.warehouses?.[warehouse]) {
-        shops = b.warehouses[warehouse].shops || {};
-      }
+  useEffect(() => {
+    getWarehouses(id).then((res) => {
+      setWarehouseOptions(
+        (res.data || []).map((wh) => ({ value: wh, label: wh }))
+      );
     });
-  }, [warehouse]);
+  }, [id]);
+
+  useEffect(() => {
+    if (warehouse) {
+      // Re-fetch with warehouse param for better accuracy
+      fetch(
+        `http://localhost:8000/shops/${id}?warehouse=${encodeURIComponent(
+          warehouse
+        )}`
+      )
+        .then((r) => r.json())
+        .then((data) => setShopOptions(data));
+    } else {
+      setShopOptions([]);
+    }
+  }, [id, warehouse]);
+
 
   // ===== LOAD =====
   const load = () => {
@@ -114,12 +120,16 @@ export default function ShopwiseReport() {
       });
     });
 
-    const ws = XLSX.utils.json_to_sheet(flat);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Shopwise");
-
-    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    saveAs(new Blob([buf]), "shopwise_report.xlsx");
+    exportToExcel(
+      flat,
+      {
+        Warehouse: warehouse,
+        Shop: shop,
+        View: view,
+      },
+      "shopwise_report.xlsx",
+      "Shopwise"
+    );
   };
 
   return (

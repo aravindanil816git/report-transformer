@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Table } from "antd";
+import { Table, Button } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport } from "../../api";
 import dayjs from "dayjs";
+import { exportToExcel } from "../../utils/exportUtils";
 
 export default function MonthComparative() {
   const { id } = useParams();
@@ -82,13 +83,50 @@ export default function MonthComparative() {
     },
   ];
 
+  // ✅ DOWNLOAD
+  const downloadExcel = () => {
+    const exportData = data.map(d => ({
+      Depot: d.warehouse,
+      [`Current STN (${d1Label})`]: d.stn1,
+      [`Current GTN (${d1Label})`]: d.gtn1,
+      [`Current TOTAL (${d1Label})`]: d.total1,
+      [`Current CFED (${d1Label})`]: d.cfed1,
+      [`Current BAR (${d1Label})`]: d.bar1,
+      [`Current Final (${d1Label})`]: d.final1,
+      [`Previous STN (${d2Label})`]: d.stn2,
+      [`Previous GTN (${d2Label})`]: d.gtn2,
+      [`Previous TOTAL (${d2Label})`]: d.total2,
+      [`Previous CFED (${d2Label})`]: d.cfed2,
+      [`Previous BAR (${d2Label})`]: d.bar2,
+      [`Previous Final (${d2Label})`]: d.final2,
+      "Difference Cases": d.diff,
+      "Difference %": d.pct
+    }));
+
+    exportToExcel(
+      exportData,
+      {
+        "Current Date": meta.date1,
+        "Previous Date": meta.date2
+      },
+      "month_comparative_report.xlsx",
+      "Month Comparative"
+    );
+  };
+
   return (
-    <Table
-      columns={columns}
-      dataSource={data}
-      rowKey="warehouse"
-      scroll={{ x: 1200 }}
-      pagination={false}
-    />
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h2>Month Comparative Report</h2>
+        <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
+      </div>
+      <Table
+        columns={columns}
+        dataSource={data}
+        rowKey="warehouse"
+        scroll={{ x: 1200 }}
+        pagination={false}
+      />
+    </div>
   );
 }

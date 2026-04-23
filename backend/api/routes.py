@@ -152,6 +152,57 @@ def list_reports():
     return clean_nan(clean)
 
 
+# ================= FILTERS =================
+@router.get("/warehouses/{rid}")
+def get_warehouses(rid: str):
+    report = reports.get(rid)
+    if not report: return []
+    
+    # Return all warehouses defined for this report
+    if report.get("uploads"):
+        return [u["warehouse"] for u in report["uploads"]]
+    
+    # fallback to mapping if no uploads list
+    from services.reports.cumulative_warehouse import MAPPING
+    return list(MAPPING.keys())
+
+@router.get("/shops/{rid}")
+def get_shops(rid: str, warehouse: str = None):
+    report = reports.get(rid)
+    if not report: return []
+    
+    from services.reports.cumulative_warehouse import MAPPING
+    
+    found_shops = []
+    target_wh = warehouse.upper() if warehouse else None
+    
+    # MAPPING structure is "WH-NAME RFL9": { shops: ... }
+    # OR bonds -> warehouses -> shops
+    
+    # Check top level first
+    for wh_name, wh_data in MAPPING.items():
+        if wh_name == "bonds": continue
+        if not target_wh or target_wh in wh_name.upper() or wh_name.upper() in target_wh:
+            for code, s_data in wh_data.get("shops", {}).items():
+                found_shops.append({
+                    "value": code,
+                    "label": f"{code} - {s_data['shop_name']}"
+                })
+                
+    # Then check bonds structure if empty
+    if not found_shops:
+        for bond, b_data in MAPPING.get("bonds", {}).items():
+            for wh, w_data in b_data.get("warehouses", {}).items():
+                if not target_wh or wh.upper() in target_wh or target_wh in wh.upper():
+                    for code, s_data in w_data.get("shops", {}).items():
+                        found_shops.append({
+                            "value": code,
+                            "label": f"{code} - {s_data['shop_name']}"
+                        })
+    
+    return found_shops
+
+
 # ================= UPLOAD =================
 @router.post("/upload/{rid}")
 async def upload(
@@ -165,25 +216,48 @@ async def upload(
     with open(path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
+    # 🔥 AUTO-DETECT WAREHOUSE IF KEY IS MISSING
+    detected_key = key
+    possible_warehouses = [u["warehouse"] for u in report.get("uploads", [])]
+
+    if not detected_key or detected_key == "auto":
+        try:
+            # We read the first few lines manually to be more robust
+            df_raw = pd.read_excel(path, header=None, nrows=10)
+            for i in range(len(df_raw)):
+                row_str = " ".join([str(x) for x in df_raw.iloc[i].values if str(x) != "nan"]).upper()
+                if "WAREHOUSE" in row_str:
+                    # Sort by length descending to match longest warehouse name first (to avoid partial matches)
+                    for wh in sorted(possible_warehouses, key=len, reverse=True):
+                        if wh.upper() in row_str:
+                            detected_key = wh
+                            print(f"DEBUG: Auto-detected warehouse: {detected_key}")
+                            break
+                if detected_key and detected_key != "auto":
+                    break
+        except Exception as e:
+            print(f"DEBUG: Error auto-detecting: {e}")
+
+    match_found = False
     if report["type"] == "daily_secondary_sales":
         for u in report["uploads"]:
-            if u["warehouse"].strip().upper() == key.strip().upper():
+            if u["warehouse"].strip().upper() == detected_key.strip().upper():
                 df = pd.read_excel(path)
-
                 df = df.replace({pd.NA: None})
                 df = df.astype(object).where(pd.notnull(df), None)
-
                 u["file"] = file.filename
                 u["status"] = "uploaded"
                 u["data"] = df.to_dict("records")
+                match_found = True
                 break
 
     elif report["type"] == "daily_warehouse":
         for u in report["uploads"]:
-            if u["warehouse"].strip().upper() == key.strip().upper():
+            if u["warehouse"].strip().upper() == detected_key.strip().upper():
                 u["file"] = file.filename
                 u["status"] = "uploaded"
                 u["path"] = path
+                match_found = True
                 break
 
     elif report["type"] == "shopwise":
@@ -199,10 +273,14 @@ async def upload(
                 u["file"] = file.filename
                 u["status"] = "uploaded"
                 u["data"] = df.replace({pd.NA: None}).astype(object).where(pd.notnull(df), None).to_dict("records")
+                match_found = True
                 break
 
-    if not report.get("uploads"):
-        return {"status": "uploaded"}
+    if not match_found:
+        if key == "auto":
+            return {"status": "error", "message": f"Could not detect warehouse for {file.filename}"}
+        else:
+            return {"status": "error", "message": f"Target '{key}' not found"}
 
     uploaded = sum(1 for u in report["uploads"] if u.get("status") == "uploaded")
 

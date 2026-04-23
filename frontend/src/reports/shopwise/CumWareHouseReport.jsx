@@ -3,6 +3,7 @@ import { Table, Button, Select, DatePicker, Space } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport } from "../../api";
 import dayjs from "dayjs";
+import { exportToExcel } from "../../utils/exportUtils";
 
 const { RangePicker } = DatePicker;
 
@@ -104,9 +105,47 @@ useEffect(() => {
     { title: "Avg / Day", dataIndex: "avg" }
   ];
 
+  // 🔥 DOWNLOAD
+  const downloadExcel = () => {
+    let exportData = [];
+    if (view === "cumulative") {
+      exportData = filteredData.map(d => ({
+        Warehouse: d.warehouse,
+        "Total Issues": d.total,
+        "Avg / Day": d.avg
+      }));
+    } else {
+      exportData = filteredData.map(row => {
+        const obj = { Warehouse: row.warehouse };
+        labels.forEach(l => {
+          obj[l] = row[l] || 0;
+        });
+        obj["Total"] = row.total;
+        return obj;
+      });
+    }
+
+    exportToExcel(
+      exportData,
+      {
+        Mode: mode,
+        View: view,
+        Warehouse: warehouseFilter,
+        "Date Range": dateRange.length === 2 ? `${dateRange[0].format("YYYY-MM-DD")} to ${dateRange[1].format("YYYY-MM-DD")}` : "All",
+        "Start Date": config.start_date,
+        "Total Days": config.num_days
+      },
+      "warehouse_daily_offtake_report.xlsx",
+      "Warehouse Daily Offtake"
+    );
+  };
+
   return (
     <div style={{ padding: 20 }}>
-      <h2>Warehouse Daily Offtake Report</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2>Warehouse Daily Offtake Report</h2>
+        <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
+      </div>
 
       <div style={{ marginBottom: 16 }}>
   <Button

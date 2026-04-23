@@ -45,7 +45,14 @@ export default function DataPage() {
   const navigate = useNavigate();
 
   const load = () =>
-    listReports().then((r) => setData(r.data || []));
+    listReports().then((r) => {
+      const reports = r.data || [];
+      setData(reports);
+      setCurrent((prev) => {
+        if (!prev) return null;
+        return reports.find((x) => x.id === prev.id) || prev;
+      });
+    });
 
   useEffect(() => {
     load();
