@@ -1,5 +1,8 @@
 import { Modal, Upload, Button, message } from "antd";
+import { InboxOutlined } from '@ant-design/icons';
 import { uploadFile } from "../api";
+
+const { Dragger } = Upload;
 
 export default function SingleFileUploadModal({ report, onClose, reload }) {
   const handleUpload = async (file) => {
@@ -20,20 +23,24 @@ export default function SingleFileUploadModal({ report, onClose, reload }) {
       footer={null}
       title={`Upload ${report.name}`}
     >
-      <div style={{ padding: '20px', textAlign: 'center' }}>
-        <Upload
+      <div style={{ padding: '20px' }}>
+        <Dragger
           maxCount={1}
           beforeUpload={(file) => {
             handleUpload(file);
             return false;
           }}
           showUploadList={false}
+          accept=".xls,.xlsx"
         >
-          <Button type="primary" size="large">Select Excel File</Button>
-        </Upload>
-        <p style={{ marginTop: 10, color: '#666' }}>
-          Please upload the single Excel file for this report.
-        </p>
+          <p className="ant-upload-drag-icon">
+            <InboxOutlined />
+          </p>
+          <p className="ant-upload-text">Click or drag file to this area to upload</p>
+          <p className="ant-upload-hint">
+            Support for a single Excel file (.xls, .xlsx).
+          </p>
+        </Dragger>
       </div>
     </Modal>
   );

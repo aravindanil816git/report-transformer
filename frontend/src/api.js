@@ -71,3 +71,5 @@ export const getReport = (id, shop = null, view = null, extra = {}) => {
 export const getShops = (id) => api.get(`/shops/${id}`);
 
 export const getWarehouses = (id) => api.get(`/warehouses/${id}`);
+
+export const getFilters = (id) => api.get(`/filters/${id}`);

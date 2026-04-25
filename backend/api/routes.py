@@ -8,6 +8,8 @@ import math
 from services.store import reports
 from services.registry import get_service
 
+from core.utils import read_excel_robust
+
 router = APIRouter()
 
 
@@ -158,6 +160,12 @@ def get_warehouses(rid: str):
     report = reports.get(rid)
     if not report: return []
     
+    # 🔥 For Shopwise, get dynamic filters from data
+    if report.get("type") == "shopwise":
+        svc = get_service("shopwise")
+        filters = svc.get_filters(report)
+        return filters.get("warehouses", [])
+
     # Return all warehouses defined for this report
     if report.get("uploads"):
         return [u["warehouse"] for u in report["uploads"]]
@@ -165,6 +173,16 @@ def get_warehouses(rid: str):
     # fallback to mapping if no uploads list
     from services.reports.cumulative_warehouse import MAPPING
     return list(MAPPING.keys())
+
+@router.get("/filters/{rid}")
+def get_report_filters(rid: str):
+    report = reports.get(rid)
+    if not report: return {}
+    
+    svc = get_service(report["type"])
+    if hasattr(svc, "get_filters"):
+        return svc.get_filters(report)
+    return {}
 
 @router.get("/shops/{rid}")
 def get_shops(rid: str, warehouse: str = None):
@@ -223,7 +241,7 @@ async def upload(
     if not detected_key or detected_key == "auto":
         try:
             # We read the first few lines manually to be more robust
-            df_raw = pd.read_excel(path, header=None, nrows=10)
+            df_raw = read_excel_robust(path, header=None, nrows=10)
             for i in range(len(df_raw)):
                 row_str = " ".join([str(x) for x in df_raw.iloc[i].values if str(x) != "nan"]).upper()
                 if "WAREHOUSE" in row_str:
@@ -242,7 +260,7 @@ async def upload(
     if report["type"] == "daily_secondary_sales":
         for u in report["uploads"]:
             if u["warehouse"].strip().upper() == detected_key.strip().upper():
-                df = pd.read_excel(path)
+                df = read_excel_robust(path)
                 df = df.replace({pd.NA: None})
                 df = df.astype(object).where(pd.notnull(df), None)
                 u["file"] = file.filename
@@ -269,7 +287,7 @@ async def upload(
     elif report["type"] in ["cumulative_shopwise", "cumulative_warehouse"]:
         for u in report["uploads"]:
             if u["date"] == key:
-                df = pd.read_excel(path)
+                df = read_excel_robust(path)
                 u["file"] = file.filename
                 u["status"] = "uploaded"
                 u["data"] = df.replace({pd.NA: None}).astype(object).where(pd.notnull(df), None).to_dict("records")
@@ -323,14 +341,28 @@ def process(rid: str):
 
 # ================= GET REPORT =================
 @router.get("/report/{rid}")
-def get_report(rid: str):
+def get_report(
+    rid: str, 
+    shop_code: str = None, 
+    view: str = "case",
+    warehouse: str = None,
+    bond: str = None
+):
     report = reports.get(rid)
 
     if not report:
         return {"data": []}
 
     svc = get_service(report["type"])
-    result = svc.get_report(report)
+    
+    # Pass all relevant filters
+    kwargs = {}
+    if shop_code: kwargs["shop_code"] = shop_code
+    if view: kwargs["view"] = view
+    if warehouse: kwargs["warehouse"] = warehouse
+    if bond: kwargs["bond"] = bond
+    
+    result = svc.get_report(report, **kwargs)
 
     return clean_nan(result)
 
