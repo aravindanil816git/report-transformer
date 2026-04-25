@@ -3,7 +3,7 @@ import re
 import json
 from datetime import datetime, timedelta
 from .base import BaseReportService
-from core.utils import normalize, clean_df
+from core.utils import normalize, clean_df, read_excel_robust
 
 
 # ✅ LOAD MAPPING
@@ -40,7 +40,7 @@ class CumulativeShopwiseReportService(BaseReportService):
         ]
 
     def upload(self, report, path, file_name, date=None, **kwargs):
-        df = pd.read_excel(path)
+        df = read_excel_robust(path)
         df = normalize(df)
         df = clean_df(df)
 

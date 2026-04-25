@@ -2,6 +2,7 @@ import pandas as pd
 import json
 from datetime import datetime, timedelta
 from .base import BaseReportService
+from core.utils import read_excel_robust
 
 
 # ✅ LOAD MAPPING
@@ -35,7 +36,7 @@ class CumulativeWarehouseMatrixService(BaseReportService):
         ]
 
     def upload(self, report, path, file_name, date=None, **kwargs):
-        df = pd.read_excel(path)
+        df = read_excel_robust(path)
 
         for u in report.get("uploads", []):
             if u["date"] == date:
