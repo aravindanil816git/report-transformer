@@ -8,7 +8,9 @@ export default function CleanupReport() {
   const { id } = useParams();
 
   const [report, setReport] = useState(null);
+  const [selectedBond, setSelectedBond] = useState("all");
   const [selectedWarehouse, setSelectedWarehouse] = useState(null);
+  const [selectedPack, setSelectedPack] = useState("all");
   const [data, setData] = useState([]);
 
   // ✅ ALWAYS RUN
@@ -29,11 +31,35 @@ export default function CleanupReport() {
       (d) => d.warehouse === selectedWarehouse
     );
 
-    setData(found?.items || []);
-  }, [selectedWarehouse, report]);
+    let items = found?.items || [];
 
-  const warehouses =
-    report?.uploads?.map((u) => u.warehouse) || [];
+    if (selectedPack !== "all") {
+      items = items.filter(item => item.pack === selectedPack);
+    }
+
+    setData(items);
+  }, [selectedWarehouse, selectedPack, report]);
+
+  const bonds = Array.from(new Set(
+    (report?.uploads || []).map(u => u.bond).filter(Boolean)
+  )).sort();
+
+  const warehouses = (report?.uploads || [])
+    .filter(u => selectedBond === "all" || u.bond === selectedBond)
+    .map((u) => u.warehouse);
+
+  // Clear selected warehouse if it's no longer in the filtered list
+  useEffect(() => {
+    if (selectedWarehouse && !warehouses.includes(selectedWarehouse)) {
+      setSelectedWarehouse(null);
+    }
+  }, [selectedBond]);
+
+  const packs = Array.from(new Set(
+    (report?.data?.find(d => d.warehouse === selectedWarehouse)?.items || [])
+      .map(item => item.pack)
+      .filter(Boolean)
+  )).sort();
 
   const columns = [
     {
@@ -43,6 +69,10 @@ export default function CleanupReport() {
     {
       title: "Product Code",
       dataIndex: "product_code",
+    },
+    {
+      title: "Pack",
+      dataIndex: "pack",
     },
     {
       title: "Physical Stock",
@@ -73,6 +103,7 @@ export default function CleanupReport() {
     const exportData = data.map(item => ({
       "Item Name": item.item_name,
       "Product Code": item.product_code,
+      "Pack": item.pack,
       "Physical Stock (Case)": item.physical,
       "Allotted Stock (Case)": item.allotted,
       "Pending Stock (Case)": item.pending,
@@ -96,13 +127,34 @@ export default function CleanupReport() {
         <h2>Daily Warehouse Report</h2>
         <Space>
           <Select
+            placeholder="Select Bond"
+            style={{ width: 180 }}
+            value={selectedBond}
+            onChange={setSelectedBond}
+            options={[
+              { label: "All Bonds", value: "all" },
+              ...bonds.map(b => ({ label: b, value: b }))
+            ]}
+          />
+          <Select
             placeholder="Select Warehouse"
-            style={{ width: 300 }}
+            style={{ width: 250 }}
+            value={selectedWarehouse}
             onChange={setSelectedWarehouse}
             options={warehouses.map((w) => ({
               label: w,
               value: w,
             }))}
+          />
+          <Select
+            placeholder="Select Pack"
+            style={{ width: 150 }}
+            value={selectedPack}
+            onChange={setSelectedPack}
+            options={[
+              { label: "All Packs", value: "all" },
+              ...packs.map(p => ({ label: p, value: p }))
+            ]}
           />
           <Button type="primary" onClick={downloadExcel} disabled={!selectedWarehouse}>
             Download Excel

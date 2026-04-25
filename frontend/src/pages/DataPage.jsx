@@ -13,6 +13,7 @@ import {
   listReports,
   createReport,
   processReport,
+  deleteReport,
 } from "../api";
 import { REPORT_REGISTRY } from "../reports";
 import {
@@ -20,6 +21,8 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import dayjs from "dayjs";
+import { DeleteOutlined } from "@ant-design/icons";
+import { message, Popconfirm } from "antd";
 
 import DailySecondaryUploadModal from "./DailySecondaryUploadModal";
 import CumulativeUploadModal from "./CumShopUpload";
@@ -80,6 +83,16 @@ export default function DataPage() {
     load();
   };
 
+  const handleDelete = async (id) => {
+    try {
+      await deleteReport(id);
+      message.success("Report deleted successfully");
+      load();
+    } catch (error) {
+      message.error("Failed to delete report");
+    }
+  };
+
   // 🔥 available dates for comparative
   const dailyDates = data
     .filter((d) => d.type === "daily_secondary_sales")
@@ -124,7 +137,7 @@ export default function DataPage() {
         const config = REPORT_REGISTRY[r.type];
 
         return (
-          <>
+          <Space>
             {/* 🔥 Upload for DAILY + CLEANUP + CUMULATIVE */}
             {["shopwise", "daily_secondary_sales", "daily_warehouse", "cumulative_shopwise", "cumulative_warehouse"].includes(
               r.type
@@ -147,17 +160,24 @@ export default function DataPage() {
             )}
 
             {/* 🔥 View */}
-            {r.status === "Processed" 
-&& (
+            {r.status === "Processed" && (
               <Button
-                onClick={() =>
-                  navigate(config.route.replace(":id", r.id))
-                }
+                onClick={() => navigate(config.route.replace(":id", r.id))}
               >
                 View
               </Button>
             )}
-          </>
+
+            {/* 🔥 Delete */}
+            <Popconfirm
+              title="Are you sure to delete this report?"
+              onConfirm={() => handleDelete(r.id)}
+              okText="Yes"
+              cancelText="No"
+            >
+              <Button danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </Space>
         );
       },
     },

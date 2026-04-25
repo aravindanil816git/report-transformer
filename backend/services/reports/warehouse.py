@@ -1,7 +1,19 @@
 import pandas as pd
 import re
+import json
 from .base import BaseReportService
-from core.utils import clean_df
+from core.utils import clean_df, read_excel_robust
+
+
+# ✅ LOAD MAPPING
+with open("mapping.json") as f:
+    MAPPING = json.load(f)
+
+# ✅ FLATTEN WAREHOUSE -> BOND LOOKUP
+WAREHOUSE_BOND_MAP = {}
+for bond, b_data in MAPPING.get("bonds", {}).items():
+    for wh in b_data.get("warehouses", {}).keys():
+        WAREHOUSE_BOND_MAP[wh] = bond
 
 
 class WarehouseReportService(BaseReportService):
@@ -9,10 +21,10 @@ class WarehouseReportService(BaseReportService):
 
     # ================= PARSE =================
     def _parse_cleanup_excel(self, path):
-        df_raw = pd.read_excel(path, header=None)
+        df_raw = read_excel_robust(path, header=None)
 
         warehouse = None
-        for i in range(6):
+        for i in range(min(6, len(df_raw))):
             row = " ".join(
                 [str(x) for x in df_raw.iloc[i].values if str(x) != "nan"]
             )
@@ -24,13 +36,14 @@ class WarehouseReportService(BaseReportService):
                 if match:
                     warehouse = match.group(1).strip().upper()
 
-        df = pd.read_excel(path, header=[4, 5])
+        df = read_excel_robust(path, header=[4, 5])
 
         df.columns = [
             "_".join([str(i) for i in col if str(i) != "nan"])
-            .lower()
+            if isinstance(col, (list, tuple)) else str(col)
             for col in df.columns
         ]
+        df.columns = [c.lower() for c in df.columns]
 
         df = df.dropna(how="all")
         df = clean_df(df)
@@ -60,6 +73,7 @@ class WarehouseReportService(BaseReportService):
 
         item_name = self._find_col(df, ["item", "name"])
         product_code = self._find_col(df, ["product", "code"])
+        pack = self._find_col(df, ["pack"])
 
         physical = self._find_col(df, ["physical", "case"])
         allotted = self._find_col(df, ["allotable", "case"])
@@ -98,6 +112,7 @@ class WarehouseReportService(BaseReportService):
 
         add(item_name, "item_name")
         add(product_code, "product_code")
+        add(pack, "pack")
         add(physical, "physical")
         add(allotted, "allotted")
         add(pending, "pending")
@@ -109,6 +124,10 @@ class WarehouseReportService(BaseReportService):
             return []
 
         df = df[cols].rename(columns=rename)
+
+        # 🔥 REMOVE HEADER ROWS (If "Physical Stock Report" or "Warehouse :" appears in item_name)
+        if "item_name" in df.columns:
+            df = df[~df["item_name"].astype(str).str.contains("Physical Stock Report|Warehouse :", case=False, na=False)]
 
         # 🔥 CLEAN NUMERIC
         for col in ["physical", "allotted", "pending", "wh_price", "landed_cost"]:
@@ -154,8 +173,15 @@ class WarehouseReportService(BaseReportService):
 
     # ================= RESPONSE =================
     def get_report(self, report, **kwargs):
+        # Add bond info to each upload if possible
+        uploads = report.get("uploads", []) or []
+        for u in uploads:
+            wh = u.get("warehouse")
+            if wh:
+                u["bond"] = WAREHOUSE_BOND_MAP.get(wh, "Unknown")
+
         return {
             "data": report.get("processed", []) or [],
-            "uploads": report.get("uploads", []) or [],
+            "uploads": uploads,
             "config": report.get("config", {})
         }
