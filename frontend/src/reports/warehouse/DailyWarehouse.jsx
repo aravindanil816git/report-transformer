@@ -168,6 +168,34 @@ export default function CleanupReport() {
         dataSource={data}
         rowKey={(r) => r.product_code}
         pagination={false}
+        summary={(pageData) => {
+          let totalPhysical = 0;
+          let totalAllotted = 0;
+          let totalPending = 0;
+          let totalWHPrice = 0;
+          let totalLandedCost = 0;
+
+          pageData.forEach(({ physical, allotted, pending, wh_price, landed_cost }) => {
+            totalPhysical += Number(physical || 0);
+            totalAllotted += Number(allotted || 0);
+            totalPending += Number(pending || 0);
+            totalWHPrice += Number(wh_price || 0);
+            totalLandedCost += Number(landed_cost || 0);
+          });
+
+          return (
+            <Table.Summary fixed>
+              <Table.Summary.Row style={{ backgroundColor: "#fafafa", fontWeight: "bold" }}>
+                <Table.Summary.Cell index={0} colSpan={3}>GRAND TOTAL</Table.Summary.Cell>
+                <Table.Summary.Cell index={1}>{totalPhysical}</Table.Summary.Cell>
+                <Table.Summary.Cell index={2}>{totalAllotted}</Table.Summary.Cell>
+                <Table.Summary.Cell index={3}>{totalPending}</Table.Summary.Cell>
+                <Table.Summary.Cell index={4}>{totalWHPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Table.Summary.Cell>
+                <Table.Summary.Cell index={5}>{totalLandedCost.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Table.Summary.Cell>
+              </Table.Summary.Row>
+            </Table.Summary>
+          );
+        }}
       />
     </div>
   );

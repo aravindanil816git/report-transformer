@@ -9,12 +9,11 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const reportItems = Object.entries(REPORT_REGISTRY).map(([key, r]) => ({
-    key: `report-${key}`,
-    label: r.label,
-  }));
-
   const items = [
+    {
+      key: "status-calendar",
+      label: "Status Calendar",
+    },
     {
       key: "data-home",
       label: "All Reports",
@@ -26,6 +25,7 @@ export default function Sidebar() {
       children: [
         { key: "report-shopwise", label: REPORT_REGISTRY.shopwise.label },
         { key: "report-daily_warehouse", label: REPORT_REGISTRY.daily_warehouse.label },
+        { key: "report-daily_warehouse_offtake", label: REPORT_REGISTRY.daily_warehouse_offtake.label },
         { key: "report-daily_secondary_sales", label: REPORT_REGISTRY.daily_secondary_sales.label },
       ],
     },
@@ -40,7 +40,7 @@ export default function Sidebar() {
     },
     {
       key: "grp-reports",
-      label: "Reports",
+      label: "Monthly Reports",
       type: 'group',
       children: [
         { key: "report-month_comparative", label: REPORT_REGISTRY.month_comparative.label },
@@ -49,18 +49,23 @@ export default function Sidebar() {
     },
   ];
 
+  const selectedKey = location.pathname === '/' ? 'status-calendar' :
+    location.pathname === '/reports' ? (location.search ? `report-${new URLSearchParams(location.search).get('type')}` : 'data-home') :
+    '';
+
   return (
     <Sider width={250}>
       <Menu
         theme="dark"
         mode="inline"
-        selectedKeys={[location.search ? `report-${new URLSearchParams(location.search).get('type')}` : 'data-home']}
+        selectedKeys={[selectedKey]}
         items={items}
         onClick={(e) => {
-          if (e.key === "data-home") navigate("/");
+          if (e.key === "data-home") navigate("/reports");
+          if (e.key === "status-calendar") navigate("/");
           if (e.key.startsWith("report-")) {
             const type = e.key.replace("report-", "");
-            navigate(`/?type=${type}`);
+            navigate(`/reports?type=${type}`);
           }
         }}
       />

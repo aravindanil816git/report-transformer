@@ -1,5 +1,5 @@
-import { Modal, Table, Upload, Button, message, Progress } from "antd";
-import { uploadFile } from "../api";
+import { Modal, Table, Upload, Button, message, Progress, Space } from "antd";
+import { uploadFile, processReport } from "../api";
 import { useState } from "react";
 
 const { Dragger } = Upload;
@@ -11,6 +11,17 @@ export default function DailySecondaryUploadModal({
 }) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+
+  const handleProcess = async () => {
+    try {
+      await processReport(report.id);
+      message.success("Report processed successfully");
+      reload();
+      onClose();
+    } catch (e) {
+      message.error("Processing failed");
+    }
+  };
 
   const handleUpload = async (file, warehouse) => {
     try {
@@ -104,7 +115,18 @@ export default function DailySecondaryUploadModal({
       open
       onCancel={onClose}
       footer={null}
-      title="Upload Daily data"
+      title={
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 40 }}>
+          <span>Upload Daily data</span>
+          <Button 
+            type="primary" 
+            onClick={handleProcess}
+            disabled={!report.uploads.some(u => u.status === "uploaded")}
+          >
+            Process Report
+          </Button>
+        </div>
+      }
       width={900}
     >
       <div style={{ marginBottom: 24 }}>

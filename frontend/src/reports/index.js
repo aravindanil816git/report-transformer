@@ -1,4 +1,5 @@
 import DailyWarehouseReport from "./warehouse/DailyWarehouse";
+import DailyWarehouseOfftakeReport from "./warehouse/DailyWarehouseOfftake";
 import ShopwiseReport from "./shopwise/ShopwiseReport";
 import CumShopwiseReport from "./shopwise/CumShopwiseReport";
 import CleanupReport from "./cleanup/CleanupReport";
@@ -17,6 +18,11 @@ export const REPORT_REGISTRY = {
     component: DailyWarehouseReport,
     route: "/report/daily_warehouse/:id",
     label: "Daily Warehouse Report",
+  },
+  daily_warehouse_offtake: {
+    component: DailyWarehouseOfftakeReport,
+    route: "/report/daily_warehouse_offtake/:id",
+    label: "Daily Warehouse Offtake",
   },
   cumulative_shopwise: {
     component: CumShopwiseReport,

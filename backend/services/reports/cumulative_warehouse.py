@@ -46,10 +46,21 @@ class CumulativeWarehouseMatrixService(BaseReportService):
                 break
 
     def _compute(self, df):
-        shop_col = next((c for c in df.columns if "license" in c.lower()), None)
+        # 🔍 Detect shop code column (Licensee No.)
+        shop_col = next((c for c in df.columns if "license" in c.lower() and "no" in c.lower()), None)
+        if not shop_col:
+            shop_col = next((c for c in df.columns if "license" in c.lower()), None)
+            
+        # 🔍 Detect issues/quantity column
         issue_col = next((c for c in df.columns if "issue" in c.lower() and "case" in c.lower()), None)
+        if not issue_col:
+            issue_col = next((c for c in df.columns if "inv" in c.lower() and "qty" in c.lower()), None)
+        if not issue_col:
+            # Fallback to any column with "qty" or "quantity"
+            issue_col = next((c for c in df.columns if "qty" in c.lower() or "quantity" in c.lower()), None)
 
         if not shop_col or not issue_col:
+            print(f"DEBUG: Could not find columns. Shop: {shop_col}, Issue: {issue_col}")
             return pd.DataFrame()
 
         # ✅ clean shop code
@@ -87,13 +98,34 @@ class CumulativeWarehouseMatrixService(BaseReportService):
 
         labels = self._generate_labels(start_date, num_days)
 
+        # 🔍 Link with Daily Warehouse Offtake data if missing
+        from services.store import reports as all_reports
+        
+        # Build date to data map for daily warehouse offtake
+        daily_offtake_map = {}
+        for r in all_reports.values():
+            if r.get("type") == "daily_warehouse_offtake" and r.get("status") in ["Processed", "Ready", "Uploaded"]:
+                rd = r.get("config", {}).get("date")
+                if rd and r.get("data"):
+                    daily_offtake_map[rd] = r.get("data")
+
         final_map = {}
 
         for idx, u in enumerate(uploads):
-            if u.get("status") != "uploaded":
+            dt = u.get("date")
+            data = u.get("data")
+            
+            # Auto-link if data is missing but available in daily reports
+            if not data and dt in daily_offtake_map:
+                data = daily_offtake_map[dt]
+                u["status"] = "uploaded"
+                u["file"] = "Auto-linked from Daily Warehouse Offtake"
+                u["data"] = data
+
+            if not data:
                 continue
 
-            df = pd.DataFrame(u.get("data", []))
+            df = pd.DataFrame(data)
             if df.empty:
                 continue
 
@@ -153,7 +185,9 @@ class CumulativeWarehouseMatrixService(BaseReportService):
         result = []
 
         for row in data:
-            new_row = {"warehouse": row["warehouse"]}
+            wh = row["warehouse"]
+            bond = WAREHOUSE_TO_BOND.get(wh, "UNKNOWN")
+            new_row = {"warehouse": wh, "bond": bond}
             total = 0
 
             for i in idxs:
@@ -193,6 +227,7 @@ class CumulativeWarehouseMatrixService(BaseReportService):
                 "data": [
                     {
                         "warehouse": r["warehouse"],
+                        "bond": r.get("bond"),
                         "total": r["total"],
                         "avg": round(r["total"] / days)
                     }

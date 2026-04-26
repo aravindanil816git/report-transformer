@@ -1,11 +1,20 @@
-import { Modal, Table, Upload, Button } from "antd";
+import { Modal, Table, Upload, Button, message } from "antd";
 import { uploadFile } from "../api";
 
 export default function CumulativeWarehouseUpload({ report, onClose, reload }) {
 
   const handleUpload = async (file, date) => {
-    await uploadFile(report.id, file, date);
-    reload();
+    try {
+      const res = await uploadFile(report.id, file, null, null, date);
+      if (res.data?.status === "error") {
+        message.error(`${date}: ${res.data.message}`);
+      } else {
+        message.success(`${date}: ${file.name} uploaded successfully`);
+        reload();
+      }
+    } catch (e) {
+      message.error(`${date}: Upload failed`);
+    }
   };
 
   const columns = [

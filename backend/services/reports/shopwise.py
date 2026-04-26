@@ -104,7 +104,7 @@ class ShopwiseReportService(BaseReportService):
                 })
         return result
 
-    def get_report(self, report, shop_code=None, warehouse=None, bond=None, view="case"):
+    def get_report(self, report, shop_code=None, warehouse=None, bond=None, view="case", **kwargs):
         data = report.get("data") or []
         if not data:
             return {"data": [], "uploads": report.get("uploads", [])}

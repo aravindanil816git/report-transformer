@@ -5,6 +5,7 @@ from services.reports.cumulative_warehouse import CumulativeWarehouseMatrixServi
 from services.reports.daily_secondary_sales import DailySecondarySalesService
 from services.reports.month_comparative import MonthComparativeService
 from services.reports.monthly_stock_sales import MonthlyStockSalesService
+from services.reports.daily_warehouse_offtake import DailyWarehouseOfftakeService
 
 _registry = {
     "shopwise": ShopwiseReportService(),
@@ -14,6 +15,7 @@ _registry = {
     "daily_secondary_sales": DailySecondarySalesService(),
     "month_comparative": MonthComparativeService(),
     "monthly_stock_sales": MonthlyStockSalesService(),
+    "daily_warehouse_offtake": DailyWarehouseOfftakeService(),
 }
 
 def get_service(report_type: str):

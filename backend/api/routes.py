@@ -26,6 +26,68 @@ def clean_nan(obj):
     return obj
 
 
+# ================= SYNC DATA =================
+def sync_cumulative_report(report):
+    if report.get("type") not in ["cumulative_shopwise", "cumulative_warehouse"]:
+        return
+    
+    # Target to allowed source types
+    source_map = {
+        "cumulative_shopwise": ["shopwise", "cumulative_shopwise"],
+        "cumulative_warehouse": ["daily_warehouse_offtake", "cumulative_warehouse"]
+    }
+    allowed_sources = source_map.get(report["type"], [])
+    
+    # primary source mapping for daily reports
+    primary_source_map = {
+        "cumulative_shopwise": "shopwise",
+        "cumulative_warehouse": "daily_warehouse_offtake"
+    }
+    primary_source = primary_source_map.get(report["type"])
+    
+    # Build global map of available data by date
+    available_data = {}
+    
+    for r in reports.values():
+        if r.get("id") == report.get("id"): continue
+        if r.get("status") not in ["Ready", "Processed", "Uploaded"]: continue
+        if r.get("type") not in allowed_sources: continue
+        
+        # 1. check config date (daily reports)
+        d = r.get("config", {}).get("date")
+        if d and r.get("data"):
+            # Prioritize primary source or first found
+            if r.get("type") == primary_source or d not in available_data:
+                available_data[d] = r["data"]
+            
+        # 2. check uploads (cumulative reports)
+        for u in r.get("uploads", []):
+            ud = u.get("date")
+            if ud and u.get("status") == "uploaded" and u.get("data"):
+                # Daily reports take priority
+                if ud not in available_data:
+                   available_data[ud] = u["data"]
+                   
+    # Now update current report
+    changed = False
+    for u in report.get("uploads", []):
+        if u.get("status") != "uploaded":
+            dt = u.get("date")
+            if dt in available_data:
+                u["status"] = "uploaded"
+                u["data"] = available_data[dt]
+                u["file"] = "Auto-synced from system"
+                changed = True
+                
+    if changed:
+        # Update report status
+        up_count = sum(1 for u in report["uploads"] if u.get("status") == "uploaded")
+        if up_count == len(report["uploads"]) and len(report["uploads"]) > 0:
+            report["status"] = "Ready"
+        elif up_count > 0:
+            report["status"] = "Uploaded"
+
+
 # ================= CREATE REPORT =================
 @router.post("/reports")
 def create_report(
@@ -72,6 +134,10 @@ def create_report(
 
         config = {"date": date}
 
+    # 🔥 DAILY WAREHOUSE OFFTAKE
+    elif type == "daily_warehouse_offtake":
+        config = {"date": date}
+
     # 🔥 SHOPWISE
     elif type == "shopwise":
         config = {"date": date}
@@ -91,15 +157,15 @@ def create_report(
         end = datetime.strptime(date2, "%Y-%m-%d")
         num_days = (end - start).days + 1
 
-        uploads = [
-            {
-                "date": (start + timedelta(days=i)).strftime("%Y-%m-%d"),
+        uploads = []
+        for i in range(num_days):
+            dt_str = (start + timedelta(days=i)).strftime("%Y-%m-%d")
+            uploads.append({
+                "date": dt_str,
                 "file": None,
                 "status": "pending",
                 "data": None
-            }
-            for i in range(num_days)
-        ]
+            })
 
         config = {
             "start_date": date1,
@@ -118,6 +184,9 @@ def create_report(
     }
 
     reports[rid] = report
+    
+    # 🔥 Try to auto-link data immediately
+    sync_cumulative_report(report)
 
     # 🔥 AUTO PROCESS FOR MONTHLY REPORT
     if type == "monthly_stock_sales":
@@ -140,6 +209,9 @@ def list_reports():
     clean = []
 
     for r in reports.values():
+        # 🔥 Dynamic sync for cumulative reports to catch new daily uploads
+        sync_cumulative_report(r)
+        
         r_copy = dict(r)
 
         uploads = []
@@ -168,7 +240,8 @@ def get_warehouses(rid: str):
 
     # Return all warehouses defined for this report
     if report.get("uploads"):
-        return [u["warehouse"] for u in report["uploads"]]
+        whs = [u.get("warehouse") for u in report["uploads"] if u.get("warehouse")]
+        if whs: return whs
     
     # fallback to mapping if no uploads list
     from services.reports.cumulative_warehouse import MAPPING
@@ -236,25 +309,25 @@ async def upload(
 
     # 🔥 AUTO-DETECT WAREHOUSE IF KEY IS MISSING
     detected_key = key
-    possible_warehouses = [u["warehouse"] for u in report.get("uploads", [])]
-
     if not detected_key or detected_key == "auto":
-        try:
-            # We read the first few lines manually to be more robust
-            df_raw = read_excel_robust(path, header=None, nrows=10)
-            for i in range(len(df_raw)):
-                row_str = " ".join([str(x) for x in df_raw.iloc[i].values if str(x) != "nan"]).upper()
-                if "WAREHOUSE" in row_str:
-                    # Sort by length descending to match longest warehouse name first (to avoid partial matches)
-                    for wh in sorted(possible_warehouses, key=len, reverse=True):
-                        if wh.upper() in row_str:
-                            detected_key = wh
-                            print(f"DEBUG: Auto-detected warehouse: {detected_key}")
-                            break
-                if detected_key and detected_key != "auto":
-                    break
-        except Exception as e:
-            print(f"DEBUG: Error auto-detecting: {e}")
+        possible_warehouses = [u["warehouse"] for u in report.get("uploads", []) if "warehouse" in u]
+        if possible_warehouses:
+            try:
+                # We read the first few lines manually to be more robust
+                df_raw = read_excel_robust(path, header=None, nrows=10)
+                for i in range(len(df_raw)):
+                    row_str = " ".join([str(x) for x in df_raw.iloc[i].values if str(x) != "nan"]).upper()
+                    if "WAREHOUSE" in row_str:
+                        # Sort by length descending to match longest warehouse name first (to avoid partial matches)
+                        for wh in sorted(possible_warehouses, key=len, reverse=True):
+                            if wh.upper() in row_str:
+                                detected_key = wh
+                                print(f"DEBUG: Auto-detected warehouse: {detected_key}")
+                                break
+                    if detected_key and detected_key != "auto":
+                        break
+            except Exception as e:
+                print(f"DEBUG: Error auto-detecting: {e}")
 
     match_found = False
     if report["type"] == "daily_secondary_sales":
@@ -281,6 +354,12 @@ async def upload(
     elif report["type"] == "shopwise":
         svc = get_service("shopwise")
         svc.upload(report, path, file.filename, None, None)
+        report["status"] = "Ready"
+        return {"status": "uploaded"}
+
+    elif report["type"] == "daily_warehouse_offtake":
+        svc = get_service("daily_warehouse_offtake")
+        svc.upload(report, path, file.filename, report.get("config", {}).get("date"))
         report["status"] = "Ready"
         return {"status": "uploaded"}
 
@@ -346,7 +425,10 @@ def get_report(
     shop_code: str = None, 
     view: str = "case",
     warehouse: str = None,
-    bond: str = None
+    bond: str = None,
+    mode: str = "warehouse",
+    start_idx: int = None,
+    end_idx: int = None
 ):
     report = reports.get(rid)
 
@@ -361,6 +443,9 @@ def get_report(
     if view: kwargs["view"] = view
     if warehouse: kwargs["warehouse"] = warehouse
     if bond: kwargs["bond"] = bond
+    if mode: kwargs["mode"] = mode
+    if start_idx is not None: kwargs["start_idx"] = start_idx
+    if end_idx is not None: kwargs["end_idx"] = end_idx
     
     result = svc.get_report(report, **kwargs)
 
