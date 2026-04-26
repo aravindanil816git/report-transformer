@@ -8,6 +8,7 @@ import {
   DatePicker,
   Form,
   Space,
+  Tooltip,
 } from "antd";
 import {
   listReports,
@@ -113,7 +114,7 @@ export default function DataPage() {
     {
       title: "Date",
       render: (_, r) => {
-        if (["daily_secondary_sales", "shopwise", "daily_warehouse"].includes(r.type)) {
+        if (["daily_secondary_sales", "shopwise", "daily_warehouse", "daily_warehouse_offtake"].includes(r.type)) {
           return r.config?.date
             ? dayjs(r.config.date).format("DD MMM YYYY")
             : "-";
@@ -135,38 +136,30 @@ export default function DataPage() {
       title: "Actions",
       render: (_, r) => {
         const config = REPORT_REGISTRY[r.type];
+        const isProcessed = r.status === "Processed";
 
         return (
-          <Space>
-            {/* 🔥 Upload for DAILY + CLEANUP + CUMULATIVE */}
-            {["shopwise", "daily_secondary_sales", "daily_warehouse", "cumulative_shopwise", "cumulative_warehouse"].includes(
-              r.type
-            ) && (
-              <Button
-                onClick={() => {
-                  setCurrent(r);
-                  setUploadOpen(true);
-                }}
-              >
-                Upload
-              </Button>
-            )}
-
-            {/* 🔥 Process */}
-            {["Uploaded", "Ready"].includes(r.status) && (
-              <Button onClick={() => handleProcess(r.id)}>
-                Process
-              </Button>
-            )}
+          <Space direction="horizontal">
+            {/* 🔥 Upload/Manage button for ALL reports */}
+            <Button
+              onClick={() => {
+                setCurrent(r);
+                setUploadOpen(true);
+              }}
+            >
+              {["month_comparative", "monthly_stock_sales"].includes(r.type) ? "Manage" : "Upload"}
+            </Button>
 
             {/* 🔥 View */}
-            {r.status === "Processed" && (
+            <Tooltip title={!isProcessed ? "Upload and Click process to View" : ""}>
               <Button
+                type="primary"
+                disabled={!isProcessed}
                 onClick={() => navigate(config.route.replace(":id", r.id))}
               >
                 View
               </Button>
-            )}
+            </Tooltip>
 
             {/* 🔥 Delete */}
             <Popconfirm
@@ -257,7 +250,7 @@ export default function DataPage() {
           </Form.Item>
 
           {/* 🔥 DAILY */}
-          {["daily_secondary_sales", "shopwise"].includes(type) && (
+          {["daily_secondary_sales", "shopwise", "daily_warehouse_offtake"].includes(type) && (
             <Form.Item label="Report Date">
               <DatePicker style={{ width: '100%' }} onChange={setReportDate} />
             </Form.Item>
@@ -282,12 +275,22 @@ export default function DataPage() {
                 <DatePicker
                   placeholder="Start Date"
                   style={{ width: '100%' }}
-                  onChange={setDate1}
+                  value={date1}
+                  onChange={(val) => {
+                    setDate1(val);
+                    if (val && date2 && date2.isBefore(val, 'day')) {
+                      setDate2(null);
+                    }
+                  }}
                 />
                 <DatePicker
                   placeholder="End Date"
                   style={{ width: '100%' }}
+                  value={date2}
                   onChange={setDate2}
+                  disabledDate={(current) => {
+                    return date1 ? current && current.isBefore(date1, 'day') : false;
+                  }}
                 />
               </Space>
             </Form.Item>
@@ -308,7 +311,7 @@ export default function DataPage() {
         )}
 
       {/* 🔥 SINGLE FILE UPLOAD MODAL */}
-      {uploadOpen && current?.type === "shopwise" && (
+      {uploadOpen && ["shopwise", "daily_warehouse_offtake", "monthly_stock_sales", "month_comparative"].includes(current?.type) && (
         <SingleFileUploadModal
           report={current}
           onClose={() => setUploadOpen(false)}
