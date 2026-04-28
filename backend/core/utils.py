@@ -1,6 +1,12 @@
 import pandas as pd
+import re
 
 def normalize(df: pd.DataFrame) -> pd.DataFrame:
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [
+            "_".join([str(level).strip() for level in col if str(level).strip() and "Unnamed" not in str(level)])
+            for col in df.columns.values
+        ]
     df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
     return df
 
@@ -16,6 +22,16 @@ def find_column(df: pd.DataFrame, keywords):
 def find_dynamic(df: pd.DataFrame, keys, exclude=None):
     for c in df.columns:
         if all(k in c for k in keys):
+            # Strict check for short common words like 'in' and 'out' to avoid false positives (e.g., 'in' in 'opening')
+            is_valid = True
+            for k in keys:
+                if k in ["in", "out"]:
+                    if not re.search(rf"(^|_){k}(_|$)", c):
+                        is_valid = False
+                        break
+            if not is_valid:
+                continue
+
             if exclude and any(e in c for e in exclude):
                 continue
             return c

@@ -67,10 +67,6 @@ export default function CleanupReport() {
       dataIndex: "item_name",
     },
     {
-      title: "Product Code",
-      dataIndex: "product_code",
-    },
-    {
       title: "Pack",
       dataIndex: "pack",
     },
@@ -86,14 +82,6 @@ export default function CleanupReport() {
       title: "Pending Stock",
       children: [{ title: "Case", dataIndex: "pending" }],
     },
-    {
-      title: "WH Price",
-      dataIndex: "wh_price",
-    },
-    {
-      title: "Landed Cost",
-      dataIndex: "landed_cost",
-    },
   ];
 
   // ✅ DOWNLOAD
@@ -102,13 +90,10 @@ export default function CleanupReport() {
 
     const exportData = data.map(item => ({
       "Item Name": item.item_name,
-      "Product Code": item.product_code,
       "Pack": item.pack,
       "Physical Stock (Case)": item.physical,
       "Allotted Stock (Case)": item.allotted,
       "Pending Stock (Case)": item.pending,
-      "WH Price": item.wh_price,
-      "Landed Cost": item.landed_cost
     }));
 
     exportToExcel(
@@ -116,16 +101,45 @@ export default function CleanupReport() {
       {
         Warehouse: selectedWarehouse
       },
-      `daily_warehouse_report_${selectedWarehouse}.xlsx`,
-      "Daily Warehouse"
+      `physical_stock_report_${selectedWarehouse}.xlsx`,
+      "Physical Stock"
     );
+  };
+
+  const downloadAllWarehouses = async () => {
+    if (!report?.data) return;
+
+    for (const whData of report.data) {
+      const exportData = whData.items.map(item => ({
+        "Item Name": item.item_name,
+        "Pack": item.pack,
+        "Physical Stock (Case)": item.physical,
+        "Allotted Stock (Case)": item.allotted,
+        "Pending Stock (Case)": item.pending,
+      }));
+
+      exportToExcel(
+        exportData,
+        {
+          Warehouse: whData.warehouse
+        },
+        `physical_stock_${whData.warehouse}.xlsx`,
+        "Physical Stock"
+      );
+      
+      // Small delay to help browser handle multiple downloads
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
   };
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h2>Daily Warehouse Report</h2>
+        <h2>Physical Stock Report</h2>
         <Space>
+          <Button type="default" onClick={downloadAllWarehouses} disabled={!report?.data}>
+            Download All Warehouses
+          </Button>
           <Select
             placeholder="Select Bond"
             style={{ width: 180 }}
@@ -166,32 +180,26 @@ export default function CleanupReport() {
       <Table
         columns={columns}
         dataSource={data}
-        rowKey={(r) => r.product_code}
+        rowKey={(r) => `${r.item_name}-${r.pack}`}
         pagination={false}
         summary={(pageData) => {
           let totalPhysical = 0;
           let totalAllotted = 0;
           let totalPending = 0;
-          let totalWHPrice = 0;
-          let totalLandedCost = 0;
 
-          pageData.forEach(({ physical, allotted, pending, wh_price, landed_cost }) => {
+          pageData.forEach(({ physical, allotted, pending }) => {
             totalPhysical += Number(physical || 0);
             totalAllotted += Number(allotted || 0);
             totalPending += Number(pending || 0);
-            totalWHPrice += Number(wh_price || 0);
-            totalLandedCost += Number(landed_cost || 0);
           });
 
           return (
             <Table.Summary fixed>
               <Table.Summary.Row style={{ backgroundColor: "#fafafa", fontWeight: "bold" }}>
-                <Table.Summary.Cell index={0} colSpan={3}>GRAND TOTAL</Table.Summary.Cell>
+                <Table.Summary.Cell index={0} colSpan={2}>GRAND TOTAL</Table.Summary.Cell>
                 <Table.Summary.Cell index={1}>{totalPhysical}</Table.Summary.Cell>
                 <Table.Summary.Cell index={2}>{totalAllotted}</Table.Summary.Cell>
                 <Table.Summary.Cell index={3}>{totalPending}</Table.Summary.Cell>
-                <Table.Summary.Cell index={4}>{totalWHPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Table.Summary.Cell>
-                <Table.Summary.Cell index={5}>{totalLandedCost.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Table.Summary.Cell>
               </Table.Summary.Row>
             </Table.Summary>
           );

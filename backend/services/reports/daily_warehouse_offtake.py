@@ -51,6 +51,8 @@ class DailyWarehouseOfftakeService(BaseReportService):
         if not issue_col:
             issue_col = next((c for c in df.columns if "qty" in c.lower() or "quantity" in c.lower()), None)
 
+        brand_col = next((c for c in df.columns if "brand" in c.lower() or "item" in c.lower()), None)
+
         if not shop_col or not issue_col:
             report["processed"] = []
             return
@@ -64,6 +66,7 @@ class DailyWarehouseOfftakeService(BaseReportService):
             .str.strip()
         )
         df["issues"] = pd.to_numeric(df[issue_col], errors="coerce").fillna(0)
+        df["brand"] = df[brand_col].astype(str).str.strip() if brand_col else "Unknown"
 
         # ✅ Map
         df["warehouse"] = df["shop_code"].apply(
@@ -79,8 +82,8 @@ class DailyWarehouseOfftakeService(BaseReportService):
         # ✅ Filter out unmapped
         df = df[df["warehouse"].notna()]
 
-        # ✅ Aggregate by shop for the daily view
-        grouped = df.groupby(["bond", "warehouse", "shop_code", "shop_name"])["issues"].sum().reset_index()
+        # ✅ Aggregate by shop and brand for the daily view
+        grouped = df.groupby(["bond", "warehouse", "shop_code", "shop_name", "brand"])["issues"].sum().reset_index()
         
         report["processed"] = grouped.to_dict("records")
 

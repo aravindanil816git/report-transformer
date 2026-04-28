@@ -38,6 +38,11 @@ export default function DailyWarehouseOfftakeReport() {
       dataIndex: "shop_name",
     },
     {
+      title: "Brand",
+      dataIndex: "brand",
+      sorter: (a, b) => a.brand.localeCompare(b.brand),
+    },
+    {
       title: "Issues (Cases)",
       dataIndex: "issues",
       render: (v) => <b>{v}</b>,
@@ -51,6 +56,7 @@ export default function DailyWarehouseOfftakeReport() {
       Warehouse: item.warehouse,
       "Shop Code": item.shop_code,
       "Shop Name": item.shop_name,
+      Brand: item.brand,
       "Issues (Cases)": item.issues,
     }));
 

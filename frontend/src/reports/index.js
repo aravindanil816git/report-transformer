@@ -12,27 +12,27 @@ export const REPORT_REGISTRY = {
   shopwise: {
     component: ShopwiseReport,
     route: "/report/shopwise/:id",
-    label: "Daily ShopWise",
+    label: "Supplier Wise Shop Sale",
   },
   daily_warehouse: {
     component: DailyWarehouseReport,
     route: "/report/daily_warehouse/:id",
-    label: "Daily Warehouse Report",
+    label: "Phyiscal Stock",
   },
   daily_warehouse_offtake: {
     component: DailyWarehouseOfftakeReport,
     route: "/report/daily_warehouse_offtake/:id",
-    label: "Daily Warehouse Offtake",
+    label: "Supplier Sales Analysis",
   },
   cumulative_shopwise: {
     component: CumShopwiseReport,
     route: "/report/cumulative_shopwise/:id",
-    label: "Cumulative Shopwise Stock",
+    label: "Cum. Shopwise Stock",
   },
   cumulative_warehouse: {
     component: CumulativeWarehouseReport,
     route: "/report/cumulative_warehouse/:id",
-    label: "Cumulative Warehouse Offtake",
+    label: "Bondwise + Offtake",
   },
   daily_secondary_sales: {
     label: "Daily Secondary Sales",
