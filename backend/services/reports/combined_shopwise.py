@@ -70,11 +70,18 @@ class CombinedShopwiseReportService(BaseReportService):
         if shop_code:
             full_df = full_df[full_df[shop_col] == str(shop_code).strip()]
         
-        # Add warehouse/bond info if missing
+        # For Combined Shopwise, use only raw data for warehouse.
+        # Do NOT use SHOP_LOOKUP for warehouse/bond here as per requirements.
         if "warehouse_info" not in full_df.columns:
-             full_df["warehouse_info"] = full_df[shop_col].apply(lambda x: SHOP_LOOKUP.get(x, {}).get("warehouse"))
-        if "bond_info" not in full_df.columns:
-             full_df["bond_info"] = full_df[shop_col].apply(lambda x: SHOP_LOOKUP.get(x, {}).get("bond"))
+             # Try to detect if it's there under a different name or just set to Unknown
+             wh_col = self.shopwise_svc._detect_warehouse_col(full_df)
+             if wh_col:
+                 full_df["warehouse_info"] = full_df[wh_col].astype(str).str.strip()
+             else:
+                 full_df["warehouse_info"] = "Unknown"
+        
+        # Bond logic is not applied for Combined Shopwise
+        full_df["bond_info"] = "N/A"
 
         if warehouse:
             full_df = full_df[full_df["warehouse_info"] == warehouse]
@@ -190,23 +197,23 @@ class CombinedShopwiseReportService(BaseReportService):
                     "opening": round(opening, 4),
                     "inward": round(total_in, 4),
                     "outward": round(total_out, 4),
-                    "closing": round(closing, 4),
+                    "closing": round(opening + total_in - total_out, 4),
                 })
             else:
                 opening = (safe_int(first_row.get(opening_cases, 0)) if opening_cases else 0) * bpc + \
                           (safe_int(first_row.get(opening_bottles, 0)) if opening_bottles else 0)
                 
-                closing = (safe_int(last_row.get(closing_cases, 0)) if closing_cases else 0) * bpc + \
-                          (safe_int(last_row.get(closing_bottles, 0)) if closing_bottles else 0)
+                total_in_bottles = round(total_in * bpc)
+                total_out_bottles = round(total_out * bpc)
 
                 result.append({
                     "shop_code": s_code_str,
                     "brand": brand,
                     "pack": f"{pack}",
                     "opening": opening,
-                    "inward": round(total_in * bpc),
-                    "outward": round(total_out * bpc),
-                    "closing": closing,
+                    "inward": total_in_bottles,
+                    "outward": total_out_bottles,
+                    "closing": opening + total_in_bottles - total_out_bottles,
                 })
 
         return {"data": result, "uploads": uploads}

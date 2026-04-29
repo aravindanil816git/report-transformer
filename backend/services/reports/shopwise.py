@@ -14,6 +14,8 @@ class ShopwiseReportService(BaseReportService):
 
         # Robust detection of shop columns
         code_col, name_col = self._detect_shop_cols(df)
+        wh_col = self._detect_warehouse_col(df)
+
         if code_col:
             # Create standardized internal columns for reliability
             df["shop_code_internal"] = df[code_col].astype(str).str.replace(".0", "", regex=False).str.strip()
@@ -27,14 +29,15 @@ class ShopwiseReportService(BaseReportService):
                 else:
                      df["shop_name_internal"] = df["shop_code_internal"]
 
-            def get_wh(code):
-                return SHOP_LOOKUP.get(code, {}).get("warehouse")
+            # For Shopwise report, use raw data for warehouse if available.
+            # Do NOT use SHOP_LOOKUP for warehouse/bond here as per requirements.
+            if wh_col:
+                df["warehouse_info"] = df[wh_col].astype(str).str.strip()
+            else:
+                df["warehouse_info"] = "Unknown"
             
-            def get_bond(code):
-                return SHOP_LOOKUP.get(code, {}).get("bond")
-
-            df["warehouse_info"] = df["shop_code_internal"].apply(get_wh)
-            df["bond_info"] = df["shop_code_internal"].apply(get_bond)
+            # Remove bond info for this report type as per requirements
+            df["bond_info"] = "N/A"
 
         report["data"] = df.to_dict("records")
         report.setdefault("uploads", []).append({
@@ -95,6 +98,13 @@ class ShopwiseReportService(BaseReportService):
                     break
         
         return code_col, name_col
+
+    def _detect_warehouse_col(self, df):
+        for c in df.columns:
+            cl = c.lower()
+            if "warehouse" in cl or "wh" == cl:
+                return c
+        return None
 
     def process(self, report):
         return
@@ -206,15 +216,15 @@ class ShopwiseReportService(BaseReportService):
     def get_report(self, report, shop_code=None, warehouse=None, bond=None, view="case", **kwargs):
         data = report.get("data") or []
         if not data:
-            return {"data": [], "uploads": report.get("uploads", [])}
+            return {"data": [], "uploads": report.get("uploads", []), "config": report.get("config", {})}
         df = pd.DataFrame(data)
         result = self._aggregate(df, shop_code=shop_code, warehouse=warehouse, bond=bond, view=view)
-        return {"data": result, "uploads": report.get("uploads", [])}
+        return {"data": result, "uploads": report.get("uploads", []), "config": report.get("config", {})}
 
     def get_filters(self, report):
         data = report.get("data") or []
         if not data:
-            return {"shops": [], "warehouses": [], "bonds": [], "mapping": {}}
+            return {"shops": [], "warehouses": [], "mapping": {}}
         df = pd.DataFrame(data)
         
         code_col, name_col = self._detect_shop_cols(df)
@@ -240,37 +250,30 @@ class ShopwiseReportService(BaseReportService):
         
         shops = [{"shop_code": k, "shop_name": v} for k, v in shops_map.items()]
 
-        # Ensure bond/warehouse info is present for mapping
+        # Ensure warehouse info is present for mapping
         if code_col:
              if "warehouse_info" not in df.columns:
                  df["warehouse_info"] = df[code_col].astype(str).str.replace(".0", "", regex=False).str.strip().apply(lambda x: SHOP_LOOKUP.get(x, {}).get("warehouse"))
-             if "bond_info" not in df.columns:
-                 df["bond_info"] = df[code_col].astype(str).str.replace(".0", "", regex=False).str.strip().apply(lambda x: SHOP_LOOKUP.get(x, {}).get("bond"))
 
         warehouses = sorted(df["warehouse_info"].dropna().unique().tolist()) if "warehouse_info" in df.columns else []
-        bonds = sorted(df["bond_info"].dropna().unique().tolist()) if "bond_info" in df.columns else []
 
-        # Build cascading mapping
+        # Build cascading mapping (Warehouse -> Shop)
         cascading = {}
-        if all(col in df.columns for col in ["bond_info", "warehouse_info"]) and code_col:
-            temp_map_df = df[["bond_info", "warehouse_info", code_col]].drop_duplicates()
+        if "warehouse_info" in df.columns and code_col:
+            temp_map_df = df[["warehouse_info", code_col]].drop_duplicates()
             for _, row in temp_map_df.iterrows():
-                b = row["bond_info"]
                 w = row["warehouse_info"]
                 s = str(row[code_col]).replace(".0", "").strip()
                 
                 if not s or s.lower() == "nan": continue
                 
-                b_val = b if pd.notna(b) and str(b).lower() != "nan" else "UNMAPPED"
                 w_val = w if pd.notna(w) and str(w).lower() != "nan" else "UNMAPPED"
                 
-                if b_val not in cascading: cascading[b_val] = {}
-                if w_val not in cascading[b_val]: cascading[b_val][w_val] = []
-                if s not in cascading[b_val][w_val]: cascading[b_val][w_val].append(s)
+                if w_val not in cascading: cascading[w_val] = []
+                if s not in cascading[w_val]: cascading[w_val].append(s)
 
         return {
             "shops": sorted(shops, key=lambda x: x["shop_code"]),
             "warehouses": warehouses,
-            "bonds": bonds,
             "mapping": cascading
         }

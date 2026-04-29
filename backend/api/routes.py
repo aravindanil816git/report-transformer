@@ -338,7 +338,10 @@ async def upload(
                 df = read_excel_robust(path)
                 df = df.replace({pd.NA: None})
                 df = df.astype(object).where(pd.notnull(df), None)
+                report_date = report.get("config", {}).get("date")
                 u["file"] = file.filename
+                u["from"] = report_date
+                u["to"] = report_date
                 u["status"] = "uploaded"
                 u["data"] = df.to_dict("records")
                 match_found = True
@@ -347,7 +350,10 @@ async def upload(
     elif report["type"] == "daily_warehouse":
         for u in report["uploads"]:
             if u["warehouse"].strip().upper() == detected_key.strip().upper():
+                report_date = report.get("config", {}).get("date")
                 u["file"] = file.filename
+                u["from"] = report_date
+                u["to"] = report_date
                 u["status"] = "uploaded"
                 u["path"] = path
                 match_found = True
@@ -355,7 +361,8 @@ async def upload(
 
     elif report["type"] == "shopwise":
         svc = get_service("shopwise")
-        svc.upload(report, path, file.filename, None, None)
+        report_date = report.get("config", {}).get("date")
+        svc.upload(report, path, file.filename, report_date, report_date)
         report["status"] = "Ready"
         return {"status": "uploaded"}
 

@@ -188,9 +188,66 @@ export default function DataPage() {
 
   const isUploadType = ["shopwise", "daily_warehouse", "daily_warehouse_offtake", "daily_secondary_sales"].includes(typeFilter);
 
+  const renderHelpNote = () => {
+    if (!typeFilter) return null;
+
+    const notes = {
+      shopwise: {
+        text: "Data uploaded here is used in:",
+        warning: "Please add only raw data on same date range(dailywise). Cumulative calculation will be handled by system.",
+        links: [
+          { type: "cumulative_shopwise", label: "Cum. Shopwise Stock" },
+          { type: "combined_shopwise", label: "Combined Shopwise" }
+        ]
+      },
+      daily_warehouse: {
+        text: "Data uploaded here is used in:",
+        links: [
+          { type: "daily_warehouse", label: "Physical Stock report" }
+        ]
+      },
+      daily_warehouse_offtake: {
+        text: "Data uploaded here is used in:",
+        links: [
+          { type: "cumulative_warehouse", label: "Bondwise + Offtake" }
+        ]
+      }
+    };
+
+    const note = notes[typeFilter];
+    if (!note) return null;
+
+    return (
+      <div style={{ marginTop: 8, padding: "8px 12px", backgroundColor: "#f0f5ff", border: "1px solid #adc6ff", borderRadius: 4 }}>
+        <div style={{ fontSize: 13, color: "#262626", marginBottom: note.warning ? 4 : 0 }}>
+          {note.text} {note.links.map((l, i) => (
+            <span key={l.type}>
+              <a 
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate(`/reports?type=${l.type}`);
+                }}
+                style={{ fontWeight: "bold", color: "#1890ff", cursor: "pointer" }}
+              >
+                {l.label}
+              </a>
+              {i < note.links.length - 1 ? ", " : ""}
+            </span>
+          ))}
+        </div>
+        {note.warning && (
+          <div style={{ fontSize: 12, color: "#faad14", fontWeight: "500" }}>
+            ⚠️ {note.warning}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       <Button onClick={handleAddReport}>{isUploadType ? "Upload Data" : "Add Report"}</Button>
+      {renderHelpNote()}
 
       <Table
         columns={columns}

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Table, Select, Button, Space } from "antd";
+import { useEffect, useState, useMemo } from "react";
+import { Table, Select, Button, Space, Row, Col } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport } from "../../api";
 import { exportToExcel } from "../../utils/exportUtils";
@@ -12,6 +12,31 @@ export default function CleanupReport() {
   const [selectedWarehouse, setSelectedWarehouse] = useState(null);
   const [selectedPack, setSelectedPack] = useState("all");
   const [data, setData] = useState([]);
+
+  const config = report?.config || {};
+  const uploads = report?.uploads || [];
+
+  const periodLabel = useMemo(() => {
+    const froms = uploads.map(u => u.from).filter(Boolean);
+    const tos = uploads.map(u => u.to).filter(Boolean);
+    
+    if (froms.length && tos.length) {
+      return `PERIOD : ${froms[0]} - ${tos[0]}`;
+    }
+    
+    if (config.date) {
+      return `PERIOD : ${config.date} - ${config.date}`;
+    }
+    
+    return "";
+  }, [uploads, config]);
+
+  const uploadDateLabel = useMemo(() => {
+    const dates = uploads.map(u => u.from).filter(Boolean);
+    if (dates.length) return `UPLOAD DATE : ${dates[0]}`;
+    if (config.date) return `UPLOAD DATE : ${config.date}`;
+    return "";
+  }, [uploads, config]);
 
   // ✅ ALWAYS RUN
   useEffect(() => {
@@ -174,6 +199,11 @@ export default function CleanupReport() {
             Download Excel
           </Button>
         </Space>
+      </div>
+
+      <div style={{ marginBottom: 0, padding: "8px 12px", backgroundColor: "#ADC9E6", border: "1px solid #999", borderBottom: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{periodLabel}</span>
+        <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{uploadDateLabel}</span>
       </div>
 
       {/* 🔥 Table */}

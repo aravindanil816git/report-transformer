@@ -9,24 +9,22 @@ export default function ShopwiseReport() {
   const { id } = useParams();
 
   const [data, setData] = useState([]);
-  const [bond, setBond] = useState();
   const [warehouse, setWarehouse] = useState();
   const [shop, setShop] = useState();
   const [view, setView] = useState("case");
   const [useWholeNumbers, setUseWholeNumbers] = useState(false);
   const [collapsedShops, setCollapsedShops] = useState({});
 
-  const [bondOptions, setBondOptions] = useState([]);
   const [warehouseOptions, setWarehouseOptions] = useState([]);
   const [shopOptions, setShopOptions] = useState([]);
   const [filterMapping, setFilterMapping] = useState({});
   const [allShops, setAllShops] = useState([]);
   const [uploads, setUploads] = useState([]);
+  const [config, setConfig] = useState({});
 
   useEffect(() => {
     getFilters(id).then((res) => {
-      const { bonds, warehouses, shops, mapping } = res.data;
-      setBondOptions((bonds || []).map(b => ({ value: b, label: b })));
+      const { warehouses, shops, mapping } = res.data;
       setWarehouseOptions((warehouses || []).map(w => ({ value: w, label: w })));
       const formattedShops = (shops || []).map(s => ({ 
         value: s.shop_code, 
@@ -40,44 +38,23 @@ export default function ShopwiseReport() {
 
   // Handle cascading logic
   useEffect(() => {
-    let filteredWarehouses = [];
     let filteredShops = [];
 
-    if (bond) {
-      const whs = Object.keys(filterMapping[bond] || {});
-      filteredWarehouses = whs.map(w => ({ value: w, label: w }));
-      
-      if (warehouse) {
-        const shopCodes = filterMapping[bond][warehouse] || [];
-        filteredShops = allShops.filter(s => shopCodes.includes(s.value));
-      } else {
-        const allShopCodes = Object.values(filterMapping[bond]).flat();
-        filteredShops = allShops.filter(s => allShopCodes.includes(s.value));
-      }
+    if (warehouse) {
+      const shopCodes = filterMapping[warehouse] || [];
+      filteredShops = allShops.filter(s => shopCodes.includes(s.value));
     } else {
-      filteredWarehouses = Object.keys(
-        Object.values(filterMapping).reduce((acc, curr) => ({ ...acc, ...curr }), {})
-      ).map(w => ({ value: w, label: w }));
-      
-      if (warehouse) {
-        const shopCodes = [];
-        Object.values(filterMapping).forEach(whMap => {
-          if (whMap[warehouse]) shopCodes.push(...whMap[warehouse]);
-        });
-        filteredShops = allShops.filter(s => shopCodes.includes(s.value));
-      } else {
-        filteredShops = allShops;
-      }
+      filteredShops = allShops;
     }
 
-    setWarehouseOptions(filteredWarehouses);
     setShopOptions(filteredShops);
-  }, [bond, warehouse, filterMapping, allShops]);
+  }, [warehouse, filterMapping, allShops]);
 
   const load = () => {
-    getReport(id, shop, view, { warehouse, bond }).then((res) => {
+    getReport(id, shop, view, { warehouse }).then((res) => {
       setData(res.data.data || []);
       setUploads(res.data.uploads || []);
+      setConfig(res.data.config || {});
       
       // Reset collapsed state on load - all shops collapsed by default
       const initialCollapsed = {};
@@ -92,12 +69,26 @@ export default function ShopwiseReport() {
   }, []);
 
   const periodLabel = useMemo(() => {
-    if (!uploads.length) return "";
     const froms = uploads.map(u => u.from).filter(Boolean);
     const tos = uploads.map(u => u.to).filter(Boolean);
-    if (!froms.length || !tos.length) return "";
-    return `PERIOD : ${froms[0]} - ${tos[0]}`;
-  }, [uploads]);
+    
+    if (froms.length && tos.length) {
+      return `PERIOD : ${froms[0]} - ${tos[0]}`;
+    }
+    
+    if (config.date) {
+      return `PERIOD : ${config.date} - ${config.date}`;
+    }
+    
+    return "";
+  }, [uploads, config]);
+
+  const uploadDateLabel = useMemo(() => {
+    const dates = uploads.map(u => u.from).filter(Boolean);
+    if (dates.length) return `UPLOAD DATE : ${dates[0]}`;
+    if (config.date) return `UPLOAD DATE : ${config.date}`;
+    return "";
+  }, [uploads, config]);
 
   const toggleShop = (shopCode) => {
     setCollapsedShops(prev => ({
@@ -153,51 +144,78 @@ export default function ShopwiseReport() {
       });
 
       if (!isCollapsed) {
-        Object.entries(brands).forEach(([brand, items]) => {
-          // Brand Header Row
-          rows.push({
-            key: `brand_${shopCode}_${brand}`,
-            label: brand,
-            isBrandHeader: true
-          });
-
-          const brandTotal = {
-            key: `total_${shopCode}_${brand}`,
-            label: `${brand} Total`,
-            opening: 0,
-            inward: 0,
-            outward: 0,
-            closing: 0,
-            isBrandTotal: true
-          };
-
-          items.forEach((item, i) => {
-            const row = {
-              ...item,
-              key: `item_${shopCode}_${brand}_${i}`,
-              label: item.pack
-            };
-            rows.push(row);
-
-            brandTotal.opening += item.opening || 0;
-            brandTotal.inward += item.inward || 0;
-            brandTotal.outward += item.outward || 0;
-            brandTotal.closing += item.closing || 0;
-          });
-
-          rows.push(brandTotal);
-          rows.push({ key: `spacer_${shopCode}_${brand}`, isSpacer: true });
+      Object.entries(brands).forEach(([brand, items]) => {
+        // Brand Header Row
+        rows.push({
+          key: `brand_${shopCode}_${brand}`,
+          label: brand,
+          isBrandHeader: true
         });
-      }
 
-      // Add to grand total regardless of collapse
+        const brandTotal = {
+          key: `total_${shopCode}_${brand}`,
+          label: `${brand} Total`,
+          opening: 0,
+          inward: 0,
+          outward: 0,
+          closing: 0,
+          isBrandTotal: true
+        };
+
+        items.forEach((item, i) => {
+          const row = {
+            ...item,
+            key: `item_${shopCode}_${brand}_${i}`,
+            label: item.pack
+          };
+          rows.push(row);
+
+          brandTotal.opening += item.opening || 0;
+          brandTotal.inward += item.inward || 0;
+          brandTotal.outward += item.outward || 0;
+          brandTotal.closing += item.closing || 0;
+        });
+
+        rows.push(brandTotal);
+        rows.push({ key: `spacer_${shopCode}_${brand}`, isSpacer: true });
+      });
+
+      // Shop Total Row
+      const shopTotal = {
+        key: `shop_total_${shopCode}`,
+        label: `Shop ${shopCode} Total`,
+        opening: 0,
+        inward: 0,
+        outward: 0,
+        closing: 0,
+        isShopTotal: true
+      };
+
+      Object.values(brands).flat().forEach(item => {
+        shopTotal.opening += item.opening || 0;
+        shopTotal.inward += item.inward || 0;
+        shopTotal.outward += item.outward || 0;
+        shopTotal.closing += item.closing || 0;
+
+        // Add to grand total regardless of collapse
+        grandTotal.opening += item.opening || 0;
+        grandTotal.inward += item.inward || 0;
+        grandTotal.outward += item.outward || 0;
+        grandTotal.closing += item.closing || 0;
+      });
+
+      rows.push(shopTotal);
+      rows.push({ key: `shop_spacer_${shopCode}`, isSpacer: true });
+    } else {
+      // Add to grand total even if collapsed
       Object.values(brands).flat().forEach(item => {
         grandTotal.opening += item.opening || 0;
         grandTotal.inward += item.inward || 0;
         grandTotal.outward += item.outward || 0;
         grandTotal.closing += item.closing || 0;
       });
-    });
+    }
+  });
 
     if (rows.length > 0) {
       rows.push(grandTotal);
@@ -223,6 +241,7 @@ export default function ShopwiseReport() {
         }
         if (record.isBrandHeader) return <span>{text}</span>;
         if (record.isBrandTotal) return <b>{text}</b>;
+        if (record.isShopTotal) return <b style={{ color: "#a52a2a" }}>{text}</b>;
         if (record.isGrandTotal) return <b>{text}</b>;
         return <span style={{ paddingLeft: 24 }}>{text}</span>;
       },
@@ -231,25 +250,25 @@ export default function ShopwiseReport() {
       title: "Sum of Shop Opening Cases",
       dataIndex: "opening",
       className: "val-col",
-      render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
+      render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
     },
     {
       title: "Sum of Shop In Cases",
       dataIndex: "inward",
       className: "val-col",
-      render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
+      render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
     },
     {
       title: "Sum of Shop Out Cases",
       dataIndex: "outward",
       className: "val-col",
-      render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
+      render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
     },
     {
       title: "Sum of Shop Closing Cases",
       dataIndex: "closing",
       className: "val-col",
-      render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
+      render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
     },
   ];
 
@@ -265,7 +284,7 @@ export default function ShopwiseReport() {
     });
 
     Object.entries(shopGrouped).forEach(([shopCode, brands]) => {
-      exportData.push({ "Row Labels": shopCode });
+      exportData.push({ "Row Labels": "Shop - " + shopCode });
       Object.entries(brands).forEach(([brand, items]) => {
         exportData.push({ "Row Labels": brand });
         let bOpening = 0, bIn = 0, bOut = 0, bClosing = 0;
@@ -292,12 +311,30 @@ export default function ShopwiseReport() {
           "Sum of Shop Closing Cases": bClosing
         });
       });
+
+      // Shop Total in Excel
+      let sOpening = 0, sIn = 0, sOut = 0, sClosing = 0;
+      Object.values(brands).flat().forEach(item => {
+        sOpening += useWholeNumbers ? Math.floor(item.opening) : item.opening;
+        sIn += useWholeNumbers ? Math.floor(item.inward) : item.inward;
+        sOut += useWholeNumbers ? Math.floor(item.outward) : item.outward;
+        sClosing += useWholeNumbers ? Math.floor(item.closing) : item.closing;
+      });
+      exportData.push({
+        "Row Labels": `Shop ${shopCode} Total`,
+        "Sum of Shop Opening Cases": sOpening,
+        "Sum of Shop In Cases": sIn,
+        "Sum of Shop Out Cases": sOut,
+        "Sum of Shop Closing Cases": sClosing
+      });
+      exportData.push({}); // Spacer row
     });
 
     exportToExcel(
       exportData,
       {
-        Bond: bond,
+        "Upload Date": uploadDateLabel.replace("UPLOAD DATE : ", ""),
+        Period: periodLabel,
         Warehouse: warehouse,
         Shop: shop,
         View: view,
@@ -311,22 +348,6 @@ export default function ShopwiseReport() {
   return (
     <>
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }} align="middle">
-        <Col>
-          <Select
-            placeholder="Bond"
-            allowClear
-            showSearch
-            style={{ width: 150 }}
-            options={bondOptions}
-            value={bond}
-            onChange={(v) => {
-              setBond(v);
-              setWarehouse(undefined);
-              setShop(undefined);
-            }}
-          />
-        </Col>
-
         <Col>
           <Select
             placeholder="Warehouse"
@@ -385,8 +406,9 @@ export default function ShopwiseReport() {
         </Col>
       </Row>
 
-      <div style={{ marginBottom: 0, padding: "8px 12px", backgroundColor: "#ADC9E6", border: "1px solid #999", borderBottom: "none" }}>
+      <div style={{ marginBottom: 0, padding: "8px 12px", backgroundColor: "#ADC9E6", border: "1px solid #999", borderBottom: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{periodLabel}</span>
+        <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{uploadDateLabel}</span>
       </div>
       <Table
         columns={columns}
