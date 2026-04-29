@@ -152,13 +152,23 @@ export default function DataPage() {
 
             {/* 🔥 View */}
             <Tooltip title={!isProcessed ? "Upload and Click process to View" : ""}>
-              <Button
-                type="primary"
-                disabled={!isProcessed}
-                onClick={() => navigate(config.route.replace(":id", r.id))}
-              >
-                View
-              </Button>
+              <Space direction="horizontal">
+                <Button
+                  type="primary"
+                  disabled={!isProcessed}
+                  onClick={() => navigate(config.route.replace(":id", r.id))}
+                >
+                  View
+                </Button>
+
+                {r.type === "cumulative_warehouse" && isProcessed && (
+                  <Button
+                    onClick={() => navigate(`${config.route.replace(":id", r.id)}?mode=shop&view=cumulative`)}
+                  >
+                    Bondwise Secondary Sales
+                  </Button>
+                )}
+              </Space>
             </Tooltip>
 
             {/* 🔥 Delete */}
@@ -176,9 +186,11 @@ export default function DataPage() {
     },
   ];
 
+  const isUploadType = ["shopwise", "daily_warehouse", "daily_warehouse_offtake", "daily_secondary_sales"].includes(typeFilter);
+
   return (
     <>
-      <Button onClick={handleAddReport}>Add Report</Button>
+      <Button onClick={handleAddReport}>{isUploadType ? "Upload Data" : "Add Report"}</Button>
 
       <Table
         columns={columns}
@@ -188,7 +200,7 @@ export default function DataPage() {
       />
 
       <Modal
-        title="Create New Report"
+        title={isUploadType ? "Upload Data" : "Create New Report"}
         open={open}
         onOk={async () => {
           if (type === "month_comparative") {
@@ -205,7 +217,7 @@ export default function DataPage() {
               date: reportDate?.format("YYYY-MM"),
             });
           } 
-          else if (["cumulative_shopwise", "cumulative_warehouse"].includes(type)) {
+          else if (["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise"].includes(type)) {
             await createReport(name, type, {
               date1: date1?.format("YYYY-MM-DD"),
               date2: date2?.format("YYYY-MM-DD"),
@@ -224,21 +236,21 @@ export default function DataPage() {
         width={500}
       >
         <Form layout="vertical" style={{ marginTop: 20 }}>
-          <Form.Item label="Report Name">
+          <Form.Item label="Name">
             <Input
-              placeholder="Enter report name"
+              placeholder="Enter name"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
           </Form.Item>
 
-          <Form.Item label="Report Type">
+          <Form.Item label="Type">
             <Select
               showSearch
               value={type}
               onChange={setType}
               style={{ width: '100%' }}
-              placeholder="Select report type"
+              placeholder="Select type"
               optionFilterProp="label"
               options={Object.entries(REPORT_REGISTRY).map(
                 ([k, v]) => ({
@@ -251,26 +263,26 @@ export default function DataPage() {
 
           {/* 🔥 DAILY */}
           {["daily_secondary_sales", "shopwise", "daily_warehouse_offtake"].includes(type) && (
-            <Form.Item label="Report Date">
+            <Form.Item label="Date">
               <DatePicker style={{ width: '100%' }} onChange={setReportDate} />
             </Form.Item>
           )}
 
           {/* 🔥 CLEANUP */}
           {type === "daily_warehouse" && (
-            <Form.Item label="Report Date">
+            <Form.Item label="Date">
               <DatePicker style={{ width: '100%' }} onChange={setReportDate} />
             </Form.Item>
           )}
 
           {type === "monthly_stock_sales" && (
-            <Form.Item label="Select Month">
+            <Form.Item label="Date">
               <DatePicker picker="month" style={{ width: '100%' }} onChange={setReportDate} />
             </Form.Item>
           )}
 
-          {["month_comparative", "cumulative_shopwise", "cumulative_warehouse"].includes(type) && (
-            <Form.Item label="Date Range">
+          {["month_comparative", "cumulative_shopwise", "cumulative_warehouse", "combined_shopwise"].includes(type) && (
+            <Form.Item label="Date">
               <Space direction="vertical" style={{ width: '100%' }}>
                 <DatePicker
                   placeholder="Start Date"
@@ -321,7 +333,7 @@ export default function DataPage() {
 
       {/* 🔥 CUMULATIVE UPLOAD MODAL */}
       {uploadOpen &&
-        ["cumulative_shopwise", "cumulative_warehouse"].includes(
+        ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise"].includes(
           current?.type
         ) && (
           <CumulativeUploadModal

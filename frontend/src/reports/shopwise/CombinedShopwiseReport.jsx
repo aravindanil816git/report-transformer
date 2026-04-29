@@ -1,11 +1,14 @@
 import { useEffect, useState, useMemo } from "react";
-import { Table, Select, Segmented, Row, Col, Button, Checkbox } from "antd";
+import { Table, Select, Segmented, Row, Col, Button, Checkbox, DatePicker } from "antd";
 import { useParams } from "react-router-dom";
 import { PlusSquareOutlined, MinusSquareOutlined } from "@ant-design/icons";
 import { getReport, getFilters } from "../../api";
 import { exportToExcel } from "../../utils/exportUtils";
+import dayjs from "dayjs";
 
-export default function ShopwiseReport() {
+const { RangePicker } = DatePicker;
+
+export default function CombinedShopwiseReport() {
   const { id } = useParams();
 
   const [data, setData] = useState([]);
@@ -22,6 +25,8 @@ export default function ShopwiseReport() {
   const [filterMapping, setFilterMapping] = useState({});
   const [allShops, setAllShops] = useState([]);
   const [uploads, setUploads] = useState([]);
+  const [config, setConfig] = useState({});
+  const [dateRange, setDateRange] = useState([]);
 
   useEffect(() => {
     getFilters(id).then((res) => {
@@ -75,7 +80,16 @@ export default function ShopwiseReport() {
   }, [bond, warehouse, filterMapping, allShops]);
 
   const load = () => {
-    getReport(id, shop, view, { warehouse, bond }).then((res) => {
+    let startIdx = null;
+    let endIdx = null;
+
+    if (dateRange && dateRange.length === 2) {
+      const allDates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
+      startIdx = allDates.indexOf(dateRange[0].format("YYYY-MM-DD"));
+      endIdx = allDates.indexOf(dateRange[1].format("YYYY-MM-DD"));
+    }
+
+    getReport(id, shop, view, { warehouse, bond, start_idx: startIdx, end_idx: endIdx }).then((res) => {
       setData(res.data.data || []);
       setUploads(res.data.uploads || []);
       
@@ -93,11 +107,16 @@ export default function ShopwiseReport() {
 
   const periodLabel = useMemo(() => {
     if (!uploads.length) return "";
-    const froms = uploads.map(u => u.from).filter(Boolean);
-    const tos = uploads.map(u => u.to).filter(Boolean);
-    if (!froms.length || !tos.length) return "";
-    return `PERIOD : ${froms[0]} - ${tos[0]}`;
-  }, [uploads]);
+    // For combined report, uploads have 'date' field
+    const dates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
+    if (!dates.length) return "";
+    
+    if (dateRange && dateRange.length === 2) {
+        return `COMBINED PERIOD : ${dateRange[0].format("YYYY-MM-DD")} - ${dateRange[1].format("YYYY-MM-DD")}`;
+    }
+
+    return `COMBINED PERIOD : ${dates[0]} - ${dates[dates.length - 1]}`;
+  }, [uploads, dateRange]);
 
   const toggleShop = (shopCode) => {
     setCollapsedShops(prev => ({
@@ -303,14 +322,22 @@ export default function ShopwiseReport() {
         View: view,
         WholeNumbers: useWholeNumbers ? "Yes" : "No"
       },
-      "daily_shopwise_report.xlsx",
-      "Daily Shopwise"
+      "combined_shopwise_report.xlsx",
+      "Combined Shopwise"
     );
   };
 
   return (
     <>
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }} align="middle">
+        <Col>
+          <RangePicker
+            value={dateRange}
+            onChange={setDateRange}
+            style={{ width: 250 }}
+          />
+        </Col>
+
         <Col>
           <Select
             placeholder="Bond"

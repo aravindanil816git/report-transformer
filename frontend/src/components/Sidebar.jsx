@@ -15,13 +15,8 @@ export default function Sidebar() {
       label: "Status Calendar",
     },
     {
-      key: "data-home",
-      label: "All Reports",
-    },
-    {
-      key: "grp-daily",
-      label: "Daily Uploads",
-      type: 'group',
+      key: "grp-uploads",
+      label: "Uploads",
       children: [
         { key: "report-shopwise", label: REPORT_REGISTRY.shopwise.label },
         { key: "report-daily_warehouse", label: REPORT_REGISTRY.daily_warehouse.label },
@@ -30,27 +25,21 @@ export default function Sidebar() {
       ],
     },
     {
-      key: "grp-cumulative",
-      label: "Cumulative Uploads",
-      type: 'group',
+      key: "grp-reports",
+      label: "Reports",
       children: [
         { key: "report-cumulative_warehouse", label: REPORT_REGISTRY.cumulative_warehouse.label },
         { key: "report-cumulative_shopwise", label: REPORT_REGISTRY.cumulative_shopwise.label },
-      ],
-    },
-    {
-      key: "grp-reports",
-      label: "Monthly Reports",
-      type: 'group',
-      children: [
+        { key: "report-combined_shopwise", label: REPORT_REGISTRY.combined_shopwise.label },
         { key: "report-month_comparative", label: REPORT_REGISTRY.month_comparative.label },
         { key: "report-monthly_stock_sales", label: REPORT_REGISTRY.monthly_stock_sales.label },
+        { key: "report-daily_warehouse", label: "Phyiscal Stock Report" },
       ],
     },
   ];
 
   const selectedKey = location.pathname === '/' ? 'status-calendar' :
-    location.pathname === '/reports' ? (location.search ? `report-${new URLSearchParams(location.search).get('type')}` : 'data-home') :
+    location.pathname === '/reports' && location.search ? `report-${new URLSearchParams(location.search).get('type')}` :
     '';
 
   return (
@@ -61,7 +50,6 @@ export default function Sidebar() {
         selectedKeys={[selectedKey]}
         items={items}
         onClick={(e) => {
-          if (e.key === "data-home") navigate("/reports");
           if (e.key === "status-calendar") navigate("/");
           if (e.key.startsWith("report-")) {
             const type = e.key.replace("report-", "");

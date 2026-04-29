@@ -28,20 +28,22 @@ def clean_nan(obj):
 
 # ================= SYNC DATA =================
 def sync_cumulative_report(report):
-    if report.get("type") not in ["cumulative_shopwise", "cumulative_warehouse"]:
+    if report.get("type") not in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise"]:
         return
     
     # Target to allowed source types
     source_map = {
         "cumulative_shopwise": ["shopwise", "cumulative_shopwise"],
-        "cumulative_warehouse": ["daily_warehouse_offtake", "cumulative_warehouse"]
+        "cumulative_warehouse": ["daily_warehouse_offtake", "cumulative_warehouse"],
+        "combined_shopwise": ["shopwise", "combined_shopwise"]
     }
     allowed_sources = source_map.get(report["type"], [])
     
     # primary source mapping for daily reports
     primary_source_map = {
         "cumulative_shopwise": "shopwise",
-        "cumulative_warehouse": "daily_warehouse_offtake"
+        "cumulative_warehouse": "daily_warehouse_offtake",
+        "combined_shopwise": "shopwise"
     }
     primary_source = primary_source_map.get(report["type"])
     
@@ -151,7 +153,7 @@ def create_report(
         config = {"date1": date1, "date2": date2}
 
     # 🔥 CUMULATIVE REPORTS
-    elif type in ["cumulative_shopwise", "cumulative_warehouse"]:
+    elif type in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise"]:
         from datetime import datetime, timedelta
         start = datetime.strptime(date1, "%Y-%m-%d")
         end = datetime.strptime(date2, "%Y-%m-%d")
