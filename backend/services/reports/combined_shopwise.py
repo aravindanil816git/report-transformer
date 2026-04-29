@@ -124,48 +124,88 @@ class CombinedShopwiseReportService(BaseReportService):
             bpc = safe_int(g[bottles_per_case].iloc[0]) if bottles_per_case else 1
             if bpc <= 0: bpc = 1
 
-            # Cumulative values
+            # Get values as series for easier manipulation
+            def get_series(col_cases, col_bottles):
+                if col_cases and col_bottles:
+                    return g[col_cases].fillna(0) + (g[col_bottles].fillna(0) / bpc)
+                elif col_cases:
+                    return g[col_cases].fillna(0)
+                elif col_bottles:
+                    return g[col_bottles].fillna(0) / bpc
+                return pd.Series([0]*len(g), index=g.index)
+
+            in_series = get_series(in_cases, in_bottles)
+            out_series = get_series(out_cases, out_bottles)
+            date_series = pd.to_datetime(g["date_internal"])
+            
+            # Logic for summing cumulative periods
+            # Resets occur: 
+            # 1. Month change
+            # 2. Day 16 to 17 transition
+            # 3. Fallback: value drop
+            def sum_cumulative_resets(series, dates):
+                if series.empty: return 0
+                vals = series.values
+                dt_vals = dates.values
+                total = 0
+                for i in range(len(vals) - 1):
+                    d1 = pd.Timestamp(dt_vals[i])
+                    d2 = pd.Timestamp(dt_vals[i+1])
+                    
+                    is_reset = False
+                    if d1.month != d2.month or d1.year != d2.year:
+                        is_reset = True
+                    elif d1.day <= 16 and d2.day >= 17:
+                        is_reset = True
+                    elif vals[i+1] < vals[i]:
+                        is_reset = True
+                    
+                    if is_reset:
+                        total += vals[i]
+                
+                total += vals[-1]
+                return total
+
+            total_in = sum_cumulative_resets(in_series, date_series)
+            total_out = sum_cumulative_resets(out_series, date_series)
+
             # Opening: from first date
             first_row = g.iloc[0]
             # Closing: from last date
             last_row = g.iloc[-1]
             
-            # Sum for inward and outward
-            total_in_cases = g[in_cases].sum() if in_cases else 0
-            total_in_bottles = g[in_bottles].sum() if in_bottles else 0
-            total_out_cases = g[out_cases].sum() if out_cases else 0
-            total_out_bottles = g[out_bottles].sum() if out_bottles else 0
-
             s_code_str = str(s_code).replace(".0", "").strip()
 
             if view == "case":
-                opening = safe_int(first_row.get(opening_cases, 0)) + (safe_int(first_row.get(opening_bottles, 0)) / bpc)
-                inward = safe_int(total_in_cases) + (safe_int(total_in_bottles) / bpc)
-                outward = safe_int(total_out_cases) + (safe_int(total_out_bottles) / bpc)
-                closing = safe_int(last_row.get(closing_cases, 0)) + (safe_int(last_row.get(closing_bottles, 0)) / bpc)
+                opening = (safe_int(first_row.get(opening_cases, 0)) if opening_cases else 0) + \
+                          (safe_int(first_row.get(opening_bottles, 0)) / bpc if opening_bottles else 0)
+                
+                closing = (safe_int(last_row.get(closing_cases, 0)) if closing_cases else 0) + \
+                          (safe_int(last_row.get(closing_bottles, 0)) / bpc if closing_bottles else 0)
 
                 result.append({
                     "shop_code": s_code_str,
                     "brand": brand,
                     "pack": f"{pack}",
                     "opening": round(opening, 4),
-                    "inward": round(inward, 4),
-                    "outward": round(outward, 4),
+                    "inward": round(total_in, 4),
+                    "outward": round(total_out, 4),
                     "closing": round(closing, 4),
                 })
             else:
-                opening = safe_int(first_row.get(opening_cases, 0)) * bpc + safe_int(first_row.get(opening_bottles, 0))
-                inward = safe_int(total_in_cases) * bpc + safe_int(total_in_bottles)
-                outward = safe_int(total_out_cases) * bpc + safe_int(total_out_bottles)
-                closing = safe_int(last_row.get(closing_cases, 0)) * bpc + safe_int(last_row.get(closing_bottles, 0))
+                opening = (safe_int(first_row.get(opening_cases, 0)) if opening_cases else 0) * bpc + \
+                          (safe_int(first_row.get(opening_bottles, 0)) if opening_bottles else 0)
+                
+                closing = (safe_int(last_row.get(closing_cases, 0)) if closing_cases else 0) * bpc + \
+                          (safe_int(last_row.get(closing_bottles, 0)) if closing_bottles else 0)
 
                 result.append({
                     "shop_code": s_code_str,
                     "brand": brand,
                     "pack": f"{pack}",
                     "opening": opening,
-                    "inward": inward,
-                    "outward": outward,
+                    "inward": round(total_in * bpc),
+                    "outward": round(total_out * bpc),
                     "closing": closing,
                 })
 

@@ -85,8 +85,18 @@ export default function CombinedShopwiseReport() {
 
     if (dateRange && dateRange.length === 2) {
       const allDates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
-      startIdx = allDates.indexOf(dateRange[0].format("YYYY-MM-DD"));
-      endIdx = allDates.indexOf(dateRange[1].format("YYYY-MM-DD"));
+      const sStr = dateRange[0].format("YYYY-MM-DD");
+      const eStr = dateRange[1].format("YYYY-MM-DD");
+      
+      startIdx = allDates.findIndex(d => d >= sStr);
+      if (startIdx === -1) startIdx = null;
+
+      const endDates = allDates.filter(d => d <= eStr);
+      if (endDates.length > 0) {
+          endIdx = allDates.indexOf(endDates[endDates.length - 1]);
+      } else {
+          endIdx = null;
+      }
     }
 
     getReport(id, shop, view, { warehouse, bond, start_idx: startIdx, end_idx: endIdx }).then((res) => {
