@@ -29,6 +29,8 @@ class DailyWarehouseOfftakeService(BaseReportService):
         report["data"] = df.to_dict("records")
         report.setdefault("uploads", []).append({
             "file": file_name,
+            "from": date,
+            "to": date,
             "date": date,
             "status": "uploaded"
         })

@@ -1,11 +1,14 @@
 import { useEffect, useState, useMemo } from "react";
-import { Table, Select, Segmented, Row, Col, Button, Checkbox } from "antd";
+import { Table, Select, Segmented, Row, Col, Button, Checkbox, DatePicker } from "antd";
 import { useParams } from "react-router-dom";
 import { PlusSquareOutlined, MinusSquareOutlined } from "@ant-design/icons";
 import { getReport, getFilters } from "../../api";
 import { exportToExcel } from "../../utils/exportUtils";
+import dayjs from "dayjs";
 
-export default function ShopwiseReport() {
+const { RangePicker } = DatePicker;
+
+export default function CombinedShopwiseReport() {
   const { id } = useParams();
 
   const [data, setData] = useState([]);
@@ -21,6 +24,7 @@ export default function ShopwiseReport() {
   const [allShops, setAllShops] = useState([]);
   const [uploads, setUploads] = useState([]);
   const [config, setConfig] = useState({});
+  const [dateRange, setDateRange] = useState([]);
 
   useEffect(() => {
     getFilters(id).then((res) => {
@@ -51,7 +55,26 @@ export default function ShopwiseReport() {
   }, [warehouse, filterMapping, allShops]);
 
   const load = () => {
-    getReport(id, shop, view, { warehouse }).then((res) => {
+    let startIdx = null;
+    let endIdx = null;
+
+    if (dateRange && dateRange.length === 2) {
+      const allDates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
+      const sStr = dateRange[0].format("YYYY-MM-DD");
+      const eStr = dateRange[1].format("YYYY-MM-DD");
+      
+      startIdx = allDates.findIndex(d => d >= sStr);
+      if (startIdx === -1) startIdx = null;
+
+      const endDates = allDates.filter(d => d <= eStr);
+      if (endDates.length > 0) {
+          endIdx = allDates.indexOf(endDates[endDates.length - 1]);
+      } else {
+          endIdx = null;
+      }
+    }
+
+    getReport(id, shop, view, { warehouse, start_idx: startIdx, end_idx: endIdx }).then((res) => {
       setData(res.data.data || []);
       setUploads(res.data.uploads || []);
       setConfig(res.data.config || {});
@@ -69,23 +92,21 @@ export default function ShopwiseReport() {
   }, []);
 
   const periodLabel = useMemo(() => {
-    const froms = uploads.map(u => u.from).filter(Boolean);
-    const tos = uploads.map(u => u.to).filter(Boolean);
+    if (!uploads.length) return "";
+    // For combined report, uploads have 'date' field
+    const dates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
+    if (!dates.length) return "";
     
-    if (froms.length && tos.length) {
-      return `PERIOD : ${froms[0]} - ${tos[0]}`;
+    if (dateRange && dateRange.length === 2) {
+        return `COMBINED PERIOD : ${dateRange[0].format("YYYY-MM-DD")} - ${dateRange[1].format("YYYY-MM-DD")}`;
     }
-    
-    if (config.date) {
-      return `PERIOD : ${config.date} - ${config.date}`;
-    }
-    
-    return "";
-  }, [uploads, config]);
+
+    return `COMBINED PERIOD : ${dates[0]} - ${dates[dates.length - 1]}`;
+  }, [uploads, dateRange]);
 
   const uploadDateLabel = useMemo(() => {
-    const dates = uploads.map(u => u.from).filter(Boolean);
-    if (dates.length) return `UPLOAD DATE : ${dates[0]}`;
+    const dates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
+    if (dates.length) return `UPLOAD DATE : ${dates[dates.length - 1]}`;
     if (config.date) return `UPLOAD DATE : ${config.date}`;
     return "";
   }, [uploads, config]);
@@ -333,21 +354,28 @@ export default function ShopwiseReport() {
     exportToExcel(
       exportData,
       {
-        "Upload Date": uploadDateLabel.replace("UPLOAD DATE : ", ""),
         Period: periodLabel,
         Warehouse: warehouse,
         Shop: shop,
         View: view,
         WholeNumbers: useWholeNumbers ? "Yes" : "No"
       },
-      "daily_shopwise_report.xlsx",
-      "Daily Shopwise"
+      "combined_shopwise_report.xlsx",
+      "Combined Shopwise"
     );
   };
 
   return (
     <>
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }} align="middle">
+        <Col>
+          <RangePicker
+            value={dateRange}
+            onChange={setDateRange}
+            style={{ width: 250 }}
+          />
+        </Col>
+
         <Col>
           <Select
             placeholder="Warehouse"

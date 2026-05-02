@@ -21,16 +21,22 @@ export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", she
   // Add a blank row if there was metadata
   if (wsData.length > 0) {
     wsData.push([]);
+    wsData.push([]);
   }
 
   // Add table headers
   if (data.length > 0) {
-    const headers = Object.keys(data[0]);
+    // Collect all unique keys from all rows to ensure no columns are missed
+    const allKeys = new Set();
+    data.forEach(row => {
+      Object.keys(row).forEach(key => allKeys.add(key));
+    });
+    const headers = Array.from(allKeys);
     wsData.push(headers);
 
     // Add table data
     data.forEach((row) => {
-      wsData.push(headers.map((h) => row[h]));
+      wsData.push(headers.map((h) => row[h] !== undefined ? row[h] : ""));
     });
   }
 

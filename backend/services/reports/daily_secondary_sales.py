@@ -92,5 +92,7 @@ class DailySecondarySalesService(BaseReportService):
     # ================= GET REPORT =================
     def get_report(self, report, **kwargs):
         return {
-            "data": report.get("processed", [])
+            "data": report.get("processed", []) or [],
+            "uploads": report.get("uploads", []),
+            "config": report.get("config", {})
         }

@@ -7,12 +7,18 @@ import DailySecondaryReport from "./comparitive/DailySecondaryReport";
 import MonthlyComparitive from "./comparitive/MonthComparative";
 import CumulativeWarehouseReport from "./shopwise/CumWareHouseReport";
 import MonthlyStockSales from "./warehouse/MonthlyStockSale";
+import CombinedShopwiseReport from "./shopwise/CombinedShopwiseReport";
 
 export const REPORT_REGISTRY = {
   shopwise: {
     component: ShopwiseReport,
     route: "/report/shopwise/:id",
     label: "Supplier Wise Shop Sale",
+  },
+  combined_shopwise: {
+    component: CombinedShopwiseReport,
+    route: "/report/combined_shopwise/:id",
+    label: "Combined Shopwise",
   },
   daily_warehouse: {
     component: DailyWarehouseReport,

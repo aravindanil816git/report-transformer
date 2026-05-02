@@ -30,6 +30,7 @@ export default function Sidebar() {
       children: [
         { key: "report-cumulative_warehouse", label: REPORT_REGISTRY.cumulative_warehouse.label },
         { key: "report-cumulative_shopwise", label: REPORT_REGISTRY.cumulative_shopwise.label },
+        { key: "report-combined_shopwise", label: REPORT_REGISTRY.combined_shopwise.label },
         { key: "report-month_comparative", label: REPORT_REGISTRY.month_comparative.label },
         { key: "report-monthly_stock_sales", label: REPORT_REGISTRY.monthly_stock_sales.label },
         { key: "report-daily_warehouse", label: "Phyiscal Stock Report" },
