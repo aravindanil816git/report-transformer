@@ -77,6 +77,7 @@ export default function CombinedShopwiseReport() {
     getReport(id, shop, view, { warehouse, start_idx: startIdx, end_idx: endIdx }).then((res) => {
       setData(res.data.data || []);
       setUploads(res.data.uploads || []);
+      setConfig(res.data.config || {});
       
       // Reset collapsed state on load - all shops collapsed by default
       const initialCollapsed = {};
@@ -102,6 +103,13 @@ export default function CombinedShopwiseReport() {
 
     return `COMBINED PERIOD : ${dates[0]} - ${dates[dates.length - 1]}`;
   }, [uploads, dateRange]);
+
+  const uploadDateLabel = useMemo(() => {
+    const dates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
+    if (dates.length) return `UPLOAD DATE : ${dates[dates.length - 1]}`;
+    if (config.date) return `UPLOAD DATE : ${config.date}`;
+    return "";
+  }, [uploads, config]);
 
   const toggleShop = (shopCode) => {
     setCollapsedShops(prev => ({
@@ -426,8 +434,9 @@ export default function CombinedShopwiseReport() {
         </Col>
       </Row>
 
-      <div style={{ marginBottom: 0, padding: "8px 12px", backgroundColor: "#ADC9E6", border: "1px solid #999", borderBottom: "none" }}>
+      <div style={{ marginBottom: 0, padding: "8px 12px", backgroundColor: "#ADC9E6", border: "1px solid #999", borderBottom: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{periodLabel}</span>
+        <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{uploadDateLabel}</span>
       </div>
       <Table
         columns={columns}

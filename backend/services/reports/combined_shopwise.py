@@ -216,7 +216,7 @@ class CombinedShopwiseReportService(BaseReportService):
                     "closing": opening + total_in_bottles - total_out_bottles,
                 })
 
-        return {"data": result, "uploads": uploads}
+        return {"data": result, "uploads": uploads, "config": report.get("config", {})}
 
     def get_filters(self, report):
         # We can reuse the filter logic from ShopwiseReportService but we need to combine data first
