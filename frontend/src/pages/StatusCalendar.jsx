@@ -16,6 +16,8 @@ const EXPECTED_DAILY_REPORTS = [
 const EXPECTED_CUMULATIVE_REPORTS = [
   { key: 'cumulative_shopwise', label: REPORT_REGISTRY.cumulative_shopwise.label },
   { key: 'cumulative_warehouse', label: REPORT_REGISTRY.cumulative_warehouse.label },
+  { key: 'dailywise_secondary_sales_cum', label: REPORT_REGISTRY.dailywise_secondary_sales_cum.label },
+  { key: 'brandwise_cum_secondary_sales', label: REPORT_REGISTRY.brandwise_cum_secondary_sales.label },
 ];
 
 const EXPECTED_MONTHLY_REPORTS = [

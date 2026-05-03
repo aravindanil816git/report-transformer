@@ -20,11 +20,11 @@ export default function MonthComparative() {
 
   const d1Label = meta?.date1
     ? dayjs(meta.date1).format("DD MMM")
-    : "Current";
+    : "First";
 
   const d2Label = meta?.date2
     ? dayjs(meta.date2).format("DD MMM")
-    : "Previous";
+    : "Second";
 
   const columns = [
     {
@@ -34,9 +34,9 @@ export default function MonthComparative() {
       width: 180,
     },
 
-    // 🔥 CURRENT
+    // 🔥 FIRST
     {
-      title: `Current (${d1Label})`,
+      title: `First (${d1Label})`,
       children: [
         { title: "STN", dataIndex: "stn1" },
         { title: "GTN", dataIndex: "gtn1" },
@@ -47,9 +47,9 @@ export default function MonthComparative() {
       ],
     },
 
-    // 🔥 PREVIOUS
+    // 🔥 SECOND
     {
-      title: `Previous (${d2Label})`,
+      title: `Second (${d2Label})`,
       children: [
         { title: "STN", dataIndex: "stn2" },
         { title: "GTN", dataIndex: "gtn2" },
@@ -87,18 +87,18 @@ export default function MonthComparative() {
   const downloadExcel = () => {
     const exportData = data.map(d => ({
       Depot: d.warehouse,
-      [`Current STN (${d1Label})`]: d.stn1,
-      [`Current GTN (${d1Label})`]: d.gtn1,
-      [`Current TOTAL (${d1Label})`]: d.total1,
-      [`Current CFED (${d1Label})`]: d.cfed1,
-      [`Current BAR (${d1Label})`]: d.bar1,
-      [`Current Final (${d1Label})`]: d.final1,
-      [`Previous STN (${d2Label})`]: d.stn2,
-      [`Previous GTN (${d2Label})`]: d.gtn2,
-      [`Previous TOTAL (${d2Label})`]: d.total2,
-      [`Previous CFED (${d2Label})`]: d.cfed2,
-      [`Previous BAR (${d2Label})`]: d.bar2,
-      [`Previous Final (${d2Label})`]: d.final2,
+      [`First STN (${d1Label})`]: d.stn1,
+      [`First GTN (${d1Label})`]: d.gtn1,
+      [`First TOTAL (${d1Label})`]: d.total1,
+      [`First CFED (${d1Label})`]: d.cfed1,
+      [`First BAR (${d1Label})`]: d.bar1,
+      [`First Final (${d1Label})`]: d.final1,
+      [`Second STN (${d2Label})`]: d.stn2,
+      [`Second GTN (${d2Label})`]: d.gtn2,
+      [`Second TOTAL (${d2Label})`]: d.total2,
+      [`Second CFED (${d2Label})`]: d.cfed2,
+      [`Second BAR (${d2Label})`]: d.bar2,
+      [`Second Final (${d2Label})`]: d.final2,
       "Difference Cases": d.diff,
       "Difference %": d.pct
     }));
@@ -106,18 +106,18 @@ export default function MonthComparative() {
     exportToExcel(
       exportData,
       {
-        "Current Date": meta.date1,
-        "Previous Date": meta.date2
+        "First Date": meta.date1,
+        "Second Date": meta.date2
       },
-      "month_comparative_report.xlsx",
-      "Month Comparative"
+      "sec_sales_comparison.xlsx",
+      "Sec. Sales Comparison"
     );
   };
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h2>Month Comparative Report</h2>
+        <h2>Sec. Sales Comparison Report</h2>
         <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
       </div>
       <Table

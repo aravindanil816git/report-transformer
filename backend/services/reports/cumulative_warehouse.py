@@ -326,11 +326,11 @@ class CumulativeWarehouseMatrixService(BaseReportService):
             return {
                 "data": final_res,
                 "labels": selected_labels,
-                "config": report.get("config", {})
+                "config": {**report.get("config", {}), "type": report.get("type")}
             }
 
         return {
             "data": result,
             "labels": selected_labels,
-            "config": report.get("config", {})
+            "config": {**report.get("config", {}), "type": report.get("type")}
         }

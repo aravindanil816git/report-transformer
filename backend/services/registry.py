@@ -13,6 +13,8 @@ _registry = {
     "daily_warehouse": WarehouseReportService(),
     "cumulative_shopwise": CumulativeShopwiseReportService(),
     "cumulative_warehouse": CumulativeWarehouseMatrixService(),
+    "dailywise_secondary_sales_cum": CumulativeWarehouseMatrixService(),
+    "brandwise_cum_secondary_sales": CumulativeWarehouseMatrixService(),
     "daily_secondary_sales": DailySecondarySalesService(),
     "month_comparative": MonthComparativeService(),
     "monthly_stock_sales": MonthlyStockSalesService(),
