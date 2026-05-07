@@ -15,6 +15,11 @@ export const REPORT_REGISTRY = {
     route: "/report/shopwise/:id",
     label: "Shop Sales Daily",
   },
+  shop_sales_cumulative: {
+    component: ShopwiseReport,
+    route: "/report/shop_sales_cumulative/:id",
+    label: "Shop Sales Cumulative",
+  },
   combined_shopwise: {
     component: CombinedShopwiseReport,
     route: "/report/combined_shopwise/:id",

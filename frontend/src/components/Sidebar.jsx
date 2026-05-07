@@ -19,6 +19,7 @@ export default function Sidebar() {
       label: "Raw Data Upload",
       children: [
         { key: "report-shopwise", label: REPORT_REGISTRY.shopwise.label },
+{ key: "report-shop_sales_cumulative", label: REPORT_REGISTRY.shop_sales_cumulative.label },
         { key: "report-daily_warehouse", label: REPORT_REGISTRY.daily_warehouse.label },
         { key: "report-daily_warehouse_offtake", label: REPORT_REGISTRY.daily_warehouse_offtake.label },
         { key: "report-daily_secondary_sales", label: REPORT_REGISTRY.daily_secondary_sales.label },
@@ -34,6 +35,7 @@ export default function Sidebar() {
         { key: "report-combined_shopwise", label: REPORT_REGISTRY.combined_shopwise.label },
         { key: "report-month_comparative", label: REPORT_REGISTRY.month_comparative.label },
         { key: "report-monthly_stock_sales", label: REPORT_REGISTRY.monthly_stock_sales.label },
+        { key: "report-shopwise", label: "Shop Sales Daily" },
         { key: "report-daily_warehouse", label: "Physical Stock" },
       ],
     },

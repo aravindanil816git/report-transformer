@@ -37,7 +37,7 @@ def sync_cumulative_report(report):
         "cumulative_warehouse": ["daily_warehouse_offtake", "cumulative_warehouse"],
         "dailywise_secondary_sales_cum": ["daily_warehouse_offtake", "dailywise_secondary_sales_cum"],
         "brandwise_cum_secondary_sales": ["daily_warehouse_offtake", "brandwise_cum_secondary_sales"],
-        "combined_shopwise": ["shopwise", "combined_shopwise"]
+        "combined_shopwise": ["shop_sales_cumulative", "combined_shopwise"]
     }
     allowed_sources = source_map.get(report["type"], [])
     
@@ -47,7 +47,7 @@ def sync_cumulative_report(report):
         "cumulative_warehouse": "daily_warehouse_offtake",
         "dailywise_secondary_sales_cum": "daily_warehouse_offtake",
         "brandwise_cum_secondary_sales": "daily_warehouse_offtake",
-        "combined_shopwise": "shopwise"
+        "combined_shopwise": "shop_sales_cumulative"
     }
     primary_source = primary_source_map.get(report["type"])
     
@@ -145,7 +145,7 @@ def create_report(
         config = {"date": date}
 
     # 🔥 SHOPWISE
-    elif type == "shopwise":
+    elif type in ["shopwise", "shop_sales_cumulative"]:
         config = {"date": date}
 
     # 🔥 MONTHLY STOCK SALES (FIXED)
@@ -363,7 +363,7 @@ async def upload(
                 match_found = True
                 break
 
-    elif report["type"] == "shopwise":
+    elif report["type"] in ["shopwise", "shop_sales_cumulative"]:
         svc = get_service("shopwise")
         report_date = report.get("config", {}).get("date")
         svc.upload(report, path, file.filename, report_date, report_date)
@@ -376,7 +376,7 @@ async def upload(
         report["status"] = "Ready"
         return {"status": "uploaded"}
 
-    elif report["type"] in ["cumulative_shopwise", "cumulative_warehouse"]:
+    elif report["type"] in ["cumulative_shopwise", "cumulative_warehouse", "shop_sales_cumulative"]:
         for u in report["uploads"]:
             if u["date"] == key:
                 df = read_excel_robust(path)

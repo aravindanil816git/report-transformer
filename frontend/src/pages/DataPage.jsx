@@ -29,6 +29,7 @@ import DailySecondaryUploadModal from "./DailySecondaryUploadModal";
 import CumulativeUploadModal from "./CumShopUpload";
 import SingleFileUploadModal from "./SingleFileUploadModal";
 
+
 export default function DataPage() {
   const [data, setData] = useState([]);
 
@@ -118,7 +119,7 @@ export default function DataPage() {
     {
       title: "Date",
       render: (_, r) => {
-        if (["daily_secondary_sales", "shopwise", "daily_warehouse", "daily_warehouse_offtake"].includes(r.type)) {
+        if (["daily_secondary_sales", "shopwise", "daily_warehouse", "daily_warehouse_offtake", "shop_sales_cumulative"].includes(r.type)) {
           return r.config?.date
             ? dayjs(r.config.date).format("DD MMM YYYY")
             : "-";
@@ -330,7 +331,7 @@ export default function DataPage() {
           </Form.Item>
 
           {/* 🔥 DAILY */}
-          {["daily_secondary_sales", "shopwise", "daily_warehouse_offtake"].includes(type) && (
+          {["daily_secondary_sales", "shopwise", "daily_warehouse_offtake", "shop_sales_cumulative"].includes(type) && (
             <Form.Item label="Date">
               <DatePicker style={{ width: '100%' }} onChange={setReportDate} />
             </Form.Item>
@@ -349,7 +350,7 @@ export default function DataPage() {
             </Form.Item>
           )}
 
-          {["month_comparative", "cumulative_shopwise", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"].includes(type) && (
+                    {["month_comparative", "cumulative_shopwise", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"].includes(type) && (
             <Form.Item label="Date">
               <Space direction="vertical" style={{ width: '100%' }}>
                 <DatePicker
@@ -400,7 +401,7 @@ export default function DataPage() {
         )}
 
       {/* 🔥 SINGLE FILE UPLOAD MODAL */}
-      {uploadOpen && ["shopwise", "daily_warehouse_offtake", "monthly_stock_sales", "month_comparative"].includes(current?.type) && (
+      {uploadOpen && ["shopwise", "daily_warehouse_offtake", "monthly_stock_sales", "month_comparative", "shop_sales_cumulative"].includes(current?.type) && (
         <SingleFileUploadModal
           report={current}
           onClose={() => setUploadOpen(false)}
