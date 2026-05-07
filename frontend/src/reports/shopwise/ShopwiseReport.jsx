@@ -340,8 +340,8 @@ export default function ShopwiseReport() {
         View: view,
         WholeNumbers: useWholeNumbers ? "Yes" : "No"
       },
-      "daily_shopwise_report.xlsx",
-      "Daily Shopwise"
+      "shop_sales_daily.xlsx",
+      "Shop Sales Daily"
     );
   };
 

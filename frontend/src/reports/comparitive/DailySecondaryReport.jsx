@@ -54,15 +54,15 @@ export default function DailySecondaryReport() {
     exportToExcel(
       data,
       {},
-      "daily_secondary_sales_report.xlsx",
-      "Daily Secondary Sales"
+      "item_issue_consolidation.xlsx",
+      "Item Issue Consolidation"
     );
   };
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h2>Daily Secondary Sales Report</h2>
+        <h2>Item Issue Consolidation Report</h2>
         <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
       </div>
       <div style={{ marginBottom: 0, padding: "8px 12px", backgroundColor: "#ADC9E6", border: "1px solid #999", borderBottom: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>

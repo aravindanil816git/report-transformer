@@ -89,8 +89,8 @@ export default function DailyWarehouseOfftakeReport() {
     exportToExcel(
       exportData,
       {},
-      `daily_warehouse_offtake_${id}.xlsx`,
-      "Daily Warehouse Offtake"
+      `secondary_sales_daily_${id}.xlsx`,
+      "Secondary Sales - Daily"
     );
   };
 
@@ -104,7 +104,7 @@ export default function DailyWarehouseOfftakeReport() {
           marginBottom: 20,
         }}
       >
-        <h2>Daily Warehouse Offtake</h2>
+        <h2>Secondary Sales - Daily</h2>
         <Button
           type="primary"
           onClick={downloadExcel}

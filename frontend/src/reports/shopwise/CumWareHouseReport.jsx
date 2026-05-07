@@ -24,6 +24,15 @@ export default function CumulativeWarehouseReport() {
   const [mode, setMode] = useState(searchParams.get("mode") || "warehouse");
   const [drilledWarehouse, setDrilledWarehouse] = useState(null);
 
+  const isDailyWiseType = config?.type === "dailywise_secondary_sales_cum";
+  const isBrandwiseCumType = config?.type === "brandwise_cum_secondary_sales";
+
+  // Force view based on report type
+  useEffect(() => {
+    if (isDailyWiseType) setView("daywise");
+    else if (isBrandwiseCumType) setView("cumulative");
+  }, [config?.type]);
+
   // 🔹 load data from backend
   const load = async (startIdx = null, endIdx = null, selectedWarehouse = null, selectedMode = mode) => {
     const res = await getReport(id, null, selectedWarehouse ? "shopwise" : view, {
@@ -179,6 +188,10 @@ export default function CumulativeWarehouseReport() {
 
   // 🔥 DOWNLOAD
   const downloadExcel = () => {
+    const reportTitle = isDailyWiseType 
+      ? "DailyWise Secondary Sales" 
+      : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "Consolidated Secondary Sales (Legacy)");
+
     exportToExcel(
       processedData,
       {
@@ -190,15 +203,15 @@ export default function CumulativeWarehouseReport() {
         "Start Date": config.start_date,
         "Total Days": config.num_days
       },
-      `bondwise_offtake_${mode}_${view}.xlsx`,
-      "Bondwise + Offtake"
+      `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}.xlsx`,
+      reportTitle
     );
   };
 
   return (
     <div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2>Bondwise + Offtake</h2>
+        <h2>{isDailyWiseType ? "DailyWise Secondary Sales" : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "Consolidated Secondary Sales (Legacy)")}</h2>
         <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
       </div>
 
@@ -293,22 +306,24 @@ export default function CumulativeWarehouseReport() {
       </Space>
 
       {/* 🔥 VIEW TOGGLE */}
-      <div style={{ marginBottom: 16 }}>
-        <Button
-          type={view === "daywise" ? "primary" : "default"}
-          onClick={() => setView("daywise")}
-        >
-          Daywise
-        </Button>
+      {!isDailyWiseType && !isBrandwiseCumType && (
+        <div style={{ marginBottom: 16 }}>
+          <Button
+            type={view === "daywise" ? "primary" : "default"}
+            onClick={() => setView("daywise")}
+          >
+            Daywise
+          </Button>
 
-        <Button
-          type={view === "cumulative" ? "primary" : "default"}
-          onClick={() => setView("cumulative")}
-          style={{ marginLeft: 8 }}
-        >
-          Cumulative
-        </Button>
-      </div>
+          <Button
+            type={view === "cumulative" ? "primary" : "default"}
+            onClick={() => setView("cumulative")}
+            style={{ marginLeft: 8 }}
+          >
+            Cumulative
+          </Button>
+        </div>
+      )}
 
       {/* 🔥 TABLE */}
       <Table

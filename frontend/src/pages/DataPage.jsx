@@ -94,11 +94,17 @@ export default function DataPage() {
     }
   };
 
-  // 🔥 available dates for comparative
+  // 🔥 available dates for comparative (based on Item Issue Consolidation)
   const dailyDates = data
-    .filter((d) => d.type === "daily_secondary_sales")
+    .filter((d) => d.type === "daily_secondary_sales" && (d.status === "Processed" || d.status === "Ready" || d.status === "Uploaded"))
     .map((d) => d.config?.date)
     .filter(Boolean);
+
+  const isDateAvailable = (date) => {
+    if (!date) return false;
+    const s = date.format("YYYY-MM-DD");
+    return dailyDates.includes(s);
+  };
 
   // 🔥 sidebar filtering
   const filteredData = typeFilter
@@ -107,8 +113,6 @@ export default function DataPage() {
 
   const columns = [
     { title: "Name", dataIndex: "name" },
-
-    { title: "Type", dataIndex: "type" },
 
     // 🔥 DATE COLUMN
     {
@@ -206,10 +210,17 @@ export default function DataPage() {
           { type: "daily_warehouse", label: "Physical Stock report" }
         ]
       },
+      daily_secondary_sales: {
+        text: "Data uploaded here is used in:",
+        links: [
+          { type: "month_comparative", label: "Sec. Sales Comparison" }
+        ]
+      },
       daily_warehouse_offtake: {
         text: "Data uploaded here is used in:",
         links: [
-          { type: "cumulative_warehouse", label: "Bondwise + Offtake" }
+          { type: "dailywise_secondary_sales_cum", label: "DailyWise Secondary Sales" },
+          { type: "brandwise_cum_secondary_sales", label: "Brandwise Cum Secondary Sales" }
         ]
       }
     };
@@ -274,7 +285,7 @@ export default function DataPage() {
               date: reportDate?.format("YYYY-MM"),
             });
           } 
-          else if (["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise"].includes(type)) {
+          else if (["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"].includes(type)) {
             await createReport(name, type, {
               date1: date1?.format("YYYY-MM-DD"),
               date2: date2?.format("YYYY-MM-DD"),
@@ -309,12 +320,12 @@ export default function DataPage() {
               style={{ width: '100%' }}
               placeholder="Select type"
               optionFilterProp="label"
-              options={Object.entries(REPORT_REGISTRY).map(
-                ([k, v]) => ({
+              options={Object.entries(REPORT_REGISTRY)
+                .filter(([k]) => k !== "cumulative_warehouse")
+                .map(([k, v]) => ({
                   value: k,
                   label: v.label,
-                })
-              )}
+                }))}
             />
           </Form.Item>
 
@@ -338,11 +349,11 @@ export default function DataPage() {
             </Form.Item>
           )}
 
-          {["month_comparative", "cumulative_shopwise", "cumulative_warehouse", "combined_shopwise"].includes(type) && (
+          {["month_comparative", "cumulative_shopwise", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"].includes(type) && (
             <Form.Item label="Date">
               <Space direction="vertical" style={{ width: '100%' }}>
                 <DatePicker
-                  placeholder="Start Date"
+                  placeholder={type === "month_comparative" ? "First Date" : "Start Date"}
                   style={{ width: '100%' }}
                   value={date1}
                   onChange={(val) => {
@@ -351,13 +362,22 @@ export default function DataPage() {
                       setDate2(null);
                     }
                   }}
+                  disabledDate={(current) => {
+                    if (type === "month_comparative") {
+                      return !isDateAvailable(current);
+                    }
+                    return false;
+                  }}
                 />
                 <DatePicker
-                  placeholder="End Date"
+                  placeholder={type === "month_comparative" ? "Second Date" : "End Date"}
                   style={{ width: '100%' }}
                   value={date2}
                   onChange={setDate2}
                   disabledDate={(current) => {
+                    if (type === "month_comparative") {
+                      return !isDateAvailable(current);
+                    }
                     return date1 ? current && current.isBefore(date1, 'day') : false;
                   }}
                 />
@@ -390,7 +410,7 @@ export default function DataPage() {
 
       {/* 🔥 CUMULATIVE UPLOAD MODAL */}
       {uploadOpen &&
-        ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise"].includes(
+        ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"].includes(
           current?.type
         ) && (
           <CumulativeUploadModal

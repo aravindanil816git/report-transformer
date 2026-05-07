@@ -28,13 +28,15 @@ def clean_nan(obj):
 
 # ================= SYNC DATA =================
 def sync_cumulative_report(report):
-    if report.get("type") not in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise"]:
+    if report.get("type") not in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
         return
     
     # Target to allowed source types
     source_map = {
         "cumulative_shopwise": ["shopwise", "cumulative_shopwise"],
         "cumulative_warehouse": ["daily_warehouse_offtake", "cumulative_warehouse"],
+        "dailywise_secondary_sales_cum": ["daily_warehouse_offtake", "dailywise_secondary_sales_cum"],
+        "brandwise_cum_secondary_sales": ["daily_warehouse_offtake", "brandwise_cum_secondary_sales"],
         "combined_shopwise": ["shopwise", "combined_shopwise"]
     }
     allowed_sources = source_map.get(report["type"], [])
@@ -43,6 +45,8 @@ def sync_cumulative_report(report):
     primary_source_map = {
         "cumulative_shopwise": "shopwise",
         "cumulative_warehouse": "daily_warehouse_offtake",
+        "dailywise_secondary_sales_cum": "daily_warehouse_offtake",
+        "brandwise_cum_secondary_sales": "daily_warehouse_offtake",
         "combined_shopwise": "shopwise"
     }
     primary_source = primary_source_map.get(report["type"])
@@ -153,7 +157,7 @@ def create_report(
         config = {"date1": date1, "date2": date2}
 
     # 🔥 CUMULATIVE REPORTS
-    elif type in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise"]:
+    elif type in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
         from datetime import datetime, timedelta
         start = datetime.strptime(date1, "%Y-%m-%d")
         end = datetime.strptime(date2, "%Y-%m-%d")

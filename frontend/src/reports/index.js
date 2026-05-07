@@ -13,7 +13,7 @@ export const REPORT_REGISTRY = {
   shopwise: {
     component: ShopwiseReport,
     route: "/report/shopwise/:id",
-    label: "Supplier Wise Shop Sale",
+    label: "Shop Sales Daily",
   },
   combined_shopwise: {
     component: CombinedShopwiseReport,
@@ -23,12 +23,12 @@ export const REPORT_REGISTRY = {
   daily_warehouse: {
     component: DailyWarehouseReport,
     route: "/report/daily_warehouse/:id",
-    label: "Phyiscal Stock",
+    label: "Physical Stock",
   },
   daily_warehouse_offtake: {
     component: DailyWarehouseOfftakeReport,
     route: "/report/daily_warehouse_offtake/:id",
-    label: "Supplier Sales Analysis",
+    label: "Secondary Sales - Daily",
   },
   cumulative_shopwise: {
     component: CumShopwiseReport,
@@ -38,15 +38,25 @@ export const REPORT_REGISTRY = {
   cumulative_warehouse: {
     component: CumulativeWarehouseReport,
     route: "/report/cumulative_warehouse/:id",
-    label: "Bondwise + Offtake",
+    label: "Consolidated Secondary Sales (Legacy)",
+  },
+  dailywise_secondary_sales_cum: {
+    component: CumulativeWarehouseReport,
+    route: "/report/dailywise_secondary_sales_cum/:id",
+    label: "DailyWise Secondary Sales",
+  },
+  brandwise_cum_secondary_sales: {
+    component: CumulativeWarehouseReport,
+    route: "/report/brandwise_cum_secondary_sales/:id",
+    label: "Brandwise Cum Secondary Sales",
   },
   daily_secondary_sales: {
-    label: "Daily Secondary Sales",
+    label: "Item Issue Consolidation",
     component: DailySecondaryReport,
     route: "/daily-secondary/:id",
   },
   month_comparative: {
-    label: "Month Comparative",
+    label: "Sec. Sales Comparison",
     component: MonthlyComparitive,
     route: "/month-compare/:id",
   },
