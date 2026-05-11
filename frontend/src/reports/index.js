@@ -15,10 +15,15 @@ export const REPORT_REGISTRY = {
     route: "/report/shopwise/:id",
     label: "Shop Sales Daily",
   },
+  shop_sales_cumulative: {
+    component: ShopwiseReport,
+    route: "/report/shop_sales_cumulative/:id",
+    label: "Shop Sales Cumulative",
+  },
   combined_shopwise: {
     component: CombinedShopwiseReport,
     route: "/report/combined_shopwise/:id",
-    label: "Combined Shopwise",
+    label: "Cumulative Shopwise",
   },
   daily_warehouse: {
     component: DailyWarehouseReport,
@@ -33,7 +38,7 @@ export const REPORT_REGISTRY = {
   cumulative_shopwise: {
     component: CumShopwiseReport,
     route: "/report/cumulative_shopwise/:id",
-    label: "Cum. Shopwise Stock",
+    label: "Shop Sales Daily",
   },
   cumulative_warehouse: {
     component: CumulativeWarehouseReport,
@@ -56,7 +61,7 @@ export const REPORT_REGISTRY = {
     route: "/daily-secondary/:id",
   },
   month_comparative: {
-    label: "Sec. Sales Comparison",
+    label: "Item Issue Consolidation",
     component: MonthlyComparitive,
     route: "/month-compare/:id",
   },

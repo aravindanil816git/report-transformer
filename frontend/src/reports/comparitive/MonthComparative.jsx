@@ -109,15 +109,15 @@ export default function MonthComparative() {
         "First Date": meta.date1,
         "Second Date": meta.date2
       },
-      "sec_sales_comparison.xlsx",
-      "Sec. Sales Comparison"
+      "item_issue_consolidation.xlsx",
+      "Item Issue Consolidation"
     );
   };
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h2>Sec. Sales Comparison Report</h2>
+        <h2>Item Issue Consolidation Report</h2>
         <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
       </div>
       <Table

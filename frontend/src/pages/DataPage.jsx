@@ -22,12 +22,22 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import dayjs from "dayjs";
-import { DeleteOutlined } from "@ant-design/icons";
+import { DeleteOutlined, UploadOutlined, FileTextOutlined } from "@ant-design/icons";
 import { message, Popconfirm } from "antd";
 
 import DailySecondaryUploadModal from "./DailySecondaryUploadModal";
 import CumulativeUploadModal from "./CumShopUpload";
 import SingleFileUploadModal from "./SingleFileUploadModal";
+
+
+
+const RAW_DATA_TYPES = [
+  "shopwise",
+  "shop_sales_cumulative",
+  "daily_warehouse",
+  "daily_warehouse_offtake",
+  "daily_secondary_sales",
+];
 
 export default function DataPage() {
   const [data, setData] = useState([]);
@@ -107,9 +117,18 @@ export default function DataPage() {
   };
 
   // 🔥 sidebar filtering
-  const filteredData = typeFilter
-    ? data.filter((d) => d.type === typeFilter)
-    : data;
+  const filteredData = [
+    ...(typeFilter === null || typeFilter === "month_comparative" ? [{
+      id: "live-compare",
+      name: "Item Issue Consolidation",
+      type: "month_comparative",
+      status: "Ready",
+      isLive: true
+    }] : []),
+    ...data.filter((d) => 
+      typeFilter ? d.type === typeFilter : (!RAW_DATA_TYPES.includes(d.type) && d.type !== "month_comparative")
+    )
+  ];
 
   const columns = [
     { title: "Name", dataIndex: "name" },
@@ -118,7 +137,8 @@ export default function DataPage() {
     {
       title: "Date",
       render: (_, r) => {
-        if (["daily_secondary_sales", "shopwise", "daily_warehouse", "daily_warehouse_offtake"].includes(r.type)) {
+        if (r.isLive) return "Live Comparison";
+        if (["daily_secondary_sales", "shopwise", "daily_warehouse", "daily_warehouse_offtake", "shop_sales_cumulative"].includes(r.type)) {
           return r.config?.date
             ? dayjs(r.config.date).format("DD MMM YYYY")
             : "-";
@@ -139,24 +159,21 @@ export default function DataPage() {
     {
       title: "Actions",
       render: (_, r) => {
+        if (r.isLive) {
+          return (
+            <Button type="primary" onClick={() => navigate("/item-issue-consolidation")}>
+              View
+            </Button>
+          );
+        }
         const config = REPORT_REGISTRY[r.type];
         const isProcessed = r.status === "Processed";
 
         return (
           <Space direction="horizontal">
-            {/* 🔥 Upload/Manage button for ALL reports */}
-            <Button
-              onClick={() => {
-                setCurrent(r);
-                setUploadOpen(true);
-              }}
-            >
-              {["month_comparative", "monthly_stock_sales"].includes(r.type) ? "Manage" : "Upload"}
-            </Button>
-
-            {/* 🔥 View */}
-            <Tooltip title={!isProcessed ? "Upload and Click process to View" : ""}>
-              <Space direction="horizontal">
+            {/* 🔥 View (Primary Focus for Physical Stock) */}
+            {r.type === "daily_warehouse" ? (
+              <Tooltip title={!isProcessed ? "Upload raw data to View" : ""}>
                 <Button
                   type="primary"
                   disabled={!isProcessed}
@@ -164,16 +181,54 @@ export default function DataPage() {
                 >
                   View
                 </Button>
+              </Tooltip>
+            ) : null}
 
-                {r.type === "cumulative_warehouse" && isProcessed && (
+            {/* 🔥 Upload/Manage button */}
+            {r.type === "daily_warehouse" ? (
+              <Tooltip title="Raw Data Upload/History">
+                <Button
+                  type="default"
+                  icon={<FileTextOutlined />}
+                  onClick={() => {
+                    setCurrent(r);
+                    setUploadOpen(true);
+                  }}
+                />
+              </Tooltip>
+            ) : (
+              <Button
+                onClick={() => {
+                  setCurrent(r);
+                  setUploadOpen(true);
+                }}
+              >
+                {["month_comparative", "monthly_stock_sales"].includes(r.type) ? "Manage" : "Upload"}
+              </Button>
+            )}
+
+            {/* 🔥 View (Standard) */}
+            {r.type !== "daily_warehouse" && (
+              <Tooltip title={!isProcessed ? "Upload and Click process to View" : ""}>
+                <Space direction="horizontal">
                   <Button
-                    onClick={() => navigate(`${config.route.replace(":id", r.id)}?mode=shop&view=cumulative`)}
+                    type="primary"
+                    disabled={!isProcessed}
+                    onClick={() => navigate(config.route.replace(":id", r.id))}
                   >
-                    Bondwise Secondary Sales
+                    View
                   </Button>
-                )}
-              </Space>
-            </Tooltip>
+
+                  {r.type === "cumulative_warehouse" && isProcessed && (
+                    <Button
+                      onClick={() => navigate(`${config.route.replace(":id", r.id)}?mode=shop&view=cumulative`)}
+                    >
+                      Bondwise Secondary Sales
+                    </Button>
+                  )}
+                </Space>
+              </Tooltip>
+            )}
 
             {/* 🔥 Delete */}
             <Popconfirm
@@ -190,7 +245,7 @@ export default function DataPage() {
     },
   ];
 
-  const isUploadType = ["shopwise", "daily_warehouse", "daily_warehouse_offtake", "daily_secondary_sales"].includes(typeFilter);
+  const isUploadType = ["shopwise", "daily_warehouse", "daily_warehouse_offtake", "daily_secondary_sales", "shop_sales_cumulative"].includes(typeFilter);
 
   const renderHelpNote = () => {
     if (!typeFilter) return null;
@@ -198,12 +253,26 @@ export default function DataPage() {
     const notes = {
       shopwise: {
         text: "Data uploaded here is used in:",
-        warning: "Please add only raw data on same date range(dailywise). Cumulative calculation will be handled by system.",
+        warning: "Please add raw data for each Day eg: 1,2,3,",
         links: [
-          { type: "cumulative_shopwise", label: "Cum. Shopwise Stock" },
-          { type: "combined_shopwise", label: "Combined Shopwise" }
+          // { type: "cumulative_shopwise", label: "Cum. Shopwise Stock" },
+          { type: "shopwise", label: "Shop Sales Daily" }
         ]
       },
+      shop_sales_cumulative: {
+        text: "Data uploaded here is used in:",
+        warning: "Please add raw data for cumulative dates eg: 1-2,1-10. 1-16,",
+        links: [
+          { type: "shop_sales_cumulative", label: "Shop Sales Cumulative" }
+        ]
+      },
+      // combined_shopwise: {
+      //   text: "Data uploaded here is used in:",
+      //    warning: "Please add raw data for cumulative dates eg: 1-2,1-10. 1-16,",
+      //   links: [
+      //     { type: "combined_shopwise", label: "Cumulative Shopwise" }
+      //   ]
+      // },
       daily_warehouse: {
         text: "Data uploaded here is used in:",
         links: [
@@ -213,7 +282,7 @@ export default function DataPage() {
       daily_secondary_sales: {
         text: "Data uploaded here is used in:",
         links: [
-          { type: "month_comparative", label: "Sec. Sales Comparison" }
+          { type: "month_comparative", label: "Item Issue Period Comparison" }
         ]
       },
       daily_warehouse_offtake: {
@@ -257,9 +326,8 @@ export default function DataPage() {
 
   return (
     <>
-      <Button onClick={handleAddReport}>{isUploadType ? "Upload Data" : "Add Report"}</Button>
-      {renderHelpNote()}
-
+      <Button onClick={handleAddReport}>Add Report</Button>
+      
       <Table
         columns={columns}
         dataSource={filteredData}
@@ -268,7 +336,7 @@ export default function DataPage() {
       />
 
       <Modal
-        title={isUploadType ? "Upload Data" : "Create New Report"}
+        title="Create New Report"
         open={open}
         onOk={async () => {
           if (type === "month_comparative") {
@@ -285,7 +353,7 @@ export default function DataPage() {
               date: reportDate?.format("YYYY-MM"),
             });
           } 
-          else if (["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"].includes(type)) {
+          else if (["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "shop_sales_cumulative"].includes(type)) {
             await createReport(name, type, {
               date1: date1?.format("YYYY-MM-DD"),
               date2: date2?.format("YYYY-MM-DD"),
@@ -321,7 +389,7 @@ export default function DataPage() {
               placeholder="Select type"
               optionFilterProp="label"
               options={Object.entries(REPORT_REGISTRY)
-                .filter(([k]) => k !== "cumulative_warehouse")
+                .filter(([k]) => !RAW_DATA_TYPES.includes(k) && k !== "month_comparative")
                 .map(([k, v]) => ({
                   value: k,
                   label: v.label,
@@ -349,7 +417,7 @@ export default function DataPage() {
             </Form.Item>
           )}
 
-          {["month_comparative", "cumulative_shopwise", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"].includes(type) && (
+                    {["month_comparative", "cumulative_shopwise", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "shop_sales_cumulative"].includes(type) && (
             <Form.Item label="Date">
               <Space direction="vertical" style={{ width: '100%' }}>
                 <DatePicker
@@ -400,7 +468,7 @@ export default function DataPage() {
         )}
 
       {/* 🔥 SINGLE FILE UPLOAD MODAL */}
-      {uploadOpen && ["shopwise", "daily_warehouse_offtake", "monthly_stock_sales", "month_comparative"].includes(current?.type) && (
+      {uploadOpen && ["shopwise", "daily_warehouse_offtake", "monthly_stock_sales", "month_comparative", "shop_sales_cumulative"].includes(current?.type) && (
         <SingleFileUploadModal
           report={current}
           onClose={() => setUploadOpen(false)}

@@ -20,6 +20,7 @@ _registry = {
     "monthly_stock_sales": MonthlyStockSalesService(),
     "daily_warehouse_offtake": DailyWarehouseOfftakeService(),
     "combined_shopwise": CombinedShopwiseReportService(),
+    "shop_sales_cumulative": ShopwiseReportService(),
 }
 
 def get_service(report_type: str):

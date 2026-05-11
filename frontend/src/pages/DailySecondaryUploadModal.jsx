@@ -1,6 +1,7 @@
 import { Modal, Table, Upload, Button, message, Progress, Space } from "antd";
-import { uploadFile, processReport } from "../api";
+import { uploadFile, processReport, downloadRaw, listReports } from "../api";
 import { useState } from "react";
+import { DownloadOutlined } from "@ant-design/icons";
 
 const { Dragger } = Upload;
 
@@ -15,7 +16,7 @@ export default function DailySecondaryUploadModal({
   const handleProcess = async () => {
     try {
       await processReport(report.id);
-      message.success("Report processed successfully");
+      message.success("Report processed successfully. It is now ready to be viewed.");
       reload();
       onClose();
     } catch (e) {
@@ -27,7 +28,10 @@ export default function DailySecondaryUploadModal({
     try {
       await uploadFile(report.id, file, null, null, warehouse);
       message.success(`${file.name} uploaded successfully`);
-      reload();
+      
+      // Auto-process
+      message.loading("Auto-processing report...", 2);
+      await handleProcess();
     } catch (e) {
       message.error(`${file.name} upload failed`);
     }
@@ -64,11 +68,19 @@ export default function DailySecondaryUploadModal({
     } else {
       message.success(`Uploaded all ${successCount} files successfully`);
     }
+    
     setUploading(false);
-    setTimeout(() => {
-      reload();
-      setProgress(0);
-    }, 500);
+    
+    // Auto-process if any files uploaded
+    if (successCount > 0) {
+      message.loading("Auto-processing report...", 2);
+      await handleProcess();
+    } else {
+      setTimeout(() => {
+        reload();
+        setProgress(0);
+      }, 500);
+    }
   };
 
   const columns = [
@@ -91,7 +103,18 @@ export default function DailySecondaryUploadModal({
       title: "Action",
       render: (_, row) => {
         if (row.status === "uploaded") {
-          return "✅ Done";
+          return (
+            <Space>
+              <span>✅ Done</span>
+              <Button 
+                icon={<DownloadOutlined />} 
+                size="small"
+                onClick={() => downloadRaw(report.id, row.warehouse)}
+              >
+                Download
+              </Button>
+            </Space>
+          );
         }
 
         return (

@@ -49,7 +49,7 @@ class DailySecondarySalesService(BaseReportService):
         return {
             "STN": round(cases_only[1]),
             "GTN": round(cases_only[2]),
-            "TOTAL": round(cases_only[6]),
+            "TOTAL": round(cases_only[1] + cases_only[2]),
             "CFED": round(cases_only[4]),
             "BAR": round(cases_only[5]),
         }

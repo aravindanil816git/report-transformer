@@ -13,9 +13,13 @@ class MonthComparativeService(BaseReportService):
         d1_map = {d["warehouse"]: d for d in base if d["date"] == d1}
         d2_map = {d["warehouse"]: d for d in base if d["date"] == d2}
 
+        # 🔥 GET ALL WAREHOUSES FROM MAPPING
+        from .cumulative_warehouse import WAREHOUSE_TO_BOND
+        all_warehouses = sorted(WAREHOUSE_TO_BOND.keys())
+
         result = []
 
-        for w in sorted(set(d1_map) | set(d2_map)):
+        for w in all_warehouses:
             a = d1_map.get(w, {})
             b = d2_map.get(w, {})
 
@@ -26,7 +30,7 @@ class MonthComparativeService(BaseReportService):
             cfed1 = a.get("CFED", 0)
             bar1 = a.get("BAR", 0)
 
-            final1 = total1 + cfed1 + bar1
+            final1 = stn1 + gtn1
 
             # 🔥 PREVIOUS (d2)
             stn2 = b.get("STN", 0)
@@ -35,7 +39,7 @@ class MonthComparativeService(BaseReportService):
             cfed2 = b.get("CFED", 0)
             bar2 = b.get("BAR", 0)
 
-            final2 = total2 + cfed2 + bar2
+            final2 = stn2 + gtn2
 
             diff = final1 - final2
             pct = (diff / final2 * 100) if final2 else 0

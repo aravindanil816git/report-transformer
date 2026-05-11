@@ -70,6 +70,15 @@ export const getReport = (id, shop = null, view = null, extra = {}) => {
 
 export const getShops = (id) => api.get(`/shops/${id}`);
 
+export const getAllWarehouses = () => api.get("/warehouses/all");
+
 export const getWarehouses = (id) => api.get(`/warehouses/${id}`);
 
 export const getFilters = (id) => api.get(`/filters/${id}`);
+
+export const compareLive = (date1, date2) => api.get("/compare-live", { params: { date1, date2 } });
+
+export const downloadRaw = (id, key = null) => {
+  const url = `${api.defaults.baseURL}/download-raw/${id}${key ? `?key=${encodeURIComponent(key)}` : ""}`;
+  window.open(url, "_blank");
+};

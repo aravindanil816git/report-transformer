@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { Table, Button, Select, DatePicker, Space } from "antd";
+import { Table, Button, Select, DatePicker, Space, Typography } from "antd";
+
+const { Text } = Typography;
 import { useParams } from "react-router-dom";
 import { getReport } from "../../api";
 import dayjs from "dayjs";
@@ -14,7 +16,7 @@ export default function CumulativeShopwiseReport() {
   const [labels, setLabels] = useState([]);
   const [allLabels, setAllLabels] = useState([]);
   const [config, setConfig] = useState({});
-  const [view, setView] = useState("daywise_opening");
+  const [view, setView] = useState("daywise_sales");
 
   const [warehouseFilter, setWarehouseFilter] = useState(null);
   const [dateRange, setDateRange] = useState([]);
@@ -90,27 +92,25 @@ useEffect(() => {
 
   // 🔹 daywise + total
   const daywiseColumns = [
-    { title: "Warehouse", dataIndex: "warehouse", fixed: "left" },
-    ...labels.map(l => ({ title: l, dataIndex: l })),
+    { title: "Warehouse", dataIndex: "warehouse", fixed: "left", width: 220 },
+    ...labels.map(l => ({ title: l, dataIndex: l, width: 180, align: "right" })),
     {
       title: "Total",
       dataIndex: "total",
-      render: (_, row) => {
-        let total = 0;
-        labels.forEach(l => total += row[l] || 0);
-        return total;
-      }
+      fixed: "right",
+      width: 220,
+      align: "right",
     }
   ];
 
   const cumulativeColumns = [
-    { title: "Warehouse", dataIndex: "warehouse" },
-    { title: "Opening", dataIndex: "opening" },
-    { title: "Receipt", dataIndex: "receipt" },
-    { title: "Sales", dataIndex: "sales" },
-    { title: "Closing", dataIndex: "closing" },
-    { title: "Difference", dataIndex: "difference" },
-    { title: "Avg Sales / Day", dataIndex: "avg_sales_per_day" }
+    { title: "Warehouse", dataIndex: "warehouse", width: 220 },
+    { title: "Opening", dataIndex: "opening", width: 200, align: "right" },
+    { title: "Receipt", dataIndex: "receipt", width: 200, align: "right" },
+    { title: "Sales", dataIndex: "sales", width: 200, align: "right" },
+    { title: "Closing", dataIndex: "closing", width: 200, align: "right" },
+    { title: "Difference", dataIndex: "difference", width: 200, align: "right" },
+    { title: "Avg Sales / Day", dataIndex: "avg_sales_per_day", width: 220, align: "right" }
   ];
 
   // 🔥 DOWNLOAD
@@ -157,7 +157,7 @@ useEffect(() => {
   return (
     <div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2>Cumulative Shopwise Report</h2>
+        <h2>Shop Sales Daily</h2>
         <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
       </div>
 
@@ -215,24 +215,8 @@ useEffect(() => {
       {/* 🔥 VIEW PILLS */}
       <div style={{ marginBottom: 16 }}>
         <Button
-          type={view === "daywise_opening" ? "primary" : "default"}
-          onClick={() => setView("daywise_opening")}
-        >
-          Opening
-        </Button>
-
-        <Button
-          type={view === "daywise_receipt" ? "primary" : "default"}
-          onClick={() => setView("daywise_receipt")}
-          style={{ marginLeft: 8 }}
-        >
-          Receipt
-        </Button>
-
-        <Button
           type={view === "daywise_sales" ? "primary" : "default"}
           onClick={() => setView("daywise_sales")}
-          style={{ marginLeft: 8 }}
         >
           Sales
         </Button>
@@ -252,6 +236,69 @@ useEffect(() => {
         dataSource={filteredData}
         rowKey="warehouse"
         scroll={{ x: true }}
+        pagination={false}
+        summary={(pageData) => {
+          if (pageData.length === 0) return null;
+
+          if (view === "cumulative") {
+            let totalOpening = 0;
+            let totalReceipt = 0;
+            let totalSales = 0;
+            let totalClosing = 0;
+            let totalDiff = 0;
+
+            pageData.forEach(({ opening, receipt, sales, closing, difference }) => {
+              totalOpening += opening || 0;
+              totalReceipt += receipt || 0;
+              totalSales += sales || 0;
+              totalClosing += closing || 0;
+              totalDiff += difference || 0;
+            });
+
+            return (
+              <Table.Summary fixed="bottom">
+                <Table.Summary.Row style={{ background: "#f0f2f5", fontWeight: "bold", borderTop: "2px solid #d9d9d9" }}>
+                  <Table.Summary.Cell index={0} style={{ padding: "12px 8px" }}>Total</Table.Summary.Cell>
+                  <Table.Summary.Cell index={1} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalOpening.toFixed(2)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={2} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalReceipt.toFixed(2)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={3} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalSales.toFixed(2)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={4} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalClosing.toFixed(2)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={5} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalDiff.toFixed(2)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={6} style={{ padding: "12px 8px" }} />
+                </Table.Summary.Row>
+              </Table.Summary>
+            );
+          } else {
+            // Daywise view
+            const colTotals = {};
+            let grandTotal = 0;
+
+            labels.forEach(l => colTotals[l] = 0);
+
+            pageData.forEach(row => {
+              labels.forEach(l => {
+                colTotals[l] += row[l] || 0;
+              });
+              grandTotal += row.total || 0;
+            });
+
+            return (
+              <Table.Summary fixed="bottom">
+                <Table.Summary.Row style={{ background: "#f0f2f5", fontWeight: "bold", borderTop: "2px solid #d9d9d9" }}>
+                  <Table.Summary.Cell index={0} style={{ padding: "12px 8px" }}>Total</Table.Summary.Cell>
+                  {labels.map((l, index) => (
+                    <Table.Summary.Cell key={l} index={index + 1} align="right" style={{ padding: "12px 8px" }}>
+                      <Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{colTotals[l].toFixed(2)}</Text>
+                    </Table.Summary.Cell>
+                  ))}
+                  <Table.Summary.Cell index={labels.length + 1} align="right" style={{ padding: "12px 8px" }}>
+                    <Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{grandTotal.toFixed(2)}</Text>
+                  </Table.Summary.Cell>
+                </Table.Summary.Row>
+              </Table.Summary>
+            );
+          }
+        }}
       />
     </div>
   );

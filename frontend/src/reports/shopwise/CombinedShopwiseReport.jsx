@@ -14,14 +14,17 @@ export default function CombinedShopwiseReport() {
   const [data, setData] = useState([]);
   const [warehouse, setWarehouse] = useState();
   const [shop, setShop] = useState();
+  const [bond, setBond] = useState();
   const [view, setView] = useState("case");
   const [useWholeNumbers, setUseWholeNumbers] = useState(false);
   const [collapsedShops, setCollapsedShops] = useState({});
 
   const [warehouseOptions, setWarehouseOptions] = useState([]);
   const [shopOptions, setShopOptions] = useState([]);
+  const [bondOptions, setBondOptions] = useState([]);
   const [filterMapping, setFilterMapping] = useState({});
   const [allShops, setAllShops] = useState([]);
+  const [allWarehouses, setAllWarehouses] = useState([]);
   const [uploads, setUploads] = useState([]);
   const [config, setConfig] = useState({});
   const [dateRange, setDateRange] = useState([]);
@@ -29,7 +32,20 @@ export default function CombinedShopwiseReport() {
   useEffect(() => {
     getFilters(id).then((res) => {
       const { warehouses, shops, mapping } = res.data;
-      setWarehouseOptions((warehouses || []).map(w => ({ value: w, label: w })));
+      const warehouseOpts = (warehouses || []).map(w => ({ value: w, label: w }));
+      setAllWarehouses(warehouseOpts);
+      setWarehouseOptions(warehouseOpts);
+
+      const bondSet = new Set();
+      (warehouses || []).forEach(w => {
+        const match = w.match(/^WH-([^- ]+)/);
+        if (match && match[1]) {
+            bondSet.add(match[1]);
+        }
+      });
+
+      setBondOptions(Array.from(bondSet).map(b => ({ value: b, label: b })));
+      
       const formattedShops = (shops || []).map(s => ({ 
         value: s.shop_code, 
         label: `${s.shop_code} - ${s.shop_name}` 
@@ -40,19 +56,43 @@ export default function CombinedShopwiseReport() {
     });
   }, [id]);
 
-  // Handle cascading logic
+  // Handle cascading logic for bond -> warehouse
   useEffect(() => {
-    let filteredShops = [];
+    if (bond) {
+      const filtered = allWarehouses.filter(w => {
+        const match = w.value.match(/^WH-([^- ]+)/);
+        return match && match[1] === bond;
+      });
+      setWarehouseOptions(filtered);
+    } else {
+      setWarehouseOptions(allWarehouses);
+    }
+  }, [bond, allWarehouses]);
+
+  // Handle cascading logic for shops
+  useEffect(() => {
+    let filteredShops = allShops;
 
     if (warehouse) {
+      // A specific warehouse is selected, so we use its shop list
       const shopCodes = filterMapping[warehouse] || [];
       filteredShops = allShops.filter(s => shopCodes.includes(s.value));
-    } else {
-      filteredShops = allShops;
+    } else if (bond) {
+      // A bond is selected, but no warehouse. We need to get all shops from all warehouses under this bond.
+      const warehousesInBond = allWarehouses
+        .filter(w => {
+          const match = w.value.match(/^WH-([^- ]+)/);
+          return match && match[1] === bond;
+        })
+        .map(w => w.value);
+      
+      const shopsInBond = warehousesInBond.flatMap(w => filterMapping[w] || []);
+      const uniqueShopCodes = [...new Set(shopsInBond)];
+      filteredShops = allShops.filter(s => uniqueShopCodes.includes(s.value));
     }
-
+    
     setShopOptions(filteredShops);
-  }, [warehouse, filterMapping, allShops]);
+  }, [bond, warehouse, filterMapping, allShops, allWarehouses]);
 
   const load = () => {
     let startIdx = null;
@@ -355,6 +395,7 @@ export default function CombinedShopwiseReport() {
       exportData,
       {
         Period: periodLabel,
+        Bond: bond,
         Warehouse: warehouse,
         Shop: shop,
         View: view,
@@ -373,6 +414,22 @@ export default function CombinedShopwiseReport() {
             value={dateRange}
             onChange={setDateRange}
             style={{ width: 250 }}
+          />
+        </Col>
+
+        <Col>
+          <Select
+            placeholder="Bond"
+            allowClear
+            showSearch
+            style={{ width: 180 }}
+            options={bondOptions}
+            value={bond}
+            onChange={(v) => {
+              setBond(v);
+              setWarehouse(undefined);
+              setShop(undefined);
+            }}
           />
         </Col>
 
