@@ -18,11 +18,14 @@ export default function CombinedShopwiseReport() {
   const [view, setView] = useState("case");
   const [useWholeNumbers, setUseWholeNumbers] = useState(false);
   const [collapsedShops, setCollapsedShops] = useState({});
+  
+  const [filterMode, setFilterMode] = useState("bond"); // "bond" or "warehouse"
 
   const [warehouseOptions, setWarehouseOptions] = useState([]);
   const [shopOptions, setShopOptions] = useState([]);
   const [bondOptions, setBondOptions] = useState([]);
   const [filterMapping, setFilterMapping] = useState({});
+  const [bondMapping, setBondMapping] = useState({});
   const [allShops, setAllShops] = useState([]);
   const [allWarehouses, setAllWarehouses] = useState([]);
   const [uploads, setUploads] = useState([]);
@@ -31,20 +34,12 @@ export default function CombinedShopwiseReport() {
 
   useEffect(() => {
     getFilters(id).then((res) => {
-      const { warehouses, shops, mapping } = res.data;
+      const { warehouses, shops, bonds, mapping, bond_mapping } = res.data;
       const warehouseOpts = (warehouses || []).map(w => ({ value: w, label: w }));
       setAllWarehouses(warehouseOpts);
       setWarehouseOptions(warehouseOpts);
 
-      const bondSet = new Set();
-      (warehouses || []).forEach(w => {
-        const match = w.match(/^WH-([^- ]+)/);
-        if (match && match[1]) {
-            bondSet.add(match[1]);
-        }
-      });
-
-      setBondOptions(Array.from(bondSet).map(b => ({ value: b, label: b })));
+      setBondOptions((bonds || []).map(b => ({ value: b, label: b })));
       
       const formattedShops = (shops || []).map(s => ({ 
         value: s.shop_code, 
@@ -53,46 +48,37 @@ export default function CombinedShopwiseReport() {
       setAllShops(formattedShops);
       setShopOptions(formattedShops);
       setFilterMapping(mapping || {});
+      setBondMapping(bond_mapping || {});
     });
   }, [id]);
 
-  // Handle cascading logic for bond -> warehouse
-  useEffect(() => {
-    if (bond) {
-      const filtered = allWarehouses.filter(w => {
-        const match = w.value.match(/^WH-([^- ]+)/);
-        return match && match[1] === bond;
-      });
-      setWarehouseOptions(filtered);
-    } else {
-      setWarehouseOptions(allWarehouses);
-    }
-  }, [bond, allWarehouses]);
-
-  // Handle cascading logic for shops
+  // Handle cascading logic for shops based on the filter mode
   useEffect(() => {
     let filteredShops = allShops;
 
-    if (warehouse) {
-      // A specific warehouse is selected, so we use its shop list
+    if (filterMode === 'warehouse' && warehouse) {
       const shopCodes = filterMapping[warehouse] || [];
       filteredShops = allShops.filter(s => shopCodes.includes(s.value));
-    } else if (bond) {
-      // A bond is selected, but no warehouse. We need to get all shops from all warehouses under this bond.
-      const warehousesInBond = allWarehouses
-        .filter(w => {
-          const match = w.value.match(/^WH-([^- ]+)/);
-          return match && match[1] === bond;
-        })
-        .map(w => w.value);
-      
-      const shopsInBond = warehousesInBond.flatMap(w => filterMapping[w] || []);
+    } else if (filterMode === 'bond' && bond) {
+      const warehousesInBond = bondMapping[bond] || [];
+      const shopsInBond = warehousesInBond.flatMap(w => (filterMapping[w] || []));
       const uniqueShopCodes = [...new Set(shopsInBond)];
       filteredShops = allShops.filter(s => uniqueShopCodes.includes(s.value));
+    } else {
+      // If no bond or warehouse is selected, show all shops
+      if (filterMode === 'bond') {
+        // In bond mode, if no bond is selected, show all shops from all bonds
+        const allBondShops = Object.values(bondMapping).flat().flatMap(w => (filterMapping[w] || [])).flat();
+        const allUniqueShopCodes = [...new Set(allBondShops)];
+        filteredShops = allShops.filter(s => allUniqueShopCodes.includes(s.value));
+      } else {
+        filteredShops = allShops;
+      }
     }
     
     setShopOptions(filteredShops);
-  }, [bond, warehouse, filterMapping, allShops, allWarehouses]);
+  }, [bond, warehouse, filterMode, filterMapping, allShops, bondMapping]);
+
 
   const load = () => {
     let startIdx = null;
@@ -114,12 +100,11 @@ export default function CombinedShopwiseReport() {
       }
     }
 
-    getReport(id, shop, view, { warehouse, start_idx: startIdx, end_idx: endIdx }).then((res) => {
+    getReport(id, shop, view, { warehouse, bond, start_idx: startIdx, end_idx: endIdx }).then((res) => {
       setData(res.data.data || []);
       setUploads(res.data.uploads || []);
       setConfig(res.data.config || {});
       
-      // Reset collapsed state on load - all shops collapsed by default
       const initialCollapsed = {};
       const uniqueShops = [...new Set((res.data.data || []).map(r => r.shop_code))];
       uniqueShops.forEach(s => initialCollapsed[s] = true);
@@ -133,7 +118,6 @@ export default function CombinedShopwiseReport() {
 
   const periodLabel = useMemo(() => {
     if (!uploads.length) return "";
-    // For combined report, uploads have 'date' field
     const dates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
     if (!dates.length) return "";
     
@@ -158,7 +142,6 @@ export default function CombinedShopwiseReport() {
     }));
   };
 
-  // Helper to format numbers based on whole number toggle
   const formatVal = (val) => {
     if (val === undefined || val === null) return "";
     const num = Number(val);
@@ -168,11 +151,8 @@ export default function CombinedShopwiseReport() {
     return num.toFixed(2);
   };
 
-  // ===== HIERARCHICAL DATA WITH TOTALS =====
   const tableData = useMemo(() => {
     const rows = [];
-    
-    // Group by Shop -> Brand
     const shopGrouped = {};
     data.forEach((row) => {
       const shopCode = row["shop_code"];
@@ -194,8 +174,6 @@ export default function CombinedShopwiseReport() {
 
     Object.entries(shopGrouped).forEach(([shopCode, brands]) => {
       const isCollapsed = collapsedShops[shopCode];
-
-      // Shop Header Row
       rows.push({
         key: `shop_${shopCode}`,
         label: shopCode,
@@ -205,78 +183,67 @@ export default function CombinedShopwiseReport() {
       });
 
       if (!isCollapsed) {
-      Object.entries(brands).forEach(([brand, items]) => {
-        // Brand Header Row
-        rows.push({
-          key: `brand_${shopCode}_${brand}`,
-          label: brand,
-          isBrandHeader: true
+        Object.entries(brands).forEach(([brand, items]) => {
+          rows.push({
+            key: `brand_${shopCode}_${brand}`,
+            label: brand,
+            isBrandHeader: true
+          });
+
+          const brandTotal = {
+            key: `total_${shopCode}_${brand}`,
+            label: `${brand} Total`,
+            opening: 0,
+            inward: 0,
+            outward: 0,
+            closing: 0,
+            isBrandTotal: true
+          };
+
+          items.forEach((item, i) => {
+            const row = {
+              ...item,
+              key: `item_${shopCode}_${brand}_${i}`,
+              label: item.pack
+            };
+            rows.push(row);
+            brandTotal.opening += item.opening || 0;
+            brandTotal.inward += item.inward || 0;
+            brandTotal.outward += item.outward || 0;
+            brandTotal.closing += item.closing || 0;
+          });
+
+          rows.push(brandTotal);
+          rows.push({ key: `spacer_${shopCode}_${brand}`, isSpacer: true });
         });
 
-        const brandTotal = {
-          key: `total_${shopCode}_${brand}`,
-          label: `${brand} Total`,
+        const shopTotal = {
+          key: `shop_total_${shopCode}`,
+          label: `Shop ${shopCode} Total`,
           opening: 0,
           inward: 0,
           outward: 0,
           closing: 0,
-          isBrandTotal: true
+          isShopTotal: true
         };
 
-        items.forEach((item, i) => {
-          const row = {
-            ...item,
-            key: `item_${shopCode}_${brand}_${i}`,
-            label: item.pack
-          };
-          rows.push(row);
-
-          brandTotal.opening += item.opening || 0;
-          brandTotal.inward += item.inward || 0;
-          brandTotal.outward += item.outward || 0;
-          brandTotal.closing += item.closing || 0;
+        Object.values(brands).flat().forEach(item => {
+          shopTotal.opening += item.opening || 0;
+          shopTotal.inward += item.inward || 0;
+          shopTotal.outward += item.outward || 0;
+          shopTotal.closing += item.closing || 0;
         });
+        rows.push(shopTotal);
+        rows.push({ key: `shop_spacer_${shopCode}`, isSpacer: true });
+      }
 
-        rows.push(brandTotal);
-        rows.push({ key: `spacer_${shopCode}_${brand}`, isSpacer: true });
-      });
-
-      // Shop Total Row
-      const shopTotal = {
-        key: `shop_total_${shopCode}`,
-        label: `Shop ${shopCode} Total`,
-        opening: 0,
-        inward: 0,
-        outward: 0,
-        closing: 0,
-        isShopTotal: true
-      };
-
-      Object.values(brands).flat().forEach(item => {
-        shopTotal.opening += item.opening || 0;
-        shopTotal.inward += item.inward || 0;
-        shopTotal.outward += item.outward || 0;
-        shopTotal.closing += item.closing || 0;
-
-        // Add to grand total regardless of collapse
-        grandTotal.opening += item.opening || 0;
-        grandTotal.inward += item.inward || 0;
-        grandTotal.outward += item.outward || 0;
-        grandTotal.closing += item.closing || 0;
-      });
-
-      rows.push(shopTotal);
-      rows.push({ key: `shop_spacer_${shopCode}`, isSpacer: true });
-    } else {
-      // Add to grand total even if collapsed
       Object.values(brands).flat().forEach(item => {
         grandTotal.opening += item.opening || 0;
         grandTotal.inward += item.inward || 0;
         grandTotal.outward += item.outward || 0;
         grandTotal.closing += item.closing || 0;
       });
-    }
-  });
+    });
 
     if (rows.length > 0) {
       rows.push(grandTotal);
@@ -307,30 +274,10 @@ export default function CombinedShopwiseReport() {
         return <span style={{ paddingLeft: 24 }}>{text}</span>;
       },
     },
-    {
-      title: "Sum of Shop Opening Cases",
-      dataIndex: "opening",
-      className: "val-col",
-      render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
-    },
-    {
-      title: "Sum of Shop In Cases",
-      dataIndex: "inward",
-      className: "val-col",
-      render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
-    },
-    {
-      title: "Sum of Shop Out Cases",
-      dataIndex: "outward",
-      className: "val-col",
-      render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
-    },
-    {
-      title: "Sum of Shop Closing Cases",
-      dataIndex: "closing",
-      className: "val-col",
-      render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
-    },
+    { title: "Sum of Shop Opening Cases", dataIndex: "opening", className: "val-col", render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)), },
+    { title: "Sum of Shop In Cases", dataIndex: "inward", className: "val-col", render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)), },
+    { title: "Sum of Shop Out Cases", dataIndex: "outward", className: "val-col", render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)), },
+    { title: "Sum of Shop Closing Cases", dataIndex: "closing", className: "val-col", render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)), },
   ];
 
   const downloadExcel = () => {
@@ -373,7 +320,6 @@ export default function CombinedShopwiseReport() {
         });
       });
 
-      // Shop Total in Excel
       let sOpening = 0, sIn = 0, sOut = 0, sClosing = 0;
       Object.values(brands).flat().forEach(item => {
         sOpening += useWholeNumbers ? Math.floor(item.opening) : item.opening;
@@ -388,65 +334,65 @@ export default function CombinedShopwiseReport() {
         "Sum of Shop Out Cases": sOut,
         "Sum of Shop Closing Cases": sClosing
       });
-      exportData.push({}); // Spacer row
+      exportData.push({});
     });
 
-    exportToExcel(
-      exportData,
-      {
-        Period: periodLabel,
-        Bond: bond,
-        Warehouse: warehouse,
-        Shop: shop,
-        View: view,
-        WholeNumbers: useWholeNumbers ? "Yes" : "No"
-      },
-      "combined_shopwise_report.xlsx",
-      "Combined Shopwise"
-    );
+    exportToExcel(exportData, { Period: periodLabel, Bond: bond, Warehouse: warehouse, Shop: shop, View: view, WholeNumbers: useWholeNumbers ? "Yes" : "No" }, "combined_shopwise_report.xlsx", "Combined Shopwise");
   };
 
   return (
     <>
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }} align="middle">
         <Col>
-          <RangePicker
-            value={dateRange}
-            onChange={setDateRange}
-            style={{ width: 250 }}
-          />
+          <RangePicker value={dateRange} onChange={setDateRange} style={{ width: 250 }} />
         </Col>
 
         <Col>
-          <Select
-            placeholder="Bond"
-            allowClear
-            showSearch
-            style={{ width: 180 }}
-            options={bondOptions}
-            value={bond}
-            onChange={(v) => {
-              setBond(v);
+          <Segmented
+            options={[{ label: "Filter by Bond", value: "bond" }, { label: "Filter by Warehouse", value: "warehouse" }]}
+            value={filterMode}
+            onChange={(value) => {
+              setFilterMode(value);
+              setBond(undefined);
               setWarehouse(undefined);
               setShop(undefined);
             }}
           />
         </Col>
 
-        <Col>
-          <Select
-            placeholder="Warehouse"
-            allowClear
-            showSearch
-            style={{ width: 220 }}
-            options={warehouseOptions}
-            value={warehouse}
-            onChange={(v) => {
-              setWarehouse(v);
-              setShop(undefined);
-            }}
-          />
-        </Col>
+        {filterMode === 'bond' && (
+          <Col>
+            <Select
+              placeholder="Bond"
+              allowClear
+              showSearch
+              style={{ width: 180 }}
+              options={bondOptions}
+              value={bond}
+              onChange={(v) => {
+                setBond(v);
+                setShop(undefined); // Reset shop when bond changes
+              }}
+            />
+          </Col>
+        )}
+
+        {filterMode === 'warehouse' && (
+          <Col>
+            <Select
+              placeholder="Warehouse"
+              allowClear
+              showSearch
+              style={{ width: 220 }}
+              options={warehouseOptions}
+              value={warehouse}
+              onChange={(v) => {
+                setWarehouse(v);
+                setShop(undefined); // Reset shop when warehouse changes
+              }}
+            />
+          </Col>
+        )}
 
         <Col>
           <Select
@@ -462,20 +408,14 @@ export default function CombinedShopwiseReport() {
 
         <Col>
           <Segmented
-            options={[
-              { label: "Case", value: "case" },
-              { label: "Bottle", value: "bottle" },
-            ]}
+            options={[{ label: "Case", value: "case" }, { label: "Bottle", value: "bottle" }]}
             value={view}
             onChange={setView}
           />
         </Col>
 
         <Col>
-          <Checkbox 
-            checked={useWholeNumbers} 
-            onChange={e => setUseWholeNumbers(e.target.checked)}
-          >
+          <Checkbox checked={useWholeNumbers} onChange={e => setUseWholeNumbers(e.target.checked)}>
             Whole Numbers
           </Checkbox>
         </Col>
@@ -485,9 +425,7 @@ export default function CombinedShopwiseReport() {
         </Col>
 
         <Col>
-          <Button onClick={downloadExcel}>
-            Download
-          </Button>
+          <Button onClick={downloadExcel}>Download</Button>
         </Col>
       </Row>
 
@@ -511,44 +449,15 @@ export default function CombinedShopwiseReport() {
         }}
       />
       <style>{`
-        .spacer-row td {
-          padding: 2px 0 !important;
-          background-color: #fff !important;
-          height: 4px;
-          border: none !important;
-        }
-        .group-total-row td {
-          background-color: #D6E9C6 !important;
-          border: 1px solid #999 !important;
-        }
-        .grand-total-row td {
-          background-color: #ADC9E6 !important;
-          border: 1px solid #999 !important;
-        }
-        .shop-header-row td {
-          background-color: #fff !important;
-          border: 1px solid #999 !important;
-        }
-        .brand-header-row td {
-          background-color: #fff !important;
-          border: 1px solid #999 !important;
-        }
-        .data-row td {
-          border: 1px solid #ccc !important;
-        }
-        .val-col {
-          text-align: right !important;
-          width: 150px;
-        }
-        .ant-table-thead > tr > th {
-          background-color: #fff !important;
-          border: 1px solid #999 !important;
-          text-align: center !important;
-          font-weight: bold !important;
-        }
-        .ant-table-small .ant-table-thead > tr > th {
-           padding: 8px !important;
-        }
+        .spacer-row td { padding: 2px 0 !important; background-color: #fff !important; height: 4px; border: none !important; }
+        .group-total-row td { background-color: #D6E9C6 !important; border: 1px solid #999 !important; }
+        .grand-total-row td { background-color: #ADC9E6 !important; border: 1px solid #999 !important; }
+        .shop-header-row td { background-color: #fff !important; border: 1px solid #999 !important; }
+        .brand-header-row td { background-color: #fff !important; border: 1px solid #999 !important; }
+        .data-row td { border: 1px solid #ccc !important; }
+        .val-col { text-align: right !important; width: 150px; }
+        .ant-table-thead > tr > th { background-color: #fff !important; border: 1px solid #999 !important; text-align: center !important; font-weight: bold !important; }
+        .ant-table-small .ant-table-thead > tr > th { padding: 8px !important; }
       `}</style>
     </>
   );

@@ -73,8 +73,8 @@ export default function DataPage() {
   }, []);
 
   useEffect(() => {
-    if (type === 'cumulative_shopwise' && date1 && date2) {
-      setName(`${date1.format('DD-MM-YYYY')} to ${date2.format('DD-MM-YYYY')}`);
+    if (['cumulative_shopwise', 'combined_shopwise'].includes(type) && date1 && date2) {
+      setName(`${date1.format('MMM D')} to ${date2.format('MMM D')}`);
     }
   }, [date1, date2, type]);
 
@@ -425,7 +425,7 @@ export default function DataPage() {
               placeholder="Enter name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              disabled={type === 'cumulative_shopwise'}
+              disabled={['cumulative_shopwise', 'combined_shopwise'].includes(type)}
             />
           </Form.Item>
 
