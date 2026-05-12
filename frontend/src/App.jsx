@@ -3,7 +3,9 @@ import { Layout } from "antd";
 import { Routes, Route } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import DataPage from "./pages/DataPage";
+import RawDataUpload from "./pages/RawDataUpload";
 import StatusCalendar from "./pages/StatusCalendar";
+import ItemIssueConsolidation from "./pages/ItemIssueConsolidation";
 import { REPORT_REGISTRY } from "./reports";
 
 const { Content } = Layout;
@@ -16,6 +18,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<StatusCalendar />} />
           <Route path="/reports" element={<DataPage />} />
+          <Route path="/raw-data-upload" element={<RawDataUpload />} />
+          <Route path="/item-issue-consolidation" element={<ItemIssueConsolidation />} />
           {Object.entries(REPORT_REGISTRY).map(([k, r]) => {
             const C = r.component;
             return <Route key={k} path={r.route} element={<C />} />;

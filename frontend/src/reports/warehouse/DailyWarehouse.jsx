@@ -8,7 +8,6 @@ export default function CleanupReport() {
   const { id } = useParams();
 
   const [report, setReport] = useState(null);
-  const [selectedBond, setSelectedBond] = useState("all");
   const [selectedWarehouse, setSelectedWarehouse] = useState(null);
   const [selectedPack, setSelectedPack] = useState("all");
   const [data, setData] = useState([]);
@@ -65,20 +64,9 @@ export default function CleanupReport() {
     setData(items);
   }, [selectedWarehouse, selectedPack, report]);
 
-  const bonds = Array.from(new Set(
-    (report?.uploads || []).map(u => u.bond).filter(Boolean)
-  )).sort();
-
   const warehouses = (report?.uploads || [])
-    .filter(u => selectedBond === "all" || u.bond === selectedBond)
+    .filter(u => u.status === "uploaded")
     .map((u) => u.warehouse);
-
-  // Clear selected warehouse if it's no longer in the filtered list
-  useEffect(() => {
-    if (selectedWarehouse && !warehouses.includes(selectedWarehouse)) {
-      setSelectedWarehouse(null);
-    }
-  }, [selectedBond]);
 
   const packs = Array.from(new Set(
     (report?.data?.find(d => d.warehouse === selectedWarehouse)?.items || [])
@@ -165,16 +153,6 @@ export default function CleanupReport() {
           <Button type="default" onClick={downloadAllWarehouses} disabled={!report?.data}>
             Download All Warehouses
           </Button>
-          <Select
-            placeholder="Select Bond"
-            style={{ width: 180 }}
-            value={selectedBond}
-            onChange={setSelectedBond}
-            options={[
-              { label: "All Bonds", value: "all" },
-              ...bonds.map(b => ({ label: b, value: b }))
-            ]}
-          />
           <Select
             placeholder="Select Warehouse"
             style={{ width: 250 }}

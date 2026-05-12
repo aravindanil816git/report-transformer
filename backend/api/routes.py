@@ -1,4 +1,5 @@
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi.responses import FileResponse
 import shutil
 import uuid
 import pandas as pd
@@ -116,6 +117,7 @@ def create_report(
             {
                 "warehouse": wh,
                 "file": None,
+                "path": None,
                 "status": "pending",
                 "data": None
             }
@@ -145,8 +147,11 @@ def create_report(
         config = {"date": date}
 
     # 🔥 SHOPWISE
-    elif type in ["shopwise", "shop_sales_cumulative"]:
+    elif type == "shopwise":
         config = {"date": date}
+
+    elif type == "shop_sales_cumulative":
+        config = {"date1": date1, "date2": date2}
 
     # 🔥 MONTHLY STOCK SALES (FIXED)
     elif type == "monthly_stock_sales":
@@ -188,9 +193,28 @@ def create_report(
         "processed": None,
         "config": config
     }
-
     reports[rid] = report
-    
+
+    # Auto-create brandwise report from dailywise
+    if type == "dailywise_secondary_sales_cum":
+        brandwise_rid = str(uuid.uuid4())
+        brandwise_report = {
+            "id": brandwise_rid,
+            "name": name,
+            "type": "brandwise_cum_secondary_sales",
+            "status": "Created",
+            "uploads": [u.copy() for u in uploads],
+            "processed": None,
+            "config": config.copy()
+        }
+        reports[brandwise_rid] = brandwise_report
+        sync_cumulative_report(brandwise_report)
+
+        # Auto-process brandwise report
+        svc = get_service("brandwise_cum_secondary_sales")
+        svc.process(brandwise_report)
+        brandwise_report["status"] = "Processed"
+
     # 🔥 Try to auto-link data immediately
     sync_cumulative_report(report)
 
@@ -233,6 +257,11 @@ def list_reports():
 
 
 # ================= FILTERS =================
+@router.get("/warehouses/all")
+def get_all_warehouses():
+    from services.reports.cumulative_warehouse import WAREHOUSE_TO_BOND
+    return sorted(WAREHOUSE_TO_BOND.keys())
+
 @router.get("/warehouses/{rid}")
 def get_warehouses(rid: str):
     report = reports.get(rid)
@@ -344,6 +373,7 @@ async def upload(
                 df = df.astype(object).where(pd.notnull(df), None)
                 report_date = report.get("config", {}).get("date")
                 u["file"] = file.filename
+                u["path"] = path
                 u["from"] = report_date
                 u["to"] = report_date
                 u["status"] = "uploaded"
@@ -363,24 +393,39 @@ async def upload(
                 match_found = True
                 break
 
-    elif report["type"] in ["shopwise", "shop_sales_cumulative"]:
+    elif report["type"] == "shopwise":
         svc = get_service("shopwise")
         report_date = report.get("config", {}).get("date")
         svc.upload(report, path, file.filename, report_date, report_date)
+        report["path"] = path
+        report["file"] = file.filename
+        report["status"] = "Ready"
+        return {"status": "uploaded"}
+
+    elif report["type"] == "shop_sales_cumulative":
+        svc = get_service("shopwise")
+        from_date = report.get("config", {}).get("date1")
+        to_date = report.get("config", {}).get("date2")
+        svc.upload(report, path, file.filename, from_date, to_date)
+        report["path"] = path
+        report["file"] = file.filename
         report["status"] = "Ready"
         return {"status": "uploaded"}
 
     elif report["type"] == "daily_warehouse_offtake":
         svc = get_service("daily_warehouse_offtake")
         svc.upload(report, path, file.filename, report.get("config", {}).get("date"))
+        report["path"] = path
+        report["file"] = file.filename
         report["status"] = "Ready"
         return {"status": "uploaded"}
 
-    elif report["type"] in ["cumulative_shopwise", "cumulative_warehouse", "shop_sales_cumulative"]:
+    elif report["type"] in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
         for u in report["uploads"]:
             if u["date"] == key:
                 df = read_excel_robust(path)
                 u["file"] = file.filename
+                u["path"] = path
                 u["status"] = "uploaded"
                 u["data"] = df.replace({pd.NA: None}).astype(object).where(pd.notnull(df), None).to_dict("records")
                 match_found = True
@@ -431,6 +476,35 @@ def process(rid: str):
     return {"status": "processed"}
 
 
+# ================= LIVE COMPARISON =================
+@router.get("/compare-live")
+def compare_live(date1: str, date2: str):
+    daily_reports = [
+        r for r in reports.values()
+        if r["type"] == "daily_secondary_sales" and r.get("status") == "Processed"
+    ]
+
+    combined = []
+    for d in daily_reports:
+        combined.extend(d.get("processed", []))
+
+    svc = get_service("month_comparative")
+    
+    # Create a dummy report object for the service
+    dummy_report = {
+        "config": {"date1": date1, "date2": date2},
+        "_live_source": combined
+    }
+    
+    svc.process(dummy_report)
+    
+    return {
+        "data": dummy_report.get("processed", []),
+        "date1": date1,
+        "date2": date2
+    }
+
+
 # ================= GET REPORT =================
 @router.get("/report/{rid}")
 def get_report(
@@ -472,3 +546,30 @@ def delete_report(rid: str):
         del reports[rid]
         return {"status": "deleted"}
     return {"status": "error", "message": "Report not found"}
+
+
+# ================= DOWNLOAD RAW =================
+@router.get("/download-raw/{rid}")
+def download_raw(rid: str, key: str = None):
+    report = reports.get(rid)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    path = None
+    filename = "download.xlsx"
+
+    if key:
+        for u in report.get("uploads", []):
+            if u.get("warehouse") == key or u.get("date") == key:
+                path = u.get("path")
+                filename = u.get("file", "download.xlsx")
+                break
+    else:
+        # Fallback to single file types
+        path = report.get("path")
+        filename = report.get("file", "download.xlsx")
+
+    if not path or not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found on server")
+
+    return FileResponse(path, filename=filename)

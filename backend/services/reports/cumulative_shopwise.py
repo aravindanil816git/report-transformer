@@ -39,17 +39,29 @@ class CumulativeShopwiseReportService(BaseReportService):
             for i in range(num_days)
         ]
 
-    def upload(self, report, path, file_name, date=None, **kwargs):
+    def upload(self, report, path, file_name, date=None, from_date=None, to_date=None, **kwargs):
         df = read_excel_robust(path)
         df = normalize(df)
         df = clean_df(df)
 
-        for u in report.get("uploads", []):
-            if u["date"] == date:
-                u["file"] = file_name
-                u["status"] = "uploaded"
-                u["data"] = df.to_dict("records")
-                break
+        # If date is provided, it's a single-day upload within a cumulative report
+        if date:
+            for u in report.get("uploads", []):
+                if u["date"] == date:
+                    u["file"] = file_name
+                    u["status"] = "uploaded"
+                    u["data"] = df.to_dict("records")
+                    break
+        # If from_date and to_date are provided, it's a bulk upload for a date range
+        elif from_date and to_date:
+            report["uploads"].append({
+                "file": file_name,
+                "from": from_date,
+                "to": to_date,
+                "status": "uploaded",
+                "data": df.to_dict("records"),
+            })
+
 
     def _compute(self, df):
         # 🔍 Detect columns
@@ -109,22 +121,52 @@ class CumulativeShopwiseReportService(BaseReportService):
         uploads = report.get("uploads", [])
         config = report.get("config", {})
 
-        start_date = config.get("start_date")
-        num_days = int(config.get("num_days", 1))
+        start_date_str = config.get("date1")
+        end_date_str = config.get("date2")
 
-        if not start_date:
-            report["processed"] = {"daywise": {}, "cumulative": [], "labels": []}
-            return
+        # Fallback for older reports
+        if not start_date_str or not end_date_str:
+            start_date_str = config.get("start_date")
+            if not start_date_str:
+                report["processed"] = {"daywise": {}, "cumulative": [], "labels": []}
+                return
+            num_days = int(config.get("num_days", 1))
+            end_date = datetime.strptime(start_date_str, "%Y-%m-%d") + timedelta(days=num_days - 1)
+            end_date_str = end_date.strftime("%Y-%m-%d")
+        
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+        end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
 
-        labels = self._generate_labels(start_date, num_days)
+        # Filter uploads to only include those within the date range
+        relevant_uploads = []
+        for u in uploads:
+            if u.get("status") != "uploaded" or not u.get("date"):
+                continue
+            
+            upload_date = datetime.strptime(u["date"], "%Y-%m-%d")
+            if start_date <= upload_date <= end_date:
+                relevant_uploads.append(u)
+        
+        # Sort by date to ensure correct order
+        relevant_uploads.sort(key=lambda x: x["date"])
+        
+        num_days = (end_date - start_date).days + 1
+        labels = self._generate_labels(start_date_str, num_days)
 
         daywise_opening = {}
         daywise_sales = {}
         daywise_receipt = {}
         cumulative_map = {}
 
-        for idx, u in enumerate(uploads):
-            if u.get("status") != "uploaded":
+        uploads_by_date = {u["date"]: u for u in relevant_uploads}
+
+        for i in range(num_days):
+            current_date = start_date + timedelta(days=i)
+            current_date_str = current_date.strftime("%Y-%m-%d")
+            label = labels[i]
+
+            u = uploads_by_date.get(current_date_str)
+            if not u:
                 continue
 
             df = pd.DataFrame(u.get("data", []))
@@ -143,8 +185,6 @@ class CumulativeShopwiseReportService(BaseReportService):
                 .sum()
                 .reset_index()
             )
-
-            label = labels[idx]
 
             for _, row in grouped.iterrows():
                 wh = row["warehouse"]
@@ -186,6 +226,9 @@ class CumulativeShopwiseReportService(BaseReportService):
             diff = closing - opening
             avg_sales = round(sales / num_days)
 
+            closing_stock_at_sales_perc = round((closing * 100) / sales, 2) if sales else 0
+            perc = round((diff * 100) / opening, 2) if opening else 0
+
             cumulative_data.append({
                 "warehouse": wh,
                 "opening": opening,
@@ -193,7 +236,9 @@ class CumulativeShopwiseReportService(BaseReportService):
                 "sales": sales,
                 "closing": closing,
                 "difference": diff,
-                "avg_sales_per_day": avg_sales
+                "avg_sales_per_day": avg_sales,
+                "closing_stock_at_sales_perc": closing_stock_at_sales_perc,
+                "perc": perc
             })
 
         report["processed"] = {
@@ -267,8 +312,27 @@ class CumulativeShopwiseReportService(BaseReportService):
 
         # cumulative
         if view == "cumulative":
+            cumulative_data = processed.get("cumulative", [])
+            if mode == "bond":
+                bond_map = {}
+                for row in cumulative_data:
+                    wh = row["warehouse"]
+                    bond = WAREHOUSE_TO_BOND.get(wh, "UNKNOWN")
+
+                    if bond not in bond_map:
+                        bond_map[bond] = {"warehouse": bond}
+                        for k in row:
+                            if k != "warehouse":
+                                bond_map[bond][k] = 0
+                    
+                    for k, v in row.items():
+                        if k != "warehouse":
+                            bond_map[bond][k] += v
+
+                cumulative_data = list(bond_map.values())
+                
             return {
-                "data": processed.get("cumulative", []),
+                "data": cumulative_data,
                 "labels": selected_labels,
                 "config": report.get("config", {})
             }

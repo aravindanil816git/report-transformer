@@ -1,6 +1,6 @@
 import { Modal, Upload, Button, message, Space, Alert } from "antd";
-import { InboxOutlined, CheckCircleFilled } from '@ant-design/icons';
-import { uploadFile, processReport } from "../api";
+import { InboxOutlined, CheckCircleFilled, DownloadOutlined } from '@ant-design/icons';
+import { uploadFile, processReport, downloadRaw } from "../api";
 
 const { Dragger } = Upload;
 
@@ -9,8 +9,10 @@ export default function SingleFileUploadModal({ report, onClose, reload }) {
     try {
       await uploadFile(report.id, file);
       message.success("File uploaded successfully");
-      reload();
-      // Don't close, let them click process
+      
+      // Auto-process for single file reports
+      message.loading("Auto-processing report...", 2);
+      await handleProcess();
     } catch (e) {
       message.error("Upload failed");
     }
@@ -19,7 +21,7 @@ export default function SingleFileUploadModal({ report, onClose, reload }) {
   const handleProcess = async () => {
     try {
       await processReport(report.id);
-      message.success("Report processed successfully");
+      message.success("Report processed successfully. It is now ready to be viewed.");
       reload();
       onClose();
     } catch (e) {
@@ -59,6 +61,13 @@ export default function SingleFileUploadModal({ report, onClose, reload }) {
                 description={
                   <span>
                     Current file: <b>{uploadedFile}</b>
+                    <Button 
+                      icon={<DownloadOutlined />} 
+                      type="link" 
+                      onClick={() => downloadRaw(report.id)}
+                    >
+                      Download
+                    </Button>
                   </span>
                 }
                 type="success"

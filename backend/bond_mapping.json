@@ -1,0 +1,113 @@
+{
+  "ALAPPUZHA": {
+    "staffs": "PRATHYUSH T S",
+    "warehouses": [
+      "WH-THIRUVALLA",
+      "WH-ALAPPUZHA",
+      "WH-KARUNAGAPPALLY"
+    ]
+  },
+  "ALUVA": {
+    "staffs": "MARSHAL",
+    "warehouses": [
+      "WH-ALUVA",
+      "WH-PERUMBAVOOR",
+      "WH-TRIPUNITHURA"
+    ]
+  },
+  "ATTINGAL": {
+    "staffs": "ANOOP D S",
+    "warehouses": [
+      "WH-MENAMKULAM",
+      "WH-ATTINGAL"
+    ]
+  },
+  "KANNUR": {
+    "staffs": "HARIDAS",
+    "warehouses": [
+      "WH-KANNUR",
+      "WH-BATTATHUR"
+    ]
+  },
+  "KOLLAM": {
+    "staffs": "SURJIT S",
+    "warehouses": [
+      "WH-KOLLAM"
+    ]
+  },
+  "KOTTARAKARA": {
+    "staffs": "BIJU W",
+    "warehouses": [
+      "WH-KOTTARAKARA"
+    ]
+  },
+  "KOTTAYAM": {
+    "staffs": "RAHUL",
+    "warehouses": [
+      "WH-AYARKKUNNAM",
+      "WH-KOTTAYAM",
+      "WH-TRIPUNITHURA"
+    ]
+  },
+  "KOZHIKODE": {
+    "staffs": "AMALJITH V T",
+    "warehouses": [
+      "WH-KOZHIKODE",
+      "WH-NADUVANNUR",
+      "WH-KALPETTA"
+    ]
+  },
+  "NEDUMANGAD": {
+    "staffs": "SARATH GOPAN",
+    "warehouses": [
+      "WH-BALARAMAPURAM",
+      "WH-NEDUMANGAD",
+      "WH-MENAMKULAM",
+      "WH-ATTINGAL"
+    ]
+  },
+  "PALAKKAD": {
+    "staffs": "SHAJI R",
+    "warehouses": [
+      "WH-MENONPARA",
+      "WH-PALAKKAD"
+    ]
+  },
+  "PATHANAMTHITTA": {
+    "staffs": "ANEESH R",
+    "warehouses": [
+      "WH-PATHANAMTHITA",
+      "WH-THIRUVALLA",
+      "WH-KARUNAGAPPALLY"
+    ]
+  },
+  "PERINTHALMANNA": {
+    "staffs": "JISHNU",
+    "warehouses": [
+      "WH-PERINTHALMANNA",
+      "WH-MENONPARA",
+      "WH-NADUVANNUR"
+    ]
+  },
+  "THODUPUZHA": {
+    "staffs": "AMAL GEORGE",
+    "warehouses": [
+      "WH-THODUPUZHA",
+      "WH-AYARKKUNNAM"
+    ]
+  },
+  "THRISSUR": {
+    "staffs": "SOURAV",
+    "warehouses": [
+      "WH-THRISSUR",
+      "WH-CHALAKUDY"
+    ]
+  },
+  "TRIPUNITHURA": {
+    "staffs": "OMANAKKUTTAN S K",
+    "warehouses": [
+      "WH-KADAVANTHRA",
+      "WH-TRIPUNITHURA"
+    ]
+  }
+}

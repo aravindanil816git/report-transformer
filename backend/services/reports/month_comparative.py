@@ -13,9 +13,13 @@ class MonthComparativeService(BaseReportService):
         d1_map = {d["warehouse"]: d for d in base if d["date"] == d1}
         d2_map = {d["warehouse"]: d for d in base if d["date"] == d2}
 
+        # 🔥 GET ALL WAREHOUSES FROM MAPPING
+        from .cumulative_warehouse import WAREHOUSE_TO_BOND
+        all_warehouses = sorted(WAREHOUSE_TO_BOND.keys())
+
         result = []
 
-        for w in sorted(set(d1_map) | set(d2_map)):
+        for w in all_warehouses:
             a = d1_map.get(w, {})
             b = d2_map.get(w, {})
 

@@ -1,6 +1,7 @@
 import { Modal, Table, Upload, Button, message, Space } from "antd";
+import { DownloadOutlined } from "@ant-design/icons";
 import { useState } from "react";
-import { uploadFile, processReport } from "../api";
+import { uploadFile, processReport, downloadRaw } from "../api";
 
 export default function CumulativeUploadModal({ report, onClose, reload }) {
   const [uploading, setUploading] = useState(false);
@@ -8,7 +9,7 @@ export default function CumulativeUploadModal({ report, onClose, reload }) {
   const handleProcess = async () => {
     try {
       await processReport(report.id);
-      message.success("Report processed successfully");
+      message.success("Report processed successfully. It is now ready to be viewed.");
       reload();
       onClose();
     } catch (e) {
@@ -23,7 +24,17 @@ export default function CumulativeUploadModal({ report, onClose, reload }) {
         message.error(`${date}: ${res.data.message}`);
       } else {
         message.success(`${date}: ${file.name} uploaded`);
-        reload();
+        
+        // Auto-process if all files uploaded
+        const updatedReport = await listReports().then(r => r.data.find(x => x.id === report.id));
+        const allUploaded = updatedReport?.uploads.every(u => u.status === "uploaded");
+        
+        if (allUploaded) {
+          message.loading("Auto-processing report...", 2);
+          await handleProcess();
+        } else {
+          reload();
+        }
       }
     } catch (e) {
       message.error(`${date}: Upload failed`);
@@ -37,7 +48,18 @@ export default function CumulativeUploadModal({ report, onClose, reload }) {
       title: "Action",
       render: (_, row) => {
         if (row.status === "uploaded") {
-          return "✅ Uploaded";
+          return (
+            <Space>
+              <span>✅ Uploaded</span>
+              <Button 
+                icon={<DownloadOutlined />} 
+                size="small"
+                onClick={() => downloadRaw(report.id, row.date)}
+              >
+                Download
+              </Button>
+            </Space>
+          );
         }
 
         return (
