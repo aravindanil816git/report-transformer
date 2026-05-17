@@ -16,7 +16,7 @@ export default function CumulativeShopwiseReport() {
   const [labels, setLabels] = useState([]);
   const [allLabels, setAllLabels] = useState([]);
   const [config, setConfig] = useState({});
-  const [view, setView] = useState("daywise_sales");
+  const [view, setView] = useState("cumulative");
 
   const [warehouseFilter, setWarehouseFilter] = useState(null);
   const [dateRange, setDateRange] = useState([]);
@@ -110,7 +110,9 @@ useEffect(() => {
     { title: "Sales", dataIndex: "sales", width: 200, align: "right" },
     { title: "Closing", dataIndex: "closing", width: 200, align: "right" },
     { title: "Difference", dataIndex: "difference", width: 200, align: "right" },
-    { title: "Avg Sales / Day", dataIndex: "avg_sales_per_day", width: 220, align: "right" }
+    { title: "ClosingStock@Sales%", dataIndex: "closing_stock_at_sales_perc", width: 220, align: "right" },
+    { title: "Avg Sales / Day", dataIndex: "avg_sales_per_day", width: 220, align: "right" },
+    { title: "Perc(%)", dataIndex: "perc", width: 220, align: "right" }
   ];
 
   // 🔥 DOWNLOAD
@@ -124,7 +126,9 @@ useEffect(() => {
         Sales: d.sales,
         Closing: d.closing,
         Difference: d.difference,
-        "Avg Sales / Day": d.avg_sales_per_day
+        "ClosingStock@Sales%": d.closing_stock_at_sales_perc,
+        "Avg Sales / Day": d.avg_sales_per_day,
+        "Perc(%)": d.perc
       }));
     } else {
       exportData = filteredData.map(row => {
@@ -157,7 +161,7 @@ useEffect(() => {
   return (
     <div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2>Shop Sales Daily</h2>
+        <h2>Cumulative Shopsales</h2>
         <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
       </div>
 
@@ -215,10 +219,11 @@ useEffect(() => {
       {/* 🔥 VIEW PILLS */}
       <div style={{ marginBottom: 16 }}>
         <Button
-          type={view === "daywise_sales" ? "primary" : "default"}
-          onClick={() => setView("daywise_sales")}
+          type={view === "cumulative" ? "primary" : "default"}
+          onClick={() => setView("cumulative")}
+          style={{ marginLeft: 8 }}
         >
-          Sales
+          Cumulative
         </Button>
       </div>
 
@@ -238,13 +243,17 @@ useEffect(() => {
             let totalSales = 0;
             let totalClosing = 0;
             let totalDiff = 0;
+            let totalClosingStockAtSalesPerc = 0;
+            let totalPerc = 0;
 
-            pageData.forEach(({ opening, receipt, sales, closing, difference }) => {
+            pageData.forEach(({ opening, receipt, sales, closing, difference, closing_stock_at_sales_perc, perc }) => {
               totalOpening += opening || 0;
               totalReceipt += receipt || 0;
               totalSales += sales || 0;
               totalClosing += closing || 0;
               totalDiff += difference || 0;
+              totalClosingStockAtSalesPerc += closing_stock_at_sales_perc || 0;
+              totalPerc += perc || 0;
             });
 
             return (
@@ -256,7 +265,9 @@ useEffect(() => {
                   <Table.Summary.Cell index={3} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalSales.toFixed(2)}</Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={4} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalClosing.toFixed(2)}</Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={5} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalDiff.toFixed(2)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={6} style={{ padding: "12px 8px" }} />
+                  <Table.Summary.Cell index={6} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalClosingStockAtSalesPerc.toFixed(2)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={7} style={{ padding: "12px 8px" }} />
+                  <Table.Summary.Cell index={8} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalPerc.toFixed(2)}</Text></Table.Summary.Cell>
                 </Table.Summary.Row>
               </Table.Summary>
             );

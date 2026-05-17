@@ -1,6 +1,7 @@
 import pandas as pd
 from .base import BaseReportService
 
+# Report Item Issue consolidation
 
 class DailySecondarySalesService(BaseReportService):
     type_name = "daily_secondary_sales"

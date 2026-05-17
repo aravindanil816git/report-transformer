@@ -23,6 +23,7 @@ export default function CumulativeWarehouseReport() {
 
   const [mode, setMode] = useState(searchParams.get("mode") || "warehouse");
   const [drilledWarehouse, setDrilledWarehouse] = useState(null);
+  const [drilledBond, setDrilledBond] = useState(null);
 
   const isDailyWiseType = config?.type === "dailywise_secondary_sales_cum";
   const isBrandwiseCumType = config?.type === "brandwise_cum_secondary_sales";
@@ -34,12 +35,13 @@ export default function CumulativeWarehouseReport() {
   }, [config?.type]);
 
   // 🔹 load data from backend
-  const load = async (startIdx = null, endIdx = null, selectedWarehouse = null, selectedMode = mode) => {
+  const load = async (startIdx = null, endIdx = null, selectedWarehouse = null, selectedBond = null, selectedMode = mode) => {
     const res = await getReport(id, null, selectedWarehouse ? "shopwise" : view, {
       start_idx: startIdx,
       end_idx: endIdx,
       mode: selectedMode,
-      warehouse: selectedWarehouse
+      warehouse: selectedWarehouse,
+      bond: selectedBond
     });
     const cleaned = (res.data.data || []).filter(d => d.warehouse || d.shop_code || d.bond);
 
@@ -55,7 +57,7 @@ export default function CumulativeWarehouseReport() {
   // 🔥 Reload when view or date range changes
   useEffect(() => {
     applyFilters();
-  }, [view, drilledWarehouse, mode]);
+  }, [view, drilledWarehouse, drilledBond, mode]);
 
   // 🔹 convert label → date (robust manual parse)
   const labelToDate = (label) => {
@@ -87,7 +89,11 @@ export default function CumulativeWarehouseReport() {
       endIdx = getIndexFromDate(dateRange[1]);
     }
 
-    load(startIdx, endIdx, drilledWarehouse, mode);
+    let currentMode = mode;
+    if (drilledWarehouse) currentMode = "shop";
+    else if (drilledBond) currentMode = "shop";
+
+    load(startIdx, endIdx, drilledWarehouse, drilledBond, currentMode);
   };
 
   // 🔥 RESET FILTERS
@@ -96,8 +102,9 @@ export default function CumulativeWarehouseReport() {
     setWarehouseFilter(null);
     setDateRange([]);
     setDrilledWarehouse(null);
+    setDrilledBond(null);
     setMode("warehouse");
-    load(null, null, null, "warehouse");
+    load(null, null, null, null, "warehouse");
   };
 
   // 🔹 Aggregation and Filtering Logic
@@ -106,11 +113,13 @@ export default function CumulativeWarehouseReport() {
     let filtered = data.filter(d => {
       const bondMatch = !bondFilter || d.bond === bondFilter;
       const whMatch = !warehouseFilter || d.warehouse === warehouseFilter;
-      return bondMatch && whMatch;
+      const drillBondMatch = !drilledBond || d.bond === drilledBond;
+      const drillWhMatch = !drilledWarehouse || d.warehouse === drilledWarehouse;
+      return bondMatch && whMatch && drillBondMatch && drillWhMatch;
     });
 
     return filtered;
-  }, [data, bondFilter, warehouseFilter]);
+  }, [data, bondFilter, warehouseFilter, drilledBond, drilledWarehouse]);
 
   const uniqueBonds = useMemo(() => {
     const bonds = new Set();
@@ -150,20 +159,36 @@ export default function CumulativeWarehouseReport() {
     return current.isBefore(minDate, "day") || current.isAfter(maxDate, "day");
   };
 
+  // 🔹 dynamic columns helpers
+  const getTitle = () => {
+    if (drilledWarehouse || drilledBond || mode === "shop") return "Shop Name";
+    if (mode === "bond" && !drilledBond) return "Bond";
+    return "Warehouse";
+  };
+
+  const getDataIndex = () => {
+    if (drilledWarehouse || drilledBond || mode === "shop") return "shop_name";
+    return "warehouse";
+  };
+
+  const renderFirstCol = (text, record) => {
+    if (mode === "warehouse" && !drilledWarehouse) {
+      return <a onClick={() => setDrilledWarehouse(record.warehouse)}>{text}</a>;
+    }
+    if (mode === "bond" && !drilledBond) {
+      return <a onClick={() => setDrilledBond(record.warehouse)}>{text}</a>;
+    }
+    return <span>{record.shop_code ? `${record.shop_code} - ` : ""}{text}</span>;
+  };
+
   // 🔹 columns
   const daywiseColumns = [
     { 
-      title: mode === "shop" || drilledWarehouse ? "Shop Name" : (mode === "bond" ? "Bond" : "Warehouse"), 
-      dataIndex: mode === "shop" || drilledWarehouse ? "shop_name" : "warehouse", 
+      title: getTitle(), 
+      dataIndex: getDataIndex(), 
       fixed: "left", 
       width: 200,
-      render: (text, record) => (
-        mode === "warehouse" && !drilledWarehouse ? (
-          <a onClick={() => setDrilledWarehouse(record.warehouse)}>{text}</a>
-        ) : (
-          <span>{record.shop_code ? `${record.shop_code} - ` : ""}{text}</span>
-        )
-      )
+      render: renderFirstCol
     },
     ...labels.map(l => ({ title: l, dataIndex: l, width: 100 })),
     { title: "Total", dataIndex: "total", width: 100, fixed: "right" }
@@ -171,16 +196,10 @@ export default function CumulativeWarehouseReport() {
 
   const cumulativeColumns = [
     { 
-      title: mode === "shop" || drilledWarehouse ? "Shop Name" : (mode === "bond" ? "Bond" : "Warehouse"), 
-      dataIndex: mode === "shop" || drilledWarehouse ? "shop_name" : "warehouse", 
+      title: getTitle(), 
+      dataIndex: getDataIndex(), 
       width: 250,
-      render: (text, record) => (
-        mode === "warehouse" && !drilledWarehouse ? (
-          <a onClick={() => setDrilledWarehouse(record.warehouse)}>{text}</a>
-        ) : (
-          <span>{record.shop_code ? `${record.shop_code} - ` : ""}{text}</span>
-        )
-      )
+      render: renderFirstCol
     },
     ...brandColumns,
     { title: "Total Issues", dataIndex: "total", width: 150 },
@@ -217,10 +236,12 @@ export default function CumulativeWarehouseReport() {
 
       <div style={{ marginBottom: 16 }}>
         <Button
-          type={mode === "warehouse" ? "primary" : "default"}
+          type={mode === "warehouse" && !drilledBond ? "primary" : "default"}
           onClick={() => {
             setMode("warehouse");
             setWarehouseFilter(null);
+            setDrilledBond(null);
+            setDrilledWarehouse(null);
           }}
         >
           Warehouse View
@@ -231,6 +252,8 @@ export default function CumulativeWarehouseReport() {
           onClick={() => {
             setMode("bond");
             setWarehouseFilter(null);
+            setDrilledBond(null);
+            setDrilledWarehouse(null);
           }}
           style={{ marginLeft: 8 }}
         >
@@ -243,6 +266,7 @@ export default function CumulativeWarehouseReport() {
             setMode("shop");
             setWarehouseFilter(null);
             setDrilledWarehouse(null);
+            setDrilledBond(null);
           }}
           style={{ marginLeft: 8 }}
         >
@@ -256,7 +280,17 @@ export default function CumulativeWarehouseReport() {
             onClick={() => setDrilledWarehouse(null)}
             style={{ marginLeft: 8 }}
           >
-            Back to Warehouse View (Exit Drilling: {drilledWarehouse})
+            Back to {drilledBond ? "Bond Details" : "Warehouse View"} (Exit Drilling: {drilledWarehouse})
+          </Button>
+        )}
+        {drilledBond && !drilledWarehouse && (
+          <Button 
+            type="dashed" 
+            danger 
+            onClick={() => setDrilledBond(null)}
+            style={{ marginLeft: 8 }}
+          >
+            Back to Bond View (Exit Drilling: {drilledBond})
           </Button>
         )}
       </div>

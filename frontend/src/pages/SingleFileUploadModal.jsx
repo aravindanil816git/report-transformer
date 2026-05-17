@@ -30,8 +30,8 @@ export default function SingleFileUploadModal({ report, onClose, reload }) {
   };
 
   const isUploadNeeded = !["monthly_stock_sales", "month_comparative"].includes(report.type);
-  const latestUpload = report.uploads?.length > 0 ? report.uploads[report.uploads.length - 1] : null;
-  const uploadedFile = latestUpload?.file;
+  const hasUploads = report.uploads?.length > 0;
+  const uploadedFiles = report.uploads || [];
 
   return (
     <Modal
@@ -55,19 +55,24 @@ export default function SingleFileUploadModal({ report, onClose, reload }) {
       <div style={{ padding: '20px' }}>
         {isUploadNeeded ? (
           <Space direction="vertical" style={{ width: '100%' }} size="large">
-            {uploadedFile && (
+            {hasUploads && (
               <Alert
-                message="File Uploaded Successfully"
+                message="Files Uploaded Successfully"
                 description={
                   <span>
-                    Current file: <b>{uploadedFile}</b>
-                    <Button 
-                      icon={<DownloadOutlined />} 
-                      type="link" 
-                      onClick={() => downloadRaw(report.id)}
-                    >
-                      Download
-                    </Button>
+                    {uploadedFiles.map((u, idx) => (
+                      <div key={idx} style={{ marginBottom: 4 }}>
+                        <b>{u.file}</b>
+                        <Button 
+                          icon={<DownloadOutlined />} 
+                          type="link" 
+                          size="small"
+                          onClick={() => downloadRaw(report.id, u.date || u.warehouse)}
+                        >
+                          Download
+                        </Button>
+                      </div>
+                    ))}
                   </span>
                 }
                 type="success"
@@ -89,10 +94,10 @@ export default function SingleFileUploadModal({ report, onClose, reload }) {
                 <InboxOutlined />
               </p>
               <p className="ant-upload-text">
-                {uploadedFile ? "Replace existing file" : "Click or drag file to this area to upload"}
+                {hasUploads ? "Upload another file or replace" : "Click or drag file to this area to upload"}
               </p>
               <p className="ant-upload-hint">
-                Support for a single Excel file (.xls, .xlsx).
+                Support for Excel files (.xls, .xlsx).
               </p>
             </Dragger>
           </Space>

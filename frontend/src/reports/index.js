@@ -8,6 +8,7 @@ import MonthlyComparitive from "./comparitive/MonthComparative";
 import CumulativeWarehouseReport from "./shopwise/CumWareHouseReport";
 import MonthlyStockSales from "./warehouse/MonthlyStockSale";
 import CombinedShopwiseReport from "./shopwise/CombinedShopwiseReport";
+import NewCumulativeReport from "./shopwise/NewCumulativeReport";
 
 export const REPORT_REGISTRY = {
   shopwise: {
@@ -24,6 +25,11 @@ export const REPORT_REGISTRY = {
     component: CombinedShopwiseReport,
     route: "/report/combined_shopwise/:id",
     label: "Cumulative Shopwise",
+  },
+  new_cumulative_report: {
+    component: NewCumulativeReport,
+    route: "/report/new_cumulative_shopwise/:id",
+    label: "New Cumulative Report",
   },
   daily_warehouse: {
     component: DailyWarehouseReport,
@@ -48,7 +54,7 @@ export const REPORT_REGISTRY = {
   dailywise_secondary_sales_cum: {
     component: CumulativeWarehouseReport,
     route: "/report/dailywise_secondary_sales_cum/:id",
-    label: "DailyWise Secondary Sales",
+    label: "Daily Secondary Sales",
   },
   brandwise_cum_secondary_sales: {
     component: CumulativeWarehouseReport,

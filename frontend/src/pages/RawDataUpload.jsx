@@ -2,16 +2,17 @@ import { useState, useEffect } from "react";
 import { Card, Row, Col, Button, Table, Space, Tooltip, Popconfirm, message, Modal, Form, Input, DatePicker } from "antd";
 import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
-import { DeleteOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EyeOutlined, DownloadOutlined } from "@ant-design/icons";
 import { REPORT_REGISTRY } from "../reports";
-import { listReports, createReport, deleteReport, processReport } from "../api";
+import { listReports, createReport, deleteReport, processReport, getReport } from "../api";
 import DailySecondaryUploadModal from "./DailySecondaryUploadModal";
 import SingleFileUploadModal from "./SingleFileUploadModal";
+import { exportToExcel } from "../utils/exportUtils";
 
 const RAW_DATA_TYPES = [
+  "daily_warehouse",
   "shopwise",
   "shop_sales_cumulative",
-  "daily_warehouse",
   "daily_warehouse_offtake",
   "daily_secondary_sales",
 ];
@@ -20,6 +21,7 @@ function RawDataView({ type, onOpenCreate }) {
   const [data, setData] = useState([]);
   const [current, setCurrent] = useState(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const navigate = useNavigate();
 
   const load = () => {
     listReports().then((r) => {
@@ -43,6 +45,24 @@ function RawDataView({ type, onOpenCreate }) {
     }
   };
 
+  const handleDownload = async (report) => {
+    try {
+      const hide = message.loading("Downloading report...", 0);
+      const res = await getReport(report.id);
+      hide();
+      
+      const reportData = res?.data?.data || [];
+      if (reportData.length === 0) {
+        message.warning("No data available for this report.");
+        return;
+      }
+      
+      exportToExcel(reportData, { "Report Name": report.name, "Type": REPORT_REGISTRY[report.type]?.label || report.type, "Date": dayjs().format("DD MMM YYYY") }, `${report.name || report.type}.xlsx`);
+    } catch (error) {
+      message.error("Failed to download report");
+    }
+  };
+
   const columns = [
     { title: "Name", dataIndex: "name" },
     {
@@ -57,8 +77,32 @@ function RawDataView({ type, onOpenCreate }) {
     { title: "Status", dataIndex: "status" },
     {
       title: "Actions",
-      render: (_, r) => (
-        <Space direction="horizontal">
+      render: (_, r) => {
+        const config = REPORT_REGISTRY[r.type];
+        const isProcessed = r.status === "Processed" || r.status === "Ready";
+
+        return (<Space direction="horizontal">
+          {config?.route && (
+            <Tooltip title={!isProcessed ? "Upload/Process report first to view" : ""}>
+              <Button
+                type="primary"
+                disabled={!isProcessed}
+                icon={<EyeOutlined />}
+                onClick={() => navigate(config.route.replace(":id", r.id))}
+              >
+                View
+              </Button>
+            </Tooltip>
+          )}
+          <Tooltip title={!isProcessed ? "Upload/Process report first to download" : ""}>
+            <Button
+              disabled={!isProcessed}
+              icon={<DownloadOutlined />}
+              onClick={() => handleDownload(r)}
+            >
+              Download
+            </Button>
+          </Tooltip>
           <Button
             onClick={() => {
               setCurrent(r);
@@ -75,8 +119,8 @@ function RawDataView({ type, onOpenCreate }) {
           >
             <Button danger icon={<DeleteOutlined />} />
           </Popconfirm>
-        </Space>
-      ),
+        </Space>);
+      },
     },
   ];
 
@@ -266,4 +310,3 @@ export default function RawDataUpload() {
     </div>
   );
 }
-

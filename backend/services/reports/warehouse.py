@@ -1,19 +1,10 @@
 import pandas as pd
 import re
-import json
 from .base import BaseReportService
 from core.utils import clean_df, read_excel_robust
+from core.mapping_utils import get_shop_lookup_and_warehouse_to_bond
 
-
-# ✅ LOAD MAPPING
-with open("mapping.json") as f:
-    MAPPING = json.load(f)
-
-# ✅ FLATTEN WAREHOUSE -> BOND LOOKUP
-WAREHOUSE_BOND_MAP = {}
-for bond, b_data in MAPPING.get("bonds", {}).items():
-    for wh in b_data.get("warehouses", {}).keys():
-        WAREHOUSE_BOND_MAP[wh] = bond
+SHOP_LOOKUP, WAREHOUSE_BOND_MAP = get_shop_lookup_and_warehouse_to_bond()
 
 
 class WarehouseReportService(BaseReportService):

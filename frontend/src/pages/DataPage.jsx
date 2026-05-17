@@ -73,10 +73,10 @@ export default function DataPage() {
   }, []);
 
   useEffect(() => {
-    if (typeFilter) {
-      setType(typeFilter);
+    if (['cumulative_shopwise', 'combined_shopwise'].includes(type) && date1 && date2) {
+      setName(`${date1.format('MMM D')} to ${date2.format('MMM D')}`);
     }
-  }, [typeFilter, open]);
+  }, [date1, date2, type]);
 
   const handleAddReport = () => {
     setName("");
@@ -125,9 +125,18 @@ export default function DataPage() {
       status: "Ready",
       isLive: true
     }] : []),
-    ...data.filter((d) => 
-      typeFilter ? d.type === typeFilter : (!RAW_DATA_TYPES.includes(d.type) && d.type !== "month_comparative")
-    )
+    ...data.filter((d) => {
+      let currentTypeFilter = typeFilter;
+      if (typeFilter === 'new_cumulative_report') {
+        currentTypeFilter = 'cumulative_shopwise';
+      }
+
+      if (currentTypeFilter) {
+        return d.type === currentTypeFilter;
+      }
+
+      return !RAW_DATA_TYPES.includes(d.type) && d.type !== "month_comparative";
+    })
   ];
 
   const columns = [
@@ -184,8 +193,64 @@ export default function DataPage() {
               </Tooltip>
             ) : null}
 
+            {/* 🔥 View (Standard) */}
+            {["cumulative_shopwise", "new_cumulative_report"].includes(r.type) ? (
+              <Tooltip title={!isProcessed ? "Upload and Click process to View" : ""}>
+                <Button
+                  type="primary"
+                  disabled={!isProcessed}
+                  onClick={() => {
+                    if (typeFilter === 'new_cumulative_report') {
+                      navigate(REPORT_REGISTRY.new_cumulative_report.route.replace(":id", r.id));
+                    } else {
+                      navigate(config.route.replace(":id", r.id));
+                    }
+                  }}
+                >
+                  View
+                </Button>
+              </Tooltip>
+            ) : r.type !== "daily_warehouse" && (
+              <Tooltip title={!isProcessed ? "Upload and Click process to View" : ""}>
+                <Space direction="horizontal">
+                  <Button
+                    type="primary"
+                    disabled={!isProcessed}
+                    onClick={() => {
+                      if (typeFilter === 'new_cumulative_report') {
+                        navigate(REPORT_REGISTRY.new_cumulative_report.route.replace(":id", r.id));
+                      } else {
+                        navigate(config.route.replace(":id", r.id));
+                      }
+                    }}
+                  >
+                    View
+                  </Button>
+
+                  {r.type === "cumulative_warehouse" && isProcessed && (
+                    <Button
+                      onClick={() => navigate(`${config.route.replace(":id", r.id)}?mode=shop&view=cumulative`)}
+                    >
+                      Bondwise Secondary Sales
+                    </Button>
+                  )}
+                </Space>
+              </Tooltip>
+            )}
+
             {/* 🔥 Upload/Manage button */}
-            {r.type === "daily_warehouse" ? (
+            {["cumulative_shopwise", "new_cumulative_report"].includes(r.type) ? (
+              <Tooltip title="Raw Data Upload/History">
+                <Button
+                  type="default"
+                  icon={<UploadOutlined />}
+                  onClick={() => {
+                    setCurrent(r);
+                    setUploadOpen(true);
+                  }}
+                />
+              </Tooltip>
+            ) : r.type === "daily_warehouse" ? (
               <Tooltip title="Raw Data Upload/History">
                 <Button
                   type="default"
@@ -205,29 +270,6 @@ export default function DataPage() {
               >
                 {["month_comparative", "monthly_stock_sales"].includes(r.type) ? "Manage" : "Upload"}
               </Button>
-            )}
-
-            {/* 🔥 View (Standard) */}
-            {r.type !== "daily_warehouse" && (
-              <Tooltip title={!isProcessed ? "Upload and Click process to View" : ""}>
-                <Space direction="horizontal">
-                  <Button
-                    type="primary"
-                    disabled={!isProcessed}
-                    onClick={() => navigate(config.route.replace(":id", r.id))}
-                  >
-                    View
-                  </Button>
-
-                  {r.type === "cumulative_warehouse" && isProcessed && (
-                    <Button
-                      onClick={() => navigate(`${config.route.replace(":id", r.id)}?mode=shop&view=cumulative`)}
-                    >
-                      Bondwise Secondary Sales
-                    </Button>
-                  )}
-                </Space>
-              </Tooltip>
             )}
 
             {/* 🔥 Delete */}
@@ -326,7 +368,7 @@ export default function DataPage() {
 
   return (
     <>
-      <Button onClick={handleAddReport}>Add Report</Button>
+      {typeFilter !== 'new_cumulative_report' && <Button onClick={handleAddReport}>Add Report</Button>}
       
       <Table
         columns={columns}
@@ -339,8 +381,13 @@ export default function DataPage() {
         title="Create New Report"
         open={open}
         onOk={async () => {
+          let finalType = type;
+          if (type === 'new_cumulative_report') {
+            finalType = 'cumulative_shopwise';
+          }
+
           if (type === "month_comparative") {
-            const res = await createReport(name, type, {
+            const res = await createReport(name, finalType, {
               date1: date1?.format("YYYY-MM-DD"),
               date2: date2?.format("YYYY-MM-DD"),
             });
@@ -349,18 +396,19 @@ export default function DataPage() {
             await processReport(res.data.id);
           }
           else if (type === "monthly_stock_sales") {
-            await createReport(name, type, {
+            await createReport(name, finalType, {
               date: reportDate?.format("YYYY-MM"),
             });
           } 
-          else if (["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "shop_sales_cumulative"].includes(type)) {
-            await createReport(name, type, {
+          else if (["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "shop_sales_cumulative", "new_cumulative_report"].includes(type)) {
+            const res = await createReport(name, finalType, {
               date1: date1?.format("YYYY-MM-DD"),
               date2: date2?.format("YYYY-MM-DD"),
             });
+            await processReport(res.data.id);
           }
           else {
-            await createReport(name, type, {
+            await createReport(name, finalType, {
               date: reportDate?.format("YYYY-MM-DD"),
             });
           }
@@ -377,6 +425,7 @@ export default function DataPage() {
               placeholder="Enter name"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              disabled={['cumulative_shopwise', 'combined_shopwise'].includes(type)}
             />
           </Form.Item>
 
@@ -417,7 +466,7 @@ export default function DataPage() {
             </Form.Item>
           )}
 
-                    {["month_comparative", "cumulative_shopwise", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "shop_sales_cumulative"].includes(type) && (
+                    {["month_comparative", "cumulative_shopwise", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "shop_sales_cumulative", "new_cumulative_report"].includes(type) && (
             <Form.Item label="Date">
               <Space direction="vertical" style={{ width: '100%' }}>
                 <DatePicker
