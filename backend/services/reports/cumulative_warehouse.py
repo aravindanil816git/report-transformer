@@ -1,29 +1,11 @@
 import pandas as pd
-import json
 from datetime import datetime, timedelta
 from .base import BaseReportService
 from core.utils import read_excel_robust
+from core.mapping_utils import get_shop_lookup_and_warehouse_to_bond
 
+SHOP_LOOKUP, WAREHOUSE_TO_BOND = get_shop_lookup_and_warehouse_to_bond()
 
-# ✅ LOAD MAPPING
-with open("mapping.json") as f:
-    MAPPING = json.load(f)
-
-# ✅ FLATTEN LOOKUP
-SHOP_LOOKUP = {}
-WAREHOUSE_TO_BOND = {}
-
-for bond, b_data in MAPPING["bonds"].items():
-    for wh, w_data in b_data["warehouses"].items():
-        WAREHOUSE_TO_BOND[wh] = bond
-
-        for shop_code, s_data in w_data["shops"].items():
-            SHOP_LOOKUP[shop_code] = {
-                "warehouse": wh,
-                "bond": bond,
-                "shop_name": s_data["shop_name"],
-                "staffs": s_data["staffs"]
-            }
 
 class CumulativeWarehouseMatrixService(BaseReportService):
     type_name = "cumulative_warehouse"
@@ -235,10 +217,10 @@ class CumulativeWarehouseMatrixService(BaseReportService):
         labels = processed.get("labels", [])
         
         # If warehouse is provided, we filter shopwise data
-        # Or if mode is shop, we return all shopwise data
-        if (warehouse and view == "shopwise") or mode == "shop":
+        # Or if mode is shop or bond, we need shopwise data to ensure accurate bond mappings
+        if (warehouse and view == "shopwise") or mode in ["shop", "bond"]:
             data = processed.get("shopwise", [])
-            if warehouse:
+            if warehouse and mode != "bond":
                 data = [r for r in data if r["warehouse"] == warehouse]
         else:
             data = processed.get("daywise", [])
@@ -262,7 +244,7 @@ class CumulativeWarehouseMatrixService(BaseReportService):
             sc = row.get("shop_code")
             sn = row.get("shop_name")
             
-            bond = WAREHOUSE_TO_BOND.get(wh, "UNKNOWN")
+            bond = SHOP_LOOKUP.get(sc, {}).get("bond", WAREHOUSE_TO_BOND.get(wh, "UNKNOWN")) if sc else WAREHOUSE_TO_BOND.get(wh, "UNKNOWN")
             new_row = {"warehouse": wh, "bond": bond}
             if sc: new_row["shop_code"] = sc
             if sn: new_row["shop_name"] = sn
@@ -276,31 +258,53 @@ class CumulativeWarehouseMatrixService(BaseReportService):
 
             new_row["total"] = total
             
-            # Brands only for warehouse/shop mode and daywise/cumulative
-            if mode != "bond":
-                for k, v in row.items():
-                    if k.startswith("BRAND_"):
-                        brand_total = sum(v.get(labels[i], 0) for i in idxs)
-                        new_row[k] = brand_total
+            # Calculate brand totals for all modes
+            for k, v in row.items():
+                if k.startswith("BRAND_"):
+                    brand_total = sum(v.get(labels[i], 0) for i in idxs)
+                    new_row[k] = brand_total
 
             result.append(new_row)
+
+        if mode == "warehouse" and not warehouse:
+            from core.mapping_utils import get_warehouse_mapping_data
+            all_whs = get_warehouse_mapping_data().keys()
+            existing_whs = {r.get("warehouse") for r in result}
+            bond_filter = kwargs.get("bond")
+            
+            for w in all_whs:
+                bnd = WAREHOUSE_TO_BOND.get(w, "UNKNOWN")
+                if bond_filter and bnd != bond_filter:
+                    continue
+                if w not in existing_whs:
+                    empty_row = {"warehouse": w, "bond": bnd, "total": 0}
+                    for i in idxs: empty_row[labels[i]] = 0
+                    result.append(empty_row)
 
         # 🔥 BOND MODE
         if mode == "bond" and not warehouse:
             bond_map = {}
+            bond_filter = kwargs.get("bond")
+            
+            if not bond_filter:
+                from core.mapping_utils import get_bond_mapping_data
+                for b in get_bond_mapping_data().keys():
+                    bond_map[b] = {"warehouse": b, "bond": b, "total": 0}
+                    for i in idxs: bond_map[b][labels[i]] = 0
 
             for row in result:
-                bond = row.get("bond", "UNKNOWN")
+                bnd = row.get("bond", "UNKNOWN")
 
-                if bond not in bond_map:
-                    bond_map[bond] = {"warehouse": bond, "bond": bond}
-                    for k in row:
-                        if k not in ["warehouse", "bond", "shop_code", "shop_name"] and not k.startswith("BRAND_"):
-                            bond_map[bond][k] = 0
+                if bnd not in bond_map:
+                    bond_map[bnd] = {"warehouse": bnd, "bond": bnd, "total": 0}
+                    for i in idxs:
+                        bond_map[bnd][labels[i]] = 0
 
                 for k, v in row.items():
-                    if k not in ["warehouse", "bond", "shop_code", "shop_name"] and not k.startswith("BRAND_"):
-                        bond_map[bond][k] += v
+                    if k not in ["warehouse", "bond", "shop_code", "shop_name"]:
+                        if k not in bond_map[bnd]:
+                            bond_map[bnd][k] = 0
+                        bond_map[bnd][k] += v
 
             result = list(bond_map.values())
 

@@ -22,16 +22,32 @@ export default function Sidebar() {
       key: "grp-reports",
       label: "Reports",
       children: [
-        { key: "item-issue-consolidation", label: "Item Issue Consolidation" },
         { key: "report-daily_warehouse", label: REPORT_REGISTRY.daily_warehouse.label },
+        {
+          key: "parent-shopSales-Daily",
+          label: "Shop Sales",
+          children: [
+            { key: "report-cumulative_shopwise", label: REPORT_REGISTRY.cumulative_shopwise.label },
+            { key: "report-new_cumulative_report", label: "Shop Sales Comparitive" },
+          ],
+        },
+        { key: "report-combined_shopwise", label: REPORT_REGISTRY.combined_shopwise.label },
+        { key: "item-issue-consolidation", label: "Item Issue Consolidation" },
+                {
+          key: "parent-secSales-Daily",
+          label: "Secondary Sales",
+          children: [
         { key: "report-dailywise_secondary_sales_cum", label: REPORT_REGISTRY.dailywise_secondary_sales_cum.label },
         { key: "report-brandwise_cum_secondary_sales", label: REPORT_REGISTRY.brandwise_cum_secondary_sales.label },
-        { key: "report-cumulative_shopwise", label: REPORT_REGISTRY.cumulative_shopwise.label },
-        { key: "report-combined_shopwise", label: REPORT_REGISTRY.combined_shopwise.label },
+          ],
+        },
         { key: "report-monthly_stock_sales", label: REPORT_REGISTRY.monthly_stock_sales.label },
-        { key: "report-new_cumulative_report", label: "Shop Sales-comparitive" },
       ],
     },
+    {
+      key: "settings",
+      label: "Settings"
+    }
   ];
 
   const selectedKey = location.pathname === '/' ? 'status-calendar' :
@@ -52,10 +68,13 @@ export default function Sidebar() {
           if (e.key === "status-calendar") navigate("/");
           if (e.key === "raw-data-upload") navigate("/raw-data-upload");
           if (e.key === "item-issue-consolidation") navigate("/item-issue-consolidation");
-          if (e.key.startsWith("report-")) {
-            const type = e.key.replace("report-", "");
-            navigate(`/reports?type=${type}`);
-          }
+           if (e.key.startsWith("report-")) {
+             const type = e.key.replace("report-", "");
+             navigate(`/reports?type=${type}`);
+           }
+           if (e.key === "settings") {
+             navigate("/json-crud");
+           }
         }}
       />
     </Sider>

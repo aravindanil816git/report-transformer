@@ -26,6 +26,19 @@ class CombinedShopwiseReportService(BaseReportService):
                 source_report = r
                 break
 
+        # Debug: output the cumulative source report data to inspect when multiple uploads are present
+        # Write the raw data to an Excel file for easier examination
+        if source_report and source_report.get("data"):
+            try:
+                debug_df = pd.DataFrame(source_report["data"])
+                debug_path = "temp/debug_cumulative_report.xlsx"
+                debug_df.to_excel(debug_path, index=False)
+                print(f"[DEBUG] Cumulative report data written to {debug_path}")
+            except Exception as e:
+                print(f"[DEBUG] Failed to write debug Excel: {e}")
+        else:
+            print("[DEBUG] source_report data: None")
+
         if not source_report or not source_report.get("data"):
             return {"data": [], "uploads": [], "config": report.get("config", {})}
 
@@ -47,6 +60,8 @@ class CombinedShopwiseReportService(BaseReportService):
         full_df["bond_info"] = full_df[shop_col].map(self.shop_to_bond).fillna("Unknown")
         full_df["warehouse_info"] = full_df[shop_col].map(self.shop_to_warehouse).fillna("Unknown")
 
+        print(f"[DEBUG] combined_shopwise: Rows for 104012 before filtering: {len(full_df[full_df[shop_col] == '104012'])}")
+
         # --- Filters ---
         if shop_code:
             full_df = full_df[full_df[shop_col] == str(shop_code).strip()]
@@ -56,6 +71,8 @@ class CombinedShopwiseReportService(BaseReportService):
         
         if bond:
             full_df = full_df[full_df["bond_info"] == bond]
+
+        print(f"[DEBUG] combined_shopwise: Rows for 104012 after filtering: {len(full_df[full_df[shop_col] == '104012'])}")
 
         if full_df.empty:
             return {"data": [], "uploads": source_report.get("uploads", []), "config": report.get("config", {})}

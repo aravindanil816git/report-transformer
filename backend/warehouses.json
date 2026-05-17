@@ -1,0 +1,87 @@
+{
+  "WH-THIRUVALLA": {
+    "warehouse_code": 14
+  },
+  "WH-ALAPPUZHA": {
+    "warehouse_code": 8
+  },
+  "WH-KARUNAGAPPALLY": {
+    "warehouse_code": 27
+  },
+  "WH-ALUVA": {
+    "warehouse_code": 9
+  },
+  "WH-PERUMBAVOOR": {
+    "warehouse_code": 17
+  },
+  "WH-TRIPUNITHURA": {
+    "warehouse_code": 2
+  },
+  "WH-MENAMKULAM": {
+    "warehouse_code": 21
+  },
+  "WH-ATTINGAL": {
+    "warehouse_code": 5
+  },
+  "WH-KANNUR": {
+    "warehouse_code": 4
+  },
+  "WH-BATTATHUR": {
+    "warehouse_code": 20
+  },
+  "WH-KOLLAM": {
+    "warehouse_code": 1
+  },
+  "WH-KOTTARAKARA": {
+    "warehouse_code": 18
+  },
+  "WH-AYARKKUNNAM": {
+    "warehouse_code": 19
+  },
+  "WH-KOTTAYAM": {
+    "warehouse_code": 6
+  },
+  "WH-KOZHIKODE": {
+    "warehouse_code": 12
+  },
+  "WH-NADUVANNUR": {
+    "warehouse_code": 24
+  },
+  "WH-KALPETTA": {
+    "warehouse_code": 22
+  },
+  "WH-BALARAMAPURAM": {
+    "warehouse_code": 21
+  },
+  "WH-NEDUMANGAD": {
+    "warehouse_code": 13
+  },
+  "WH-MENONPARA": {
+    "warehouse_code": 23
+  },
+  "WH-PALAKKAD": {
+    "warehouse_code": 3
+  },
+  "WH-PATHANAMTHITA": {
+    "warehouse_code": 11
+  },
+  "WH-PERINTHALMANNA": {
+    "warehouse_code": 15
+  },
+  "WH-THODUPUZHA": {
+    "warehouse_code": 7
+  },
+  "WH-THRISSUR": {
+    "warehouse_code": 10
+  },
+  "WH-CHALAKUDY": {
+    "warehouse_code": 16
+  },
+  "WH-KADAVANTHRA": {
+    "warehouse_code": 25
+  },
+  "WH-KOTHAMANGALAM": {
+    "code": "WH-KOTHAMANGALAM",
+    "name": "98"
+  }
+}

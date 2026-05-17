@@ -1,8 +1,14 @@
-import pandas as pd
+# pandas is required for data handling; import lazily to avoid import errors if unavailable during module load
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 import os
 from .base import BaseReportService
 from core.utils import normalize, clean_df, find_column, find_dynamic, safe_int, read_excel_robust
-from .cumulative_warehouse import SHOP_LOOKUP, WAREHOUSE_TO_BOND
+from core.mapping_utils import get_shop_lookup_and_warehouse_to_bond
+
+SHOP_LOOKUP, WAREHOUSE_TO_BOND = get_shop_lookup_and_warehouse_to_bond()
 
 class ShopwiseReportService(BaseReportService):
     type_name = "shopwise"
@@ -122,6 +128,8 @@ class ShopwiseReportService(BaseReportService):
         df_local = df.copy()
         df_local[shop_col] = df_local[shop_col].astype(str).str.replace(".0", "", regex=False).str.strip()
 
+        print(f"[DEBUG] shopwise: Rows for 104012 before filtering: {len(df_local[df_local[shop_col] == '104012'])}")
+
         # Re-verify bond/warehouse info
         if "warehouse_info" not in df_local.columns:
              df_local["warehouse_info"] = df_local[shop_col].apply(lambda x: SHOP_LOOKUP.get(x, {}).get("warehouse"))
@@ -137,6 +145,8 @@ class ShopwiseReportService(BaseReportService):
         
         if bond:
             df_local = df_local[df_local["bond_info"] == bond]
+
+        print(f"[DEBUG] shopwise: Rows for 104012 after filtering: {len(df_local[df_local[shop_col] == '104012'])}")
 
         if df_local.empty:
             return []
@@ -195,7 +205,7 @@ class ShopwiseReportService(BaseReportService):
                 result.append({
                     "shop_code": s_code_str,
                     "brand": brand,
-                    "pack": f"{pack}",
+                    "pack": str(pack),
                     "opening": round(opening, 4),
                     "inward": round(inward, 4),
                     "outward": round(outward, 4),
@@ -205,7 +215,7 @@ class ShopwiseReportService(BaseReportService):
                 result.append({
                     "shop_code": s_code_str,
                     "brand": brand,
-                    "pack": f"{pack}",
+                    "pack": str(pack),
                     "opening": safe_int(s.get(opening_cases, 0)) * bpc + safe_int(s.get(opening_bottles, 0)),
                     "inward": safe_int(s.get(in_cases, 0)) * bpc + safe_int(s.get(in_bottles, 0)),
                     "outward": safe_int(s.get(out_cases, 0)) * bpc + safe_int(s.get(out_bottles, 0)),

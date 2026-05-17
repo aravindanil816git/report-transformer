@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 import pandas as pd
 import re
 
-def normalize(df: pd.DataFrame) -> pd.DataFrame:
+def normalize(df):
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = [
             "_".join([str(level).strip() for level in col if str(level).strip() and "Unnamed" not in str(level)])
@@ -10,23 +11,25 @@ def normalize(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
     return df
 
-def clean_df(df: pd.DataFrame) -> pd.DataFrame:
+def clean_df(df):
     return df.replace([float("inf"), float("-inf")], 0).fillna(0)
 
-def find_column(df: pd.DataFrame, keywords):
+def find_column(df, keywords):
     for c in df.columns:
         if all(k in c.lower() for k in keywords):
             return c
     return None
 
-def find_dynamic(df: pd.DataFrame, keys, exclude=None):
+def find_dynamic(df, keys, exclude=None):
     for c in df.columns:
         if all(k in c for k in keys):
             # Strict check for short common words like 'in' and 'out' to avoid false positives (e.g., 'in' in 'opening')
             is_valid = True
             for k in keys:
                 if k in ["in", "out"]:
-                    if not re.search(rf"(^|_){k}(_|$)", c):
+                    # Use explicit string concatenation for compatibility with older Python versions
+                    pattern = r"(^|_)" + re.escape(k) + r"(_|$)"
+                    if not re.search(pattern, c):
                         is_valid = False
                         break
             if not is_valid:
@@ -70,7 +73,7 @@ def read_excel_robust(path, **kwargs):
                 import io
                 import re
                 
-                # 🔥 SANITIZE MALFORMED KSBC HTML
+                # SANITIZE MALFORMED KSBC HTML
                 # KSBC often omits <tr> after </tr>, which confuses parsers.
                 # We fix </td></tr><td... into </td></tr><tr><td...
                 html_content = re.sub(r'</td></tr>\s*<td', '</td></tr><tr><td', html_content)

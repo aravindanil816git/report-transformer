@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Path, Body
 from fastapi.responses import FileResponse
 import shutil
 import uuid
@@ -10,6 +10,7 @@ from services.store import reports
 from services.registry import get_service
 
 from core.utils import read_excel_robust
+from core.mapping_utils import get_warehouse_mapping_data, get_bond_mapping_data, get_warehouse_master_data
 
 router = APIRouter()
 
@@ -75,6 +76,32 @@ def sync_cumulative_report(report):
                 if ud not in available_data:
                    available_data[ud] = u["data"]
                    
+    # Special-case range-based shop sales cumulative uploads for combined_shopwise reports.
+    # These uploads are stored by range (e.g. 1-16 / 17-30) instead of daily dates,
+    # so the normal per-day mapping cannot link them. If we find a matching
+    # shop_sales_cumulative source report for the same date range, reuse its
+    # uploaded range entries directly.
+    if report.get("type") == "combined_shopwise":
+        source_uploads_map = {}
+        for r in reports.values():
+            if r.get("id") == report.get("id"): continue
+            if r.get("type") != "shop_sales_cumulative": continue
+            if r.get("status") not in ["Ready", "Processed", "Uploaded"]: continue
+            r_month = str(r.get("config", {}).get("date1") or "")[:7]
+            rep_month = str(report.get("config", {}).get("date1") or report.get("config", {}).get("start_date") or "")[:7]
+            if r_month and rep_month and r_month == rep_month:
+                # Accumulate uploads from ALL matching shop_sales_cumulative reports for the month
+                for u in r.get("uploads", []):
+                    if u.get("status") == "uploaded" and u.get("data"):
+                        rk = u.get("range_key") or u.get("date") or "1-16"
+                        source_uploads_map[rk] = {**u, "status": "uploaded"}
+
+        if source_uploads_map:
+            report["uploads"] = list(source_uploads_map.values())
+            if report.get("status") != "Processed":
+                report["status"] = "Ready"
+            return
+
     # Now update current report
     changed = False
     for u in report.get("uploads", []):
@@ -90,9 +117,11 @@ def sync_cumulative_report(report):
         # Update report status
         up_count = sum(1 for u in report["uploads"] if u.get("status") == "uploaded")
         if up_count == len(report["uploads"]) and len(report["uploads"]) > 0:
-            report["status"] = "Ready"
+            if report.get("status") != "Processed":
+                report["status"] = "Ready"
         elif up_count > 0:
-            report["status"] = "Uploaded"
+            if report.get("status") != "Processed":
+                report["status"] = "Uploaded"
 
 
 # ================= CREATE REPORT =================
@@ -111,8 +140,11 @@ def create_report(
 
     # 🔥 DAILY SECONDARY
     if type == "daily_secondary_sales":
-        from services.reports.cumulative_warehouse import WAREHOUSE_TO_BOND
+        # Use master warehouse data instead of static mapping
+        from core.mapping_utils import get_warehouse_master_data
 
+        master_data = get_warehouse_master_data()
+        # master_data is a dict where keys are warehouse identifiers
         uploads = [
             {
                 "warehouse": wh,
@@ -121,15 +153,16 @@ def create_report(
                 "status": "pending",
                 "data": None
             }
-            for wh in WAREHOUSE_TO_BOND.keys()
+            for wh in master_data.keys()
         ]
 
         config = {"date": date}
 
     # 🔥 DAILY WAREHOUSE
     elif type == "daily_warehouse":
-        from services.reports.cumulative_warehouse import WAREHOUSE_TO_BOND
+        from core.mapping_utils import get_warehouse_master_data
 
+        master_data = get_warehouse_master_data()
         uploads = [
             {
                 "warehouse": wh,
@@ -137,7 +170,7 @@ def create_report(
                 "status": "pending",
                 "data": None
             }
-            for wh in WAREHOUSE_TO_BOND.keys()
+            for wh in master_data.keys()
         ]
 
         config = {"date": date}
@@ -232,6 +265,68 @@ def create_report(
 
     return clean_nan(report)
 
+# ================= JSON CRUD ENDPOINTS =================
+import json
+import os
+# Resolve file paths relative to this file's directory using os.path (avoids pathlib dependency)
+# BASE_DIR should point to the project root (two levels up from this file)
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+ALLOWED_JSON_FILES = {
+    "bond_mapping": os.path.join(BASE_DIR, "backend", "bond_mapping.json"),
+    "bonds": os.path.join(BASE_DIR, "backend", "bonds.json"),
+    "shops": os.path.join(BASE_DIR, "backend", "shops.json"),
+    "warehouses": os.path.join(BASE_DIR, "backend", "warehouses.json"),
+    "warehouse_mapping": os.path.join(BASE_DIR, "backend", "warehouse_mapping.json"),
+    "shopcode_mapping": os.path.join(BASE_DIR, "backend", "shopcode_mapping.json"),
+}
+
+def _load_json(name: str):
+    path = ALLOWED_JSON_FILES.get(name)
+    if not path:
+        raise HTTPException(status_code=404, detail="JSON file not found")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"File {path} not found")
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def _save_json(name: str, data):
+    path = ALLOWED_JSON_FILES.get(name)
+    if not path:
+        raise HTTPException(status_code=404, detail="JSON file not found")
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+@router.get("/json/{name}")
+def get_json(name: str = Path(..., description="One of the allowed JSON identifiers")):
+    """Return the full content of a JSON file."""
+    return _load_json(name)
+
+@router.post("/json/{name}")
+def replace_json(name: str, payload: dict = Body(...)):
+    """Replace the entire JSON file with the provided payload."""
+    _save_json(name, payload)
+    return {"status": "replaced"}
+
+@router.put("/json/{name}/{key}")
+def update_json_key(name: str, key: str, payload: dict = Body(...)):
+    """Update or add a top‑level key in the JSON file."""
+    data = _load_json(name)
+    data[key] = payload
+    _save_json(name, data)
+    return {"status": "updated", "key": key}
+
+@router.delete("/json/{name}/{key}")
+def delete_json_key(name: str, key: str):
+    """Delete a top‑level key from the JSON file."""
+    data = _load_json(name)
+    if key in data:
+        del data[key]
+        _save_json(name, data)
+        return {"status": "deleted", "key": key}
+    raise HTTPException(status_code=404, detail="Key not found")
+
 
 # ================= LIST REPORTS =================
 @router.get("/reports")
@@ -259,8 +354,14 @@ def list_reports():
 # ================= FILTERS =================
 @router.get("/warehouses/all")
 def get_all_warehouses():
-    from services.reports.cumulative_warehouse import WAREHOUSE_TO_BOND
-    return sorted(WAREHOUSE_TO_BOND.keys())
+    """Return the list of all warehouse identifiers from the master data file.
+    Previously this used a static mapping; now it reads the central warehouses.json
+    via ``get_warehouse_master_data`` which loads the JSON defined in
+    ``backend/warehouses.json``.
+    """
+    master = get_warehouse_master_data()
+    # master is a dict where keys are warehouse IDs
+    return sorted(master.keys())
 
 @router.get("/warehouses/{rid}")
 def get_warehouses(rid: str):
@@ -278,9 +379,8 @@ def get_warehouses(rid: str):
         whs = [u.get("warehouse") for u in report["uploads"] if u.get("warehouse")]
         if whs: return whs
     
-    # fallback to mapping if no uploads list
-    from services.reports.cumulative_warehouse import MAPPING
-    return list(MAPPING.keys())
+    # fallback to simplified warehouse mapping if no uploads list
+    return list(get_warehouse_mapping_data().keys())
 
 @router.get("/filters/{rid}")
 def get_report_filters(rid: str):
@@ -297,35 +397,30 @@ def get_shops(rid: str, warehouse: str = None):
     report = reports.get(rid)
     if not report: return []
     
-    from services.reports.cumulative_warehouse import MAPPING
-    
+    warehouse_mapping = get_warehouse_mapping_data()
+    bond_mapping = get_bond_mapping_data()
     found_shops = []
     target_wh = warehouse.upper() if warehouse else None
-    
-    # MAPPING structure is "WH-NAME RFL9": { shops: ... }
-    # OR bonds -> warehouses -> shops
-    
-    # Check top level first
-    for wh_name, wh_data in MAPPING.items():
-        if wh_name == "bonds": continue
+
+    # Check warehouse-level shop listing first
+    for wh_name, wh_data in warehouse_mapping.items():
         if not target_wh or target_wh in wh_name.upper() or wh_name.upper() in target_wh:
-            for code, s_data in wh_data.get("shops", {}).items():
+            for shop in wh_data.get("shops", []):
                 found_shops.append({
-                    "value": code,
-                    "label": f"{code} - {s_data['shop_name']}"
+                    "value": shop["shop_code"],
+                    "label": f"{shop['shop_code']} - {shop['shop_name']}"
                 })
-                
-    # Then check bonds structure if empty
+
+    # Then check bond-level fallbacks if no warehouse matches
     if not found_shops:
-        for bond, b_data in MAPPING.get("bonds", {}).items():
-            for wh, w_data in b_data.get("warehouses", {}).items():
-                if not target_wh or wh.upper() in target_wh or target_wh in wh.upper():
-                    for code, s_data in w_data.get("shops", {}).items():
-                        found_shops.append({
-                            "value": code,
-                            "label": f"{code} - {s_data['shop_name']}"
-                        })
-    
+        for bond_name, bond_data in bond_mapping.items():
+            if not target_wh or target_wh in bond_name.upper() or bond_name.upper() in target_wh:
+                for shop in bond_data.get("shops", []):
+                    found_shops.append({
+                        "value": shop["shop_code"],
+                        "label": f"{shop['shop_code']} - {shop['shop_name']}"
+                    })
+
     return found_shops
 
 
@@ -403,13 +498,25 @@ async def upload(
         return {"status": "uploaded"}
 
     elif report["type"] == "shop_sales_cumulative":
-        svc = get_service("shopwise")
-        from_date = report.get("config", {}).get("date1")
-        to_date = report.get("config", {}).get("date2")
-        svc.upload(report, path, file.filename, from_date, to_date)
+        # Use the combined_shopwise service (now multi‑upload) for handling the upload
+        svc = get_service("combined_shopwise")
+        # Let the upload service infer the correct range key from the file name
+        # or the file contents instead of forcing a key from the report date range.
+        svc.upload(report, path, file.filename)
         report["path"] = path
         report["file"] = file.filename
         report["status"] = "Ready"
+
+        # If a combined_shopwise report exists for the same date range, sync it immediately.
+        for other in reports.values():
+            if other.get("id") == rid:
+                continue
+            if other.get("type") == "combined_shopwise":
+                sync_cumulative_report(other)
+                # Auto-process the linked report so the user doesn't have to manually click it
+                get_service("combined_shopwise").process(other)
+                other["status"] = "Processed"
+
         return {"status": "uploaded"}
 
     elif report["type"] == "daily_warehouse_offtake":
@@ -468,6 +575,9 @@ def process(rid: str):
 
         report["_live_source"] = combined
 
+    if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
+        sync_cumulative_report(report)
+
     svc = get_service(report["type"])
     svc.process(report)
 
@@ -521,6 +631,9 @@ def get_report(
 
     if not report:
         return {"data": []}
+
+    if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
+        sync_cumulative_report(report)
 
     svc = get_service(report["type"])
     

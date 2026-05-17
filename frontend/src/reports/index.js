@@ -54,7 +54,7 @@ export const REPORT_REGISTRY = {
   dailywise_secondary_sales_cum: {
     component: CumulativeWarehouseReport,
     route: "/report/dailywise_secondary_sales_cum/:id",
-    label: "DailyWise Secondary Sales",
+    label: "Daily Secondary Sales",
   },
   brandwise_cum_secondary_sales: {
     component: CumulativeWarehouseReport,

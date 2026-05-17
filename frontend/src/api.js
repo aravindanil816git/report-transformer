@@ -82,3 +82,9 @@ export const downloadRaw = (id, key = null) => {
   const url = `${api.defaults.baseURL}/download-raw/${id}${key ? `?key=${encodeURIComponent(key)}` : ""}`;
   window.open(url, "_blank");
 };
+
+// ================= JSON CRUD =================
+export const getJson = (name) => api.get(`/json/${name}`);
+export const replaceJson = (name, payload) => api.put(`/json/${name}`, payload);
+export const updateJsonKey = (name, key, payload) => api.put(`/json/${name}/${key}`, payload);
+export const deleteJsonKey = (name, key) => api.delete(`/json/${name}/${key}`);

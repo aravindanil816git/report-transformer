@@ -1,6 +1,6 @@
 import { Modal, Table, Upload, Button, message, Progress, Space } from "antd";
-import { uploadFile, processReport, downloadRaw, listReports } from "../api";
-import { useState } from "react";
+import { uploadFile, processReport, downloadRaw, listReports, getAllWarehouses } from "../api";
+import { useState, useEffect } from "react";
 import { DownloadOutlined } from "@ant-design/icons";
 
 const { Dragger } = Upload;
@@ -12,6 +12,7 @@ export default function DailySecondaryUploadModal({
 }) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [warehouses, setWarehouses] = useState([]);
 
   const handleProcess = async () => {
     try {
@@ -132,6 +133,34 @@ export default function DailySecondaryUploadModal({
       },
     },
   ];
+
+  // Fetch warehouse list on mount for uploads
+  useEffect(() => {
+    const fetchWarehouses = async () => {
+      try {
+        const res = await getAllWarehouses();
+        // res is expected to be an array of warehouse IDs
+        setWarehouses(res);
+      } catch (e) {
+        console.error("Failed to load warehouses", e);
+      }
+    };
+    fetchWarehouses();
+  }, []);
+
+  // If report uploads are empty, populate from fetched warehouses
+  useEffect(() => {
+    if (report && report.uploads && report.uploads.length === 0 && warehouses.length) {
+      // create uploads entries for each warehouse
+      report.uploads = warehouses.map((wh) => ({
+        warehouse: wh,
+        status: "pending",
+        file: null,
+        path: null,
+        data: null,
+      }));
+    }
+  }, [warehouses, report]);
 
   return (
     <Modal

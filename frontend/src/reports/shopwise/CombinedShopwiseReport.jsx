@@ -60,8 +60,16 @@ export default function CombinedShopwiseReport() {
       const shopCodes = filterMapping[warehouse] || [];
       filteredShops = allShops.filter(s => shopCodes.includes(s.value));
     } else if (filterMode === 'bond' && bond) {
-      const warehousesInBond = bondMapping[bond] || [];
-      const shopsInBond = warehousesInBond.flatMap(w => (filterMapping[w] || []));
+      let shopsInBond = [];
+      const bondData = bondMapping[bond];
+      
+      if (Array.isArray(bondData)) {
+        shopsInBond = bondData;
+      } else if (bondData && Array.isArray(bondData.shops)) {
+        // Handle both raw string arrays and resolved objects from mapping
+        shopsInBond = bondData.shops.map(s => typeof s === 'object' ? s.shop_code : s);
+      }
+      
       const uniqueShopCodes = [...new Set(shopsInBond)];
       filteredShops = allShops.filter(s => uniqueShopCodes.includes(s.value));
     } else {
