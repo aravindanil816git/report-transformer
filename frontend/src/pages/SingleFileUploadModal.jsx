@@ -29,7 +29,7 @@ export default function SingleFileUploadModal({ report, onClose, reload }) {
     }
   };
 
-  const isUploadNeeded = !["monthly_stock_sales", "month_comparative"].includes(report.type);
+  const isUploadNeeded = !["monthly_stock_sales", "month_comparative", "achieved_target"].includes(report.type);
   const hasUploads = report.uploads?.length > 0;
   const uploadedFiles = report.uploads || [];
 

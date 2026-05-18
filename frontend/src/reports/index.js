@@ -72,7 +72,7 @@ export const REPORT_REGISTRY = {
     route: "/month-compare/:id",
   },
   monthly_stock_sales: {
-    label: "Monthly Stock & Sales",
+    label: "WH Monthly Stock & Sales",
     component: MonthlyStockSales,
     route: "/report/monthly_stock_sales/:id",
   },

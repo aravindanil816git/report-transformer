@@ -186,9 +186,9 @@ def create_report(
     elif type == "shop_sales_cumulative":
         config = {"date1": date1, "date2": date2}
 
-    # 🔥 MONTHLY STOCK SALES (FIXED)
-    elif type == "monthly_stock_sales":
-        config = {"month": date}
+    # 🔥 MONTHLY STOCK SALES & ACHIEVED TARGET
+    elif type in ["monthly_stock_sales", "achieved_target"]:
+        config = {"month": str(date)[:7] if date else None}
 
     # 🔥 MONTH COMPARATIVE
     elif type == "month_comparative":
@@ -252,7 +252,7 @@ def create_report(
     sync_cumulative_report(report)
 
     # 🔥 AUTO PROCESS FOR MONTHLY REPORT
-    if type == "monthly_stock_sales":
+    if type in ["monthly_stock_sales", "achieved_target"]:
         svc = get_service(type)
 
         report["all_reports"] = [
@@ -560,7 +560,7 @@ async def upload(
 def process(rid: str):
     report = reports[rid]
 
-    if report["type"] == "monthly_stock_sales":
+    if report["type"] in ["monthly_stock_sales", "achieved_target"]:
         report["all_reports"] = list(reports.values())
 
     if report["type"] == "month_comparative":
@@ -584,6 +584,17 @@ def process(rid: str):
     report["status"] = "Processed"
 
     return {"status": "processed"}
+
+
+# ================= UPDATE CONFIG =================
+@router.put("/reports/{rid}/config")
+def update_report_config(rid: str, payload: dict = Body(...)):
+    report = reports.get(rid)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    report.setdefault("config", {}).update(payload)
+    return {"status": "success", "config": report["config"]}
 
 
 # ================= LIVE COMPARISON =================

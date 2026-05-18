@@ -120,8 +120,8 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         # Normalize in case data was uploaded before the robust upload method was added
         full_df = normalize(full_df)
 
-        brand_col = find_column(full_df, ["brand"])
-        pack_col = find_column(full_df, ["pack"])
+        brand_col = find_column(full_df, ["brand"]) or find_column(full_df, ["item"])
+        pack_col = find_column(full_df, ["pack"]) or find_column(full_df, ["size"])
         shop_col = "shop_code_internal"
 
         if not brand_col or brand_col not in full_df.columns:

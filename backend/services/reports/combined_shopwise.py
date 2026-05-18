@@ -44,8 +44,8 @@ class CombinedShopwiseReportService(BaseReportService):
 
         full_df = pd.DataFrame(source_report["data"])
 
-        brand_col = find_column(full_df, ["brand_name", "brand"])
-        pack_col = find_column(full_df, ["packing", "pack"])
+        brand_col = find_column(full_df, ["brand"]) or find_column(full_df, ["item"])
+        pack_col = find_column(full_df, ["pack"]) or find_column(full_df, ["size"])
         shop_col = "shop_code_internal"
 
         # Data in the cumulative report might not have the standardized column name

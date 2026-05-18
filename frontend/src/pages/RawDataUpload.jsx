@@ -162,6 +162,10 @@ export default function RawDataUpload() {
       if (date1 && date2) {
         dateStr = `${date1.format("DD MMM")} to ${date2.format("DD MMM")}`;
       }
+    } else if (createType === "achieved_target" || createType === "monthly_stock_sales") {
+      if (reportDate) {
+        dateStr = reportDate.format("MMMM YYYY");
+      }
     } else if (reportDate) {
       dateStr = reportDate.format("DD MMM YYYY");
     }
@@ -240,6 +244,15 @@ export default function RawDataUpload() {
                 />
               </Space>
             </Form.Item>
+      ) : createType === "achieved_target" || createType === "monthly_stock_sales" ? (
+        <Form.Item label="Month">
+          <DatePicker 
+            picker="month"
+            style={{ width: '100%' }} 
+            value={reportDate}
+            onChange={setReportDate} 
+          />
+        </Form.Item>
           ) : (
             <Form.Item label="Date">
               <DatePicker 

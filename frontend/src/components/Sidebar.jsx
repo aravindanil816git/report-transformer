@@ -42,6 +42,7 @@ export default function Sidebar() {
           ],
         },
         { key: "report-monthly_stock_sales", label: REPORT_REGISTRY.monthly_stock_sales.label },
+        { key: "report-achieved_target", label: REPORT_REGISTRY.achieved_target?.label || "Achieved / Target" },
       ],
     },
     {
@@ -58,7 +59,7 @@ export default function Sidebar() {
     '';
 
   return (
-    <Sider width={250}>
+    <Sider width={270}>
       <Menu
         theme="dark"
         mode="inline"
