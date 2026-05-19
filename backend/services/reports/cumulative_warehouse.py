@@ -61,12 +61,21 @@ class CumulativeWarehouseMatrixService(BaseReportService):
         df["brand"] = df[brand_col].astype(str).str.strip() if brand_col else "Unknown"
 
         # ✅ map warehouse
-        df["warehouse"] = df["shop_code"].apply(
-            lambda x: SHOP_LOOKUP.get(x, {}).get("warehouse")
-        )
-        df["shop_name"] = df["shop_code"].apply(
-            lambda x: SHOP_LOOKUP.get(x, {}).get("shop_name")
-        )
+        wh_col = next((c for c in df.columns if "warehouse" in c.lower() or "wh" == c.lower()), None)
+        if wh_col:
+            df["warehouse"] = df[wh_col].astype(str).str.strip()
+        else:
+            df["warehouse"] = df["shop_code"].apply(
+                lambda x: SHOP_LOOKUP.get(x, {}).get("warehouse")
+            )
+        
+        shop_name_col = next((c for c in df.columns if "shop" in c.lower() and "name" in c.lower()), None)
+        if shop_name_col:
+            df["shop_name"] = df[shop_name_col].astype(str).str.strip()
+        else:
+            df["shop_name"] = df["shop_code"].apply(
+                lambda x: SHOP_LOOKUP.get(x, {}).get("shop_name")
+            )
 
         # ✅ keep only mapped
         df = df[df["warehouse"].notna()]
@@ -128,7 +137,7 @@ class CumulativeWarehouseMatrixService(BaseReportService):
             wh_grouped = df_calc.groupby("warehouse")["issues"].sum().reset_index()
             for _, row in wh_grouped.iterrows():
                 wh = row["warehouse"]
-                val = round(row["issues"])
+                val = round(float(row["issues"]), 2)
                 if wh not in final_map:
                     final_map[wh] = {"warehouse": wh}
                 final_map[wh][label] = val
@@ -139,7 +148,7 @@ class CumulativeWarehouseMatrixService(BaseReportService):
                 wh = row["warehouse"]
                 sc = row["shop_code"]
                 sn = row["shop_name"]
-                val = round(row["issues"])
+                val = round(float(row["issues"]), 2)
                 
                 key = (wh, sc, sn)
                 if key not in shop_map:
@@ -153,7 +162,7 @@ class CumulativeWarehouseMatrixService(BaseReportService):
                 sc = row["shop_code"]
                 sn = row["shop_name"]
                 brand = row["brand"]
-                val = round(row["issues"])
+                val = round(float(row["issues"]), 2)
                 
                 # Warehouse level brand aggregation
                 if wh not in final_map:
@@ -245,6 +254,10 @@ class CumulativeWarehouseMatrixService(BaseReportService):
             sn = row.get("shop_name")
             
             bond = SHOP_LOOKUP.get(sc, {}).get("bond", WAREHOUSE_TO_BOND.get(wh, "UNKNOWN")) if sc else WAREHOUSE_TO_BOND.get(wh, "UNKNOWN")
+            
+            if bond == "UNKNOWN":
+                print(f"[DEBUG] cumulative_warehouse get_report: UNKNOWN bond for shop_code: '{sc}', name: '{sn}', warehouse: '{wh}'")
+                
             new_row = {"warehouse": wh, "bond": bond}
             if sc: new_row["shop_code"] = sc
             if sn: new_row["shop_name"] = sn
@@ -253,33 +266,18 @@ class CumulativeWarehouseMatrixService(BaseReportService):
             for i in idxs:
                 l = labels[i]
                 val = row.get(l, 0)
-                new_row[l] = val
+                new_row[l] = round(float(val), 2)
                 total += val
 
-            new_row["total"] = total
+            new_row["total"] = round(float(total), 2)
             
             # Calculate brand totals for all modes
             for k, v in row.items():
                 if k.startswith("BRAND_"):
                     brand_total = sum(v.get(labels[i], 0) for i in idxs)
-                    new_row[k] = brand_total
+                    new_row[k] = round(float(brand_total), 2)
 
             result.append(new_row)
-
-        if mode == "warehouse" and not warehouse:
-            from core.mapping_utils import get_warehouse_mapping_data
-            all_whs = get_warehouse_mapping_data().keys()
-            existing_whs = {r.get("warehouse") for r in result}
-            bond_filter = kwargs.get("bond")
-            
-            for w in all_whs:
-                bnd = WAREHOUSE_TO_BOND.get(w, "UNKNOWN")
-                if bond_filter and bnd != bond_filter:
-                    continue
-                if w not in existing_whs:
-                    empty_row = {"warehouse": w, "bond": bnd, "total": 0}
-                    for i in idxs: empty_row[labels[i]] = 0
-                    result.append(empty_row)
 
         # 🔥 BOND MODE
         if mode == "bond" and not warehouse:
@@ -305,6 +303,11 @@ class CumulativeWarehouseMatrixService(BaseReportService):
                         if k not in bond_map[bnd]:
                             bond_map[bnd][k] = 0
                         bond_map[bnd][k] += v
+                        
+            for bnd, vals in bond_map.items():
+                for k, v in vals.items():
+                    if k not in ["warehouse", "bond", "shop_code", "shop_name"] and isinstance(v, (int, float)):
+                        vals[k] = round(float(v), 2)
 
             result = list(bond_map.values())
 

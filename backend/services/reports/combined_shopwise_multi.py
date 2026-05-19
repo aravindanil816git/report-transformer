@@ -145,11 +145,14 @@ class CombinedShopwiseMultiReportService(BaseReportService):
 
         full_df = full_df[full_df[shop_col].notna() & (full_df[shop_col] != "nan") & (full_df[shop_col] != "")]
 
-        print(f"[DEBUG] combined_shopwise_multi: Rows for 104012 before filtering: {len(full_df[full_df[shop_col] == '104012'])}")
-
         # Enrichment
         full_df["bond_info"] = full_df[shop_col].map(self.shop_to_bond).fillna("Unknown")
-        full_df["warehouse_info"] = full_df[shop_col].map(self.shop_to_warehouse).fillna("Unknown")
+        # Use warehouse from raw data if available, otherwise it's Unknown. Do not use mapping file.
+        wh_col = find_column(full_df, ["warehouse"])
+        if wh_col:
+            full_df["warehouse_info"] = full_df[wh_col].astype(str).str.strip()
+        else:
+            full_df["warehouse_info"] = "Unknown"
 
         # Filtering
         if shop_code:
@@ -158,8 +161,6 @@ class CombinedShopwiseMultiReportService(BaseReportService):
             full_df = full_df[full_df["warehouse_info"] == warehouse]
         if bond:
             full_df = full_df[full_df["bond_info"] == bond]
-            
-        print(f"[DEBUG] combined_shopwise_multi: Rows for 104012 after filtering: {len(full_df[full_df[shop_col] == '104012'])}")
 
         if full_df.empty:
             return {"data": [], "uploads": report.get("uploads", []), "config": report.get("config", {})}
@@ -236,4 +237,25 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         return {"data": result, "uploads": report.get("uploads", []), "config": report.get("config", {})}
 
     def get_filters(self, report):
-        return get_filters_from_mapping()
+        # Get bonds and shops from mapping as a base
+        filters = get_filters_from_mapping()
+
+        # Override warehouses with data from the report's uploads
+        uploads = report.get("uploads", [])
+        dfs = []
+        for u in uploads:
+            data = u.get("data")
+            if isinstance(data, list) and data:
+                df = pd.DataFrame(data)
+                if not df.empty:
+                    dfs.append(df)
+
+        if dfs:
+            full_df = pd.concat(dfs, ignore_index=True)
+            # No need to normalize here, just finding a column
+            wh_col = find_column(full_df, ["warehouse"])
+            if wh_col:
+                warehouses = sorted(full_df[wh_col].dropna().unique().tolist())
+                filters["warehouses"] = warehouses
+
+        return filters

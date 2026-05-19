@@ -10,12 +10,9 @@ class MonthComparativeService(BaseReportService):
         d1 = report["config"]["date1"]
         d2 = report["config"]["date2"]
 
-        d1_map = {d["warehouse"]: d for d in base if d["date"] == d1}
-        d2_map = {d["warehouse"]: d for d in base if d["date"] == d2}
-
-        # 🔥 GET ALL WAREHOUSES FROM MAPPING
-        from .cumulative_warehouse import WAREHOUSE_TO_BOND
-        all_warehouses = sorted(WAREHOUSE_TO_BOND.keys())
+        d1_map = {d.get("warehouse"): d for d in base if d.get("date") == d1 and d.get("warehouse")}
+        d2_map = {d.get("warehouse"): d for d in base if d.get("date") == d2 and d.get("warehouse")}
+        all_warehouses = sorted(list(set(d1_map.keys()) | set(d2_map.keys())))
 
         result = []
 
@@ -48,24 +45,24 @@ class MonthComparativeService(BaseReportService):
                 "warehouse": w,
 
                 # current
-                "stn1": round(stn1),
-                "gtn1": round(gtn1),
-                "total1": round(total1),
-                "cfed1": round(cfed1),
-                "bar1": round(bar1),
-                "final1": round(final1),
+                "stn1": round(stn1, 2),
+                "gtn1": round(gtn1, 2),
+                "total1": round(total1, 2),
+                "cfed1": round(cfed1, 2),
+                "bar1": round(bar1, 2),
+                "final1": round(final1, 2),
 
                 # previous
-                "stn2": round(stn2),
-                "gtn2": round(gtn2),
-                "total2": round(total2),
-                "cfed2": round(cfed2),
-                "bar2": round(bar2),
-                "final2": round(final2),
+                "stn2": round(stn2, 2),
+                "gtn2": round(gtn2, 2),
+                "total2": round(total2, 2),
+                "cfed2": round(cfed2, 2),
+                "bar2": round(bar2, 2),
+                "final2": round(final2, 2),
 
                 # diff
-                "diff": round(diff),
-                "pct": round(pct),
+                "diff": round(diff, 2),
+                "pct": round(pct, 2),
             })
 
         report["processed"] = result

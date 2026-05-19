@@ -128,25 +128,23 @@ class ShopwiseReportService(BaseReportService):
         df_local = df.copy()
         df_local[shop_col] = df_local[shop_col].astype(str).str.replace(".0", "", regex=False).str.strip()
 
-        print(f"[DEBUG] shopwise: Rows for 104012 before filtering: {len(df_local[df_local[shop_col] == '104012'])}")
-
         # Re-verify bond/warehouse info
         if "warehouse_info" not in df_local.columns:
-             df_local["warehouse_info"] = df_local[shop_col].apply(lambda x: SHOP_LOOKUP.get(x, {}).get("warehouse"))
+            wh_col = self._detect_warehouse_col(df_local)
+            if wh_col:
+                df_local["warehouse_info"] = df_local[wh_col].astype(str).str.strip()
+            else:
+                df_local["warehouse_info"] = "Unknown"
         if "bond_info" not in df_local.columns:
-             df_local["bond_info"] = df_local[shop_col].apply(lambda x: SHOP_LOOKUP.get(x, {}).get("bond"))
+             df_local["bond_info"] = "N/A"
 
         # Apply filters
         if shop_code:
             df_local = df_local[df_local[shop_col] == str(shop_code).strip()]
-        
         if warehouse:
             df_local = df_local[df_local["warehouse_info"] == warehouse]
-        
         if bond:
             df_local = df_local[df_local["bond_info"] == bond]
-
-        print(f"[DEBUG] shopwise: Rows for 104012 after filtering: {len(df_local[df_local[shop_col] == '104012'])}")
 
         if df_local.empty:
             return []

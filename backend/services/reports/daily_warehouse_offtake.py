@@ -79,15 +79,30 @@ class DailyWarehouseOfftakeService(BaseReportService):
             print(f"[DEBUG] 104012 Issues Sum: {df[df['shop_code'] == '104012']['issues'].sum()}")
 
         # ✅ Map
-        df["warehouse"] = df["shop_code"].apply(
-            lambda x: SHOP_LOOKUP.get(x, {}).get("warehouse")
-        )
+        wh_col = next((c for c in df.columns if "warehouse" in c.lower() or "wh" == c.lower()), None)
+        if wh_col:
+            df["warehouse"] = df[wh_col].astype(str).str.strip()
+        else:
+            df["warehouse"] = df["shop_code"].apply(
+                lambda x: SHOP_LOOKUP.get(x, {}).get("warehouse")
+            )
         df["bond"] = df["shop_code"].apply(
             lambda x: SHOP_LOOKUP.get(x, {}).get("bond")
         )
-        df["shop_name"] = df["shop_code"].apply(
-            lambda x: SHOP_LOOKUP.get(x, {}).get("shop_name")
-        )
+        
+        unknown_bonds = df[df["bond"].isna() | (df["bond"] == "UNMAPPED") | (df["bond"] == "UNKNOWN")]
+        if not unknown_bonds.empty:
+            unique_unknowns = unknown_bonds[["shop_code", "warehouse", "shop_name"]].drop_duplicates()
+            for _, row in unique_unknowns.iterrows():
+                print(f"[DEBUG] daily_warehouse_offtake process: UNKNOWN bond for shop_code: '{row['shop_code']}', name: '{row.get('shop_name')}', warehouse: '{row.get('warehouse')}'")
+
+        shop_name_col = next((c for c in df.columns if "shop" in c.lower() and "name" in c.lower()), None)
+        if shop_name_col:
+            df["shop_name"] = df[shop_name_col].astype(str).str.strip()
+        else:
+            df["shop_name"] = df["shop_code"].apply(
+                lambda x: SHOP_LOOKUP.get(x, {}).get("shop_name")
+            )
 
         # ✅ Debug: Identify and retain unmapped shop codes
         unmapped_mask = df["warehouse"].isna()

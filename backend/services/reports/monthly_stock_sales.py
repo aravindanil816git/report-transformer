@@ -79,11 +79,11 @@ class MonthlyStockSalesService(BaseReportService):
 
             result.append({
                 "warehouse": w,
-                "op": round(op),
-                "inward": round(inward),
-                "total": round(total),
-                "sales": round(sales),
-                "cl": round(cl),
+                "op": round(op, 2),
+                "inward": round(inward, 2),
+                "total": round(total, 2),
+                "sales": round(sales, 2),
+                "cl": round(cl, 2),
             })
 
         report["processed"] = result

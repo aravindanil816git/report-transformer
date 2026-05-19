@@ -111,12 +111,30 @@ class CumulativeShopwiseReportService(BaseReportService):
         def map_meta(code):
             return SHOP_LOOKUP.get(code, {})
 
-        df["warehouse"] = df["shop_code"].apply(lambda x: map_meta(x).get("warehouse") or "UNKNOWN")
+        wh_col = next((c for c in df.columns if "warehouse" in c.lower() or "wh" == c.lower()), None)
+        if wh_col:
+            df["warehouse"] = df[wh_col].astype(str).str.strip()
+            # Ensure we don't end up with empty strings mapped as valid warehouses
+            df["warehouse"] = df["warehouse"].replace({"": "UNKNOWN", "nan": "UNKNOWN", "None": "UNKNOWN"})
+        else:
+            df["warehouse"] = df["shop_code"].apply(lambda x: map_meta(x).get("warehouse") or "UNKNOWN")
         df["warehouse_code"] = df["shop_code"].apply(lambda x: map_meta(x).get("warehouse_code"))
-        df["shop_name"] = df["shop_code"].apply(lambda x: map_meta(x).get("shop_name"))
+        
+        shop_name_col = next((c for c in df.columns if "shop" in c.lower() and "name" in c.lower()), None)
+        if shop_name_col:
+            df["shop_name"] = df[shop_name_col].astype(str).str.strip()
+        else:
+            df["shop_name"] = df["shop_code"].apply(lambda x: map_meta(x).get("shop_name"))
         df["staff"] = df["shop_code"].apply(lambda x: ", ".join(map_meta(x).get("staffs", [])))
         
         df["bond"] = df["shop_code"].apply(lambda x: SHOP_TO_BOND.get(str(x).strip()) or map_meta(x).get("bond") or "UNKNOWN")
+
+        # Add debug log for UNKNOWN bonds before removing or aggregating
+        unknown_bonds = df[df["bond"] == "UNKNOWN"]
+        if not unknown_bonds.empty:
+            unique_unknowns = unknown_bonds[["shop_code", "warehouse", "shop_name"]].drop_duplicates()
+            for _, row in unique_unknowns.iterrows():
+                print(f"[DEBUG] cumulative_shopwise _compute: UNKNOWN bond for shop_code: '{row['shop_code']}', name: '{row.get('shop_name')}', raw_warehouse: '{row.get('warehouse')}'")
 
         # ❗ Remove unmapped rows
         df = df[(df["warehouse"] != "UNKNOWN") | (df["bond"] != "UNKNOWN")]
@@ -217,9 +235,9 @@ class CumulativeShopwiseReportService(BaseReportService):
                 group_key = f"{wh}___{bond}"
                 display_wh = wh if wh != "UNKNOWN" else bond
 
-                opening = round(row.get("opening", 0))
-                receipt = round(row.get("receipt", 0))
-                sales = round(row.get("sales", 0))
+                opening = round(float(row.get("opening", 0)), 2)
+                receipt = round(float(row.get("receipt", 0)), 2)
+                sales = round(float(row.get("sales", 0)), 2)
 
                 for store, val in [
                     (daywise_opening, opening),
@@ -254,7 +272,7 @@ class CumulativeShopwiseReportService(BaseReportService):
 
             closing = opening + receipt - sales
             diff = closing - opening
-            avg_sales = round(sales / num_days)
+            avg_sales = round(float(sales / num_days), 2)
 
             closing_stock_at_sales_perc = round((closing * 100) / sales, 2) if sales else 0
             perc = round((diff * 100) / opening, 2) if opening else 0
@@ -323,10 +341,10 @@ class CumulativeShopwiseReportService(BaseReportService):
             for i in idxs:
                 l = labels[i]
                 val = row.get(l, 0)
-                new_row[l] = val
+                new_row[l] = round(float(val), 2)
                 total += val
 
-            new_row["total"] = total
+            new_row["total"] = round(float(total), 2)
             result.append(new_row)
 
         # 🔥 AGGREGATE DAYWISE
@@ -344,6 +362,9 @@ class CumulativeShopwiseReportService(BaseReportService):
                 if not bnd or bnd == "UNKNOWN":
                     bnd = WAREHOUSE_TO_BOND.get(wh, "UNKNOWN")
 
+                if bnd == "UNKNOWN" or not bnd:
+                    print(f"[DEBUG] cumulative_shopwise (daywise bond mode): UNKNOWN bond. row: {row}")
+
                 if bnd not in bond_map:
                     bond_map[bnd] = {"warehouse": bnd, "bond": bnd, "total": 0}
                     for i in idxs: bond_map[bnd][labels[i]] = 0
@@ -353,25 +374,20 @@ class CumulativeShopwiseReportService(BaseReportService):
                         if k not in bond_map[bnd]:
                             bond_map[bnd][k] = 0
                         bond_map[bnd][k] += v
+            
+            for bnd, vals in bond_map.items():
+                for k, v in vals.items():
+                    if k not in ["warehouse", "bond"] and isinstance(v, (int, float)):
+                        vals[k] = round(float(v), 2)
 
             result = list(bond_map.values())
         else:
             # 🔥 WAREHOUSE MODE
             wh_map = {}
-            from core.mapping_utils import get_warehouse_mapping_data
-            for w in get_warehouse_mapping_data().keys():
-                bnd = WAREHOUSE_TO_BOND.get(w, "UNKNOWN")
-                if not bond and not warehouse:
-                    wh_map[w] = {"warehouse": w, "bond": bnd, "total": 0}
-                    for i in idxs: wh_map[w][labels[i]] = 0
-                elif bond and bnd == bond and not warehouse:
-                    wh_map[w] = {"warehouse": w, "bond": bnd, "total": 0}
-                    for i in idxs: wh_map[w][labels[i]] = 0
-
             for row in result:
                 wh = row.get("warehouse", "UNKNOWN")
                 if wh not in wh_map:
-                    wh_map[wh] = {"warehouse": wh, "bond": "UNKNOWN", "total": 0}
+                    wh_map[wh] = {"warehouse": wh, "bond": row.get("bond", "UNKNOWN"), "total": 0}
                     for i in idxs: wh_map[wh][labels[i]] = 0
 
                 for k, v in row.items():
@@ -379,6 +395,11 @@ class CumulativeShopwiseReportService(BaseReportService):
                         if k not in wh_map[wh]:
                             wh_map[wh][k] = 0
                         wh_map[wh][k] += v
+            
+            for wh, vals in wh_map.items():
+                for k, v in vals.items():
+                    if k not in ["warehouse", "bond"] and isinstance(v, (int, float)):
+                        vals[k] = round(float(v), 2)
 
             result = list(wh_map.values())
 
@@ -398,6 +419,9 @@ class CumulativeShopwiseReportService(BaseReportService):
                     if not bnd or bnd == "UNKNOWN":
                         bnd = WAREHOUSE_TO_BOND.get(wh, "UNKNOWN")
 
+                    if bnd == "UNKNOWN" or not bnd:
+                        print(f"[DEBUG] cumulative_shopwise (cumulative bond mode): UNKNOWN bond. row: {row}")
+
                     if bnd not in bond_map:
                         bond_map[bnd] = {"warehouse": bnd, "bond": bnd, "opening": 0, "receipt": 0, "sales": 0, "closing": 0, "difference": 0, "avg_sales_per_day": 0, "closing_stock_at_sales_perc": 0, "perc": 0}
                     
@@ -409,6 +433,10 @@ class CumulativeShopwiseReportService(BaseReportService):
                 
                 # Recalculate percentages correctly after summing
                 for b, vals in bond_map.items():
+                    for k in ["opening", "receipt", "sales", "closing", "difference", "avg_sales_per_day"]:
+                        if k in vals:
+                            vals[k] = round(float(vals[k]), 2)
+
                     vals["closing_stock_at_sales_perc"] = round((vals.get("closing", 0) * 100) / vals["sales"], 2) if vals.get("sales") else 0
                     vals["perc"] = round((vals.get("difference", 0) * 100) / vals["opening"], 2) if vals.get("opening") else 0
 
@@ -416,18 +444,10 @@ class CumulativeShopwiseReportService(BaseReportService):
             else:
                 # 🔥 WAREHOUSE MODE
                 wh_map = {}
-                from core.mapping_utils import get_warehouse_mapping_data
-                for w in get_warehouse_mapping_data().keys():
-                    bnd = WAREHOUSE_TO_BOND.get(w, "UNKNOWN")
-                    if not bond and not warehouse:
-                        wh_map[w] = {"warehouse": w, "bond": bnd, "opening": 0, "receipt": 0, "sales": 0, "closing": 0, "difference": 0, "avg_sales_per_day": 0, "closing_stock_at_sales_perc": 0, "perc": 0}
-                    elif bond and bnd == bond and not warehouse:
-                        wh_map[w] = {"warehouse": w, "bond": bnd, "opening": 0, "receipt": 0, "sales": 0, "closing": 0, "difference": 0, "avg_sales_per_day": 0, "closing_stock_at_sales_perc": 0, "perc": 0}
-
                 for row in cumulative_data:
                     wh = row.get("warehouse", "UNKNOWN")
                     if wh not in wh_map:
-                        wh_map[wh] = {"warehouse": wh, "bond": "UNKNOWN", "opening": 0, "receipt": 0, "sales": 0, "closing": 0, "difference": 0, "avg_sales_per_day": 0, "closing_stock_at_sales_perc": 0, "perc": 0}
+                        wh_map[wh] = {"warehouse": wh, "bond": row.get("bond", "UNKNOWN"), "opening": 0, "receipt": 0, "sales": 0, "closing": 0, "difference": 0, "avg_sales_per_day": 0, "closing_stock_at_sales_perc": 0, "perc": 0}
                     for k, v in row.items():
                         if k not in ["warehouse", "bond"]:
                             if k not in wh_map[wh]:
@@ -435,6 +455,10 @@ class CumulativeShopwiseReportService(BaseReportService):
                             wh_map[wh][k] += v
                 
                 for wh, vals in wh_map.items():
+                    for k in ["opening", "receipt", "sales", "closing", "difference", "avg_sales_per_day"]:
+                        if k in vals:
+                            vals[k] = round(float(vals[k]), 2)
+
                     vals["closing_stock_at_sales_perc"] = round((vals.get("closing", 0) * 100) / vals["sales"], 2) if vals.get("sales") else 0
                     vals["perc"] = round((vals.get("difference", 0) * 100) / vals["opening"], 2) if vals.get("opening") else 0
                 

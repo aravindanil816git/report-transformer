@@ -57,22 +57,21 @@ class CombinedShopwiseReportService(BaseReportService):
                 return {"data": [], "uploads": [], "config": report.get("config", {})}
 
         # --- Data Enrichment ---
+        # Use warehouse from raw data if available, otherwise it's Unknown. Do not use mapping file.
+        wh_col = find_column(full_df, ["warehouse"])
+        if wh_col:
+            full_df["warehouse_info"] = full_df[wh_col].astype(str).str.strip()
+        else:
+            full_df["warehouse_info"] = "Unknown"
         full_df["bond_info"] = full_df[shop_col].map(self.shop_to_bond).fillna("Unknown")
-        full_df["warehouse_info"] = full_df[shop_col].map(self.shop_to_warehouse).fillna("Unknown")
-
-        print(f"[DEBUG] combined_shopwise: Rows for 104012 before filtering: {len(full_df[full_df[shop_col] == '104012'])}")
 
         # --- Filters ---
         if shop_code:
             full_df = full_df[full_df[shop_col] == str(shop_code).strip()]
-        
         if warehouse:
             full_df = full_df[full_df["warehouse_info"] == warehouse]
-        
         if bond:
             full_df = full_df[full_df["bond_info"] == bond]
-
-        print(f"[DEBUG] combined_shopwise: Rows for 104012 after filtering: {len(full_df[full_df[shop_col] == '104012'])}")
 
         if full_df.empty:
             return {"data": [], "uploads": source_report.get("uploads", []), "config": report.get("config", {})}
@@ -132,4 +131,24 @@ class CombinedShopwiseReportService(BaseReportService):
         return {"data": result, "uploads": source_report.get("uploads", []), "config": report.get("config", {})}
 
     def get_filters(self, report):
-        return get_filters_from_mapping()
+        from services.store import reports
+        
+        # Get bonds and shops from mapping as a base
+        filters = get_filters_from_mapping()
+
+        # Find the source report to extract warehouses from its data
+        source_report = None
+        for r in reports.values():
+            if r.get("type") == "shop_sales_cumulative":
+                source_report = r
+                break
+
+        # Override warehouses with data from the source report
+        if source_report and source_report.get("data"):
+            full_df = pd.DataFrame(source_report["data"])
+            wh_col = find_column(full_df, ["warehouse"])
+            if wh_col:
+                warehouses = sorted(full_df[wh_col].dropna().unique().tolist())
+                filters["warehouses"] = warehouses
+                
+        return filters
