@@ -61,7 +61,12 @@ class CumulativeWarehouseMatrixService(BaseReportService):
         df["brand"] = df[brand_col].astype(str).str.strip() if brand_col else "Unknown"
 
         # ✅ map warehouse
-        wh_col = next((c for c in df.columns if "warehouse" in c.lower() or "wh" == c.lower()), None)
+        wh_col = next((c for c in df.columns if ("warehouse" in c.lower() or "wh" in c.lower()) and "name" in c.lower()), None)
+        if not wh_col:
+            wh_col = next((c for c in df.columns if ("warehouse" in c.lower() or "wh" == c.lower()) and "code" not in c.lower()), None)
+        if not wh_col:
+            wh_col = next((c for c in df.columns if "warehouse" in c.lower() or "wh" == c.lower()), None)
+            
         if wh_col:
             df["warehouse"] = df[wh_col].astype(str).str.strip()
         else:
@@ -69,7 +74,7 @@ class CumulativeWarehouseMatrixService(BaseReportService):
                 lambda x: SHOP_LOOKUP.get(x, {}).get("warehouse")
             )
         
-        shop_name_col = next((c for c in df.columns if "shop" in c.lower() and "name" in c.lower()), None)
+        shop_name_col = next((c for c in df.columns if "license" in c.lower() and "name" in c.lower()), None)
         if shop_name_col:
             df["shop_name"] = df[shop_name_col].astype(str).str.strip()
         else:

@@ -23,7 +23,6 @@ class CombinedShopwiseMultiReportService(BaseReportService):
     def __init__(self):
         super().__init__()
         self.shopwise_svc = ShopwiseReportService()
-        self.shop_to_bond, self.shop_to_warehouse = get_shop_to_parent_maps()
 
     # ---------------------------------------------------------------------
     # Upload handling
@@ -146,7 +145,9 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         full_df = full_df[full_df[shop_col].notna() & (full_df[shop_col] != "nan") & (full_df[shop_col] != "")]
 
         # Enrichment
-        full_df["bond_info"] = full_df[shop_col].map(self.shop_to_bond).fillna("Unknown")
+        from core.mapping_utils import get_shop_to_parent_maps
+        shop_to_bond, _ = get_shop_to_parent_maps()
+        full_df["bond_info"] = full_df[shop_col].map(shop_to_bond).fillna("Unknown")
         # Use warehouse from raw data if available, otherwise it's Unknown. Do not use mapping file.
         wh_col = find_column(full_df, ["warehouse"])
         if wh_col:

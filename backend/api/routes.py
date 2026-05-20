@@ -10,7 +10,7 @@ from services.store import reports
 from services.registry import get_service
 
 from core.utils import read_excel_robust
-from core.mapping_utils import get_warehouse_mapping_data, get_bond_mapping_data, get_warehouse_master_data
+from core.mapping_utils import get_warehouse_mapping_data, get_bond_mapping_data, get_warehouse_master_data, clear_mapping_caches
 
 router = APIRouter()
 
@@ -276,8 +276,6 @@ ALLOWED_JSON_FILES = {
     "bonds": os.path.join(BASE_DIR, "backend", "bonds.json"),
     "shops": os.path.join(BASE_DIR, "backend", "shops.json"),
     "warehouses": os.path.join(BASE_DIR, "backend", "warehouses.json"),
-    "warehouse_mapping": os.path.join(BASE_DIR, "backend", "warehouse_mapping.json"),
-    "shopcode_mapping": os.path.join(BASE_DIR, "backend", "shopcode_mapping.json"),
 }
 
 def _load_json(name: str):
@@ -307,14 +305,44 @@ def get_json(name: str = Path(..., description="One of the allowed JSON identifi
 def replace_json(name: str, payload: dict = Body(...)):
     """Replace the entire JSON file with the provided payload."""
     _save_json(name, payload)
+    clear_mapping_caches()
     return {"status": "replaced"}
 
 @router.put("/json/{name}/{key}")
 def update_json_key(name: str, key: str, payload: dict = Body(...)):
     """Update or add a top‑level key in the JSON file."""
     data = _load_json(name)
+    
+    # Handle programmatic key renaming and cascading (e.g., Shop Code changed)
+    if name == "shops":
+        new_key = str(payload.get("shop_code", payload.get("code", key)))
+        if new_key != str(key):
+            if key in data:
+                del data[key]
+            
+            # Cascade update to bond_mapping
+            try:
+                bond_mapping = _load_json("bond_mapping")
+                bond_changed = False
+                for bond_name, bond_data in bond_mapping.items():
+                    shops_list = bond_data.get("shops", [])
+                    for i, shop_id in enumerate(shops_list):
+                        if isinstance(shop_id, dict) and str(shop_id.get("shop_code")) == str(key):
+                            shops_list[i]["shop_code"] = new_key
+                            bond_changed = True
+                        elif str(shop_id) == str(key):
+                            shops_list[i] = new_key
+                            bond_changed = True
+                if bond_changed:
+                    _save_json("bond_mapping", bond_mapping)
+            except Exception as e:
+                print(f"DEBUG: Failed to cascade update: {e}")
+                
+            key = new_key
+
     data[key] = payload
     _save_json(name, data)
+    clear_mapping_caches()
     return {"status": "updated", "key": key}
 
 @router.delete("/json/{name}/{key}")
@@ -324,6 +352,26 @@ def delete_json_key(name: str, key: str):
     if key in data:
         del data[key]
         _save_json(name, data)
+        
+        # Cascade delete from relationships programmatically
+        if name == "shops":
+            try:
+                bond_mapping = _load_json("bond_mapping")
+                bond_changed = False
+                for bond_name, bond_data in bond_mapping.items():
+                    original_len = len(bond_data.get("shops", []))
+                    bond_data["shops"] = [
+                        s for s in bond_data.get("shops", []) 
+                        if (str(s.get("shop_code")) if isinstance(s, dict) else str(s)) != str(key)
+                    ]
+                    if len(bond_data["shops"]) < original_len:
+                        bond_changed = True
+                if bond_changed:
+                    _save_json("bond_mapping", bond_mapping)
+            except Exception as e:
+                print(f"DEBUG: Failed to cascade delete: {e}")
+                
+        clear_mapping_caches()
         return {"status": "deleted", "key": key}
     raise HTTPException(status_code=404, detail="Key not found")
 
@@ -636,7 +684,9 @@ def get_report(
     bond: str = None,
     mode: str = "warehouse",
     start_idx: int = None,
-    end_idx: int = None
+        end_idx: int = None,
+        start_date: str = None,
+        end_date: str = None
 ):
     report = reports.get(rid)
 

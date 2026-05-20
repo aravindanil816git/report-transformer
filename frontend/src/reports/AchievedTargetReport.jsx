@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { Table, InputNumber, Button, message, Space } from "antd";
+import { Table, InputNumber, Button, message, Space, DatePicker } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport } from "../api";
 import axios from "axios";
+
+const { RangePicker } = DatePicker;
 
 export default function AchievedTargetReport() {
   const { id } = useParams();
@@ -10,6 +12,7 @@ export default function AchievedTargetReport() {
   const [brands, setBrands] = useState([]);
   const [config, setConfig] = useState({});
   const [loading, setLoading] = useState(false);
+  const [dateRange, setDateRange] = useState([]);
 
   useEffect(() => {
     loadData();
@@ -17,7 +20,13 @@ export default function AchievedTargetReport() {
 
   const loadData = () => {
     setLoading(true);
-    getReport(id).then((res) => {
+    const params = {};
+    if (dateRange && dateRange.length === 2) {
+      params.start_date = dateRange[0].format("YYYY-MM-DD");
+      params.end_date = dateRange[1].format("YYYY-MM-DD");
+    }
+
+    getReport(id, null, null, params).then((res) => {
       const reportData = res?.data?.data || [];
       setData(reportData);
       setConfig(res?.data?.config || {});
@@ -64,7 +73,7 @@ export default function AchievedTargetReport() {
   };
 
   const handleAddBrand = () => {
-    const brandName = window.prompt("Enter new brand name:");
+    const brandName = window.prompt("Enter exact brand name (e.g. CHAIRMANS CHOICE):")?.toUpperCase().trim();
     if (brandName && !brands.includes(brandName)) {
       setBrands([...brands, brandName].sort());
       const newData = data.map(row => {
@@ -195,6 +204,11 @@ export default function AchievedTargetReport() {
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
         <h2>Achieved / Target Report {config.month ? `- ${config.month}` : ""}</h2>
         <Space>
+          <RangePicker 
+            value={dateRange} 
+            onChange={setDateRange} 
+          />
+          <Button type="primary" onClick={loadData}>Apply Filter</Button>
           <Button onClick={handleAddBrand}>Add Brand</Button>
           <Button type="primary" onClick={saveTargets}>Save Targets</Button>
         </Space>

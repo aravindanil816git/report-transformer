@@ -10,7 +10,6 @@ const JSON_OPTIONS = [
   { label: "Shops", value: "shops" },
   { label: "Warehouses", value: "warehouses" },
   { label: "Bond Mapping", value: "bond_mapping" },
-  { label: "Warehouse Mapping", value: "warehouse_mapping" },
 ];
 
 // Configuration for each entity – defines the fields shown in the table and the form
@@ -27,6 +26,8 @@ const ENTITY_CONFIG = {
     fields: [
       { name: "code", label: "Shop Code", component: Input, required: true },
       { name: "name", label: "Shop Name", component: Input, required: true },
+      { name: "category", label: "Category", component: Input },
+      { name: "warehouse", label: "Warehouse", component: Select },
       { name: "address", label: "Address", component: Input },
     ],
   },
@@ -45,20 +46,12 @@ const ENTITY_CONFIG = {
       { name: "shops", label: "Shops", component: Input },
     ],
   },
-  warehouse_mapping: {
-    label: "Warehouse Mapping",
-    fields: [
-      { name: "warehouse", label: "Warehouse", component: Input, required: true },
-      { name: "code", label: "Warehouse Code", component: Input },
-      { name: "shops", label: "Shops", component: Input },
-    ],
-  },
 };
 
 export default function JsonCrud() {
   const [selected, setSelected] = useState(null);
   const [data, setData] = useState({});
-  const [auxData, setAuxData] = useState({ bonds: [], shops: [] }); // for dropdowns
+  const [auxData, setAuxData] = useState({ bonds: [], shops: [], warehouses: [] }); // for dropdowns
   const [modalVisible, setModalVisible] = useState(false);
   const [editingKey, setEditingKey] = useState(null);
   const [form] = Form.useForm();
@@ -72,7 +65,7 @@ export default function JsonCrud() {
       const config = ENTITY_CONFIG[name];
       // Prepare shop lookup for mapping entities
       let shopLookup = {};
-      if (name === "bond_mapping" || name === "warehouse_mapping") {
+      if (name === "bond_mapping") {
         const shopsResp = await getJson("shops");
         Object.entries(shopsResp.data || {}).forEach(([k, v]) => {
           shopLookup[k] = v.shop_name || "";
@@ -87,7 +80,7 @@ export default function JsonCrud() {
               record[f.name] = k;
             } else if (f.name === "name") {
               if (name === "shops") {
-                record[f.name] = v.shop_name || "";
+                record[f.name] = v.name || v.shop_name || "";
               } else if (name === "warehouses") {
                 record[f.name] = v.warehouse_code || "";
               } else {
@@ -127,17 +120,19 @@ export default function JsonCrud() {
   // Load auxiliary data (bonds and shops) for dropdowns when needed
   useEffect(() => {
     const fetchAux = async () => {
-      if (selected === "bond_mapping" || selected === "warehouse_mapping") {
-        const [bondsResp, shopsResp] = await Promise.all([
+      if (selected === "bond_mapping" || selected === "shops") {
+        const [bondsResp, shopsResp, warehousesResp] = await Promise.all([
           getJson("bonds"),
           getJson("shops"),
+          getJson("warehouses"),
         ]);
         const bondOptions = Object.keys(bondsResp.data || {});
         const shopOptions = Object.entries(shopsResp.data || {}).map(([k, v]) => ({
           key: k,
           label: v.shop_name || k,
         }));
-        setAuxData({ bonds: bondOptions, shops: shopOptions });
+        const warehouseOptions = Object.keys(warehousesResp.data || {});
+        setAuxData({ bonds: bondOptions, shops: shopOptions, warehouses: warehouseOptions });
       }
     };
     fetchAux();
@@ -156,7 +151,7 @@ export default function JsonCrud() {
     if (config) {
       const values = {};
       config.fields.forEach(f => {
-        if ((selected === "bond_mapping" || selected === "warehouse_mapping") && f.name === "shops") {
+        if (selected === "bond_mapping" && f.name === "shops") {
           // use stored raw IDs for checkbox group
           values[f.name] = record["_shopsIds"] || [];
         } else {
@@ -182,6 +177,15 @@ export default function JsonCrud() {
   const onFinish = async (values) => {
     // Build the payload object from the form values
     const payload = { ...values };
+
+    // Intercept saves to keep shops.json strictly formatted
+    if (selected === "shops") {
+      payload.shop_code = payload.code;
+      payload.shop_name = payload.name;
+      delete payload.code;
+      delete payload.name;
+    }
+
     // Determine the key for the entry – use the first required field as identifier
     const config = ENTITY_CONFIG[selected];
     const keyField = config?.fields.find(f => f.required)?.name || "key";
@@ -272,7 +276,16 @@ export default function JsonCrud() {
                     </Select>
                   );
                 }
-                if ((selected === "bond_mapping" || selected === "warehouse_mapping") && f.name === "shops") {
+                if (selected === "shops" && f.name === "warehouse") {
+                  return (
+                    <Select showSearch allowClear placeholder="Select a warehouse">
+                      {auxData.warehouses.map(w => (
+                        <Option key={w} value={w}>{w}</Option>
+                      ))}
+                    </Select>
+                  );
+                }
+                if (selected === "bond_mapping" && f.name === "shops") {
                   const options = auxData.shops.map(s => ({ label: s.label, value: s.key }));
                   return (
                     <Checkbox.Group options={options} />

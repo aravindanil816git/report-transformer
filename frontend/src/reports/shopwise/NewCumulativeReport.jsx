@@ -22,13 +22,17 @@ export default function CumulativeShopwiseReport() {
   const [dateRange, setDateRange] = useState([]);
 
   const [mode, setMode] = useState("warehouse");
+  const [drilledWarehouse, setDrilledWarehouse] = useState(null);
+  const [drilledBond, setDrilledBond] = useState(null);
 
   // 🔹 load
-  const load = async (startIdx = null, endIdx = null) => {
+  const load = async (startIdx = null, endIdx = null, selectedWarehouse = warehouseFilter, selectedBond = null, selectedMode = mode) => {
     const res = await getReport(id, null, view, {
       start_idx: startIdx,
       end_idx: endIdx,
-      mode
+      mode: selectedMode,
+      warehouse: selectedWarehouse,
+      bond: selectedBond
     });
 
     const cleaned = (res.data.data || []).filter(d => d.warehouse);
@@ -45,7 +49,7 @@ export default function CumulativeShopwiseReport() {
   // 🔥 retain filters on view switch
 useEffect(() => {
   applyFilters();
-}, [view, mode]);
+}, [view, mode, drilledWarehouse, drilledBond]);
 
   const labelToDate = (label) => dayjs(label.split(" ")[0], "DD-MMM");
 
@@ -65,14 +69,21 @@ useEffect(() => {
       endIdx = getIndexFromDate(dateRange[1]);
     }
 
-    load(startIdx, endIdx);
+    let currentMode = mode;
+    if (drilledWarehouse) currentMode = "shop";
+    else if (drilledBond) currentMode = "shop";
+
+    load(startIdx, endIdx, drilledWarehouse || warehouseFilter, drilledBond, currentMode);
   };
 
   // 🔥 RESET
   const resetFilters = () => {
     setWarehouseFilter(null);
     setDateRange([]);
-    load();
+    setDrilledWarehouse(null);
+    setDrilledBond(null);
+    setMode("warehouse");
+    load(null, null, null, null, "warehouse");
   };
 
   const filteredData = warehouseFilter
@@ -90,9 +101,30 @@ useEffect(() => {
     return current.isBefore(minDate, "day") || current.isAfter(maxDate, "day");
   };
 
+  const getTitle = () => {
+    if (drilledWarehouse || drilledBond || mode === "shop") return "Shop Name";
+    if (mode === "bond" && !drilledBond) return "Bond";
+    return "Warehouse";
+  };
+
+  const getDataIndex = () => {
+    if (drilledWarehouse || drilledBond || mode === "shop") return "shop_name";
+    return "warehouse";
+  };
+
+  const renderFirstCol = (text, record) => {
+    if (mode === "warehouse" && !drilledWarehouse) {
+      return <a onClick={() => setDrilledWarehouse(record.warehouse)}>{text}</a>;
+    }
+    if (mode === "bond" && !drilledBond) {
+      return <a onClick={() => setDrilledBond(record.warehouse)}>{text}</a>;
+    }
+    return <span>{record.shop_code ? `${record.shop_code} - ` : ""}{text}</span>;
+  };
+
   // 🔹 daywise + total
   const daywiseColumns = [
-    { title: "Warehouse", dataIndex: "warehouse", fixed: "left", width: 220 },
+    { title: getTitle(), dataIndex: getDataIndex(), fixed: "left", width: 220, render: renderFirstCol },
     ...labels.map(l => ({ title: l, dataIndex: l, width: 180, align: "right" })),
     {
       title: "Total",
@@ -104,7 +136,7 @@ useEffect(() => {
   ];
 
   const cumulativeColumns = [
-    { title: "Warehouse", dataIndex: "warehouse", width: 220 },
+    { title: getTitle(), dataIndex: getDataIndex(), width: 220, render: renderFirstCol },
     { title: "Opening", dataIndex: "opening", width: 200, align: "right" },
     { title: "Receipt", dataIndex: "receipt", width: 200, align: "right" },
     { title: "Sales", dataIndex: "sales", width: 200, align: "right" },
@@ -120,7 +152,7 @@ useEffect(() => {
     let exportData = [];
     if (view === "cumulative") {
       exportData = filteredData.map(d => ({
-        Warehouse: d.warehouse,
+        [getTitle()]: d.shop_code ? `${d.shop_code} - ${d.shop_name}` : d.warehouse,
         Opening: d.opening,
         Receipt: d.receipt,
         Sales: d.sales,
@@ -132,7 +164,7 @@ useEffect(() => {
       }));
     } else {
       exportData = filteredData.map(row => {
-        const obj = { Warehouse: row.warehouse };
+        const obj = { [getTitle()]: row.shop_code ? `${row.shop_code} - ${row.shop_name}` : row.warehouse };
         let total = 0;
         labels.forEach(l => {
           obj[l] = row[l] || 0;
@@ -161,25 +193,44 @@ useEffect(() => {
   return (
     <div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2>Cumulative Shopsales</h2>
+        <h2>Comparitive Shopsales</h2>
         <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
       </div>
 
       <div style={{ marginBottom: 16 }}>
   <Button
-    type={mode === "warehouse" ? "primary" : "default"}
-    onClick={() => setMode("warehouse")}
+    type={mode === "warehouse" && !drilledBond ? "primary" : "default"}
+    onClick={() => { setMode("warehouse"); setDrilledBond(null); setDrilledWarehouse(null); }}
   >
     Warehouse
   </Button>
 
   <Button
     type={mode === "bond" ? "primary" : "default"}
-    onClick={() => setMode("bond")}
+    onClick={() => { setMode("bond"); setDrilledBond(null); setDrilledWarehouse(null); }}
     style={{ marginLeft: 8 }}
   >
     Bond
   </Button>
+  
+  <Button
+    type={mode === "shop" ? "primary" : "default"}
+    onClick={() => { setMode("shop"); setDrilledBond(null); setDrilledWarehouse(null); }}
+    style={{ marginLeft: 8 }}
+  >
+    Shop
+  </Button>
+
+  {drilledWarehouse && (
+    <Button type="dashed" danger onClick={() => setDrilledWarehouse(null)} style={{ marginLeft: 8 }}>
+      Back to Warehouse View (Exit Drilling: {drilledWarehouse})
+    </Button>
+  )}
+  {drilledBond && (
+    <Button type="dashed" danger onClick={() => setDrilledBond(null)} style={{ marginLeft: 8 }}>
+      Back to Bond View (Exit Drilling: {drilledBond})
+    </Button>
+  )}
 </div>
 
       <div style={{ marginBottom: 12 }}>
@@ -231,7 +282,7 @@ useEffect(() => {
       <Table
         columns={view === "cumulative" ? cumulativeColumns : daywiseColumns}
         dataSource={filteredData}
-        rowKey="warehouse"
+        rowKey={(record) => `${record.warehouse}-${record.shop_code || "none"}-${record.bond || "none"}`}
         scroll={{ x: true }}
         pagination={false}
         summary={(pageData) => {

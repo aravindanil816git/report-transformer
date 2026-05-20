@@ -69,7 +69,15 @@ export default function DailySecondaryReport() {
         <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{periodLabel}</span>
         <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{uploadDateLabel}</span>
       </div>
-      <Table columns={columns} dataSource={data} rowKey="warehouse" />
+      <Table 
+        columns={columns} 
+        dataSource={data} 
+        rowKey="warehouse" 
+        scroll={{ y: 'calc(100vh - 220px)' }}
+        pagination={false}
+        size="small"
+        bordered
+      />
     </div>
   );
 }

@@ -8,8 +8,6 @@ from .base import BaseReportService
 from core.utils import normalize, clean_df, find_column, find_dynamic, safe_int, read_excel_robust
 from core.mapping_utils import get_shop_lookup_and_warehouse_to_bond
 
-SHOP_LOOKUP, WAREHOUSE_TO_BOND = get_shop_lookup_and_warehouse_to_bond()
-
 class ShopwiseReportService(BaseReportService):
     type_name = "shopwise"
 
@@ -23,6 +21,7 @@ class ShopwiseReportService(BaseReportService):
         wh_col = self._detect_warehouse_col(df)
 
         if code_col:
+            shop_lookup, _ = get_shop_lookup_and_warehouse_to_bond()
             # Create standardized internal columns for reliability
             df["shop_code_internal"] = df[code_col].astype(str).str.replace(".0", "", regex=False).str.strip()
             if name_col:
@@ -30,8 +29,8 @@ class ShopwiseReportService(BaseReportService):
             else:
                 # Try to lookup name if code found but name not found
                 s_code = df["shop_code_internal"].iloc[0] if not df.empty else None
-                if s_code and s_code in SHOP_LOOKUP:
-                     df["shop_name_internal"] = df["shop_code_internal"].apply(lambda x: SHOP_LOOKUP.get(x, {}).get("shop_name", x))
+                if s_code and s_code in shop_lookup:
+                     df["shop_name_internal"] = df["shop_code_internal"].apply(lambda x: shop_lookup.get(x, {}).get("shop_name", x))
                 else:
                      df["shop_name_internal"] = df["shop_code_internal"]
 
@@ -251,17 +250,19 @@ class ShopwiseReportService(BaseReportService):
                 s_name = str(row[name_col]).strip() if name_col and pd.notna(row[name_col]) and str(row[name_col]).lower() != "nan" else s_code
                 shops_map[s_code] = s_name
             
-        # Enrich names from SHOP_LOOKUP
+        shop_lookup, _ = get_shop_lookup_and_warehouse_to_bond()
+
+        # Enrich names from shop_lookup
         for s_code in list(shops_map.keys()):
-            if s_code in SHOP_LOOKUP:
-                shops_map[s_code] = SHOP_LOOKUP[s_code].get("shop_name", shops_map[s_code])
+            if s_code in shop_lookup:
+                shops_map[s_code] = shop_lookup[s_code].get("shop_name", shops_map[s_code])
         
         shops = [{"shop_code": k, "shop_name": v} for k, v in shops_map.items()]
 
         # Ensure warehouse info is present for mapping
         if code_col:
              if "warehouse_info" not in df.columns:
-                 df["warehouse_info"] = df[code_col].astype(str).str.replace(".0", "", regex=False).str.strip().apply(lambda x: SHOP_LOOKUP.get(x, {}).get("warehouse"))
+                 df["warehouse_info"] = df[code_col].astype(str).str.replace(".0", "", regex=False).str.strip().apply(lambda x: shop_lookup.get(x, {}).get("warehouse"))
 
         warehouses = sorted(df["warehouse_info"].dropna().unique().tolist()) if "warehouse_info" in df.columns else []
 

@@ -23,20 +23,20 @@ class MonthComparativeService(BaseReportService):
             # 🔥 CURRENT (d1)
             stn1 = a.get("STN", 0)
             gtn1 = a.get("GTN", 0)
-            total1 = a.get("TOTAL", 0)
+            total1 = stn1 + gtn1
             cfed1 = a.get("CFED", 0)
             bar1 = a.get("BAR", 0)
 
-            final1 = stn1 + gtn1
+            final1 = total1 + cfed1 + bar1
 
             # 🔥 PREVIOUS (d2)
             stn2 = b.get("STN", 0)
             gtn2 = b.get("GTN", 0)
-            total2 = b.get("TOTAL", 0)
+            total2 = stn2 + gtn2
             cfed2 = b.get("CFED", 0)
             bar2 = b.get("BAR", 0)
 
-            final2 = stn2 + gtn2
+            final2 = total2 + cfed2 + bar2
 
             diff = final1 - final2
             pct = (diff / final2 * 100) if final2 else 0
