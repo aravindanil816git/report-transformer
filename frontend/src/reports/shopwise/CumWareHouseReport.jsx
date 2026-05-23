@@ -230,7 +230,7 @@ export default function CumulativeWarehouseReport() {
   return (
     <div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2>{isDailyWiseType ? "DailyWise Secondary Sales" : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "Consolidated Secondary Sales (Legacy)")}</h2>
+        <h2>{isDailyWiseType ? "Daily Secondary Sales" : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "Consolidated Secondary Sales (Legacy)")}</h2>
         <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
       </div>
 
@@ -366,7 +366,7 @@ export default function CumulativeWarehouseReport() {
         dataSource={processedData}
         rowKey={(record) => `${record.warehouse}-${record.shop_code || "none"}-${record.bond || "none"}`}
         pagination={false}
-        scroll={{ x: "max-content", y: 600 }}
+        scroll={{ x: "max-content" }}
         summary={(pageData) => {
           if (!pageData || pageData.length === 0) return null;
 

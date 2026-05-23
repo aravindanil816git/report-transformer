@@ -48,11 +48,11 @@ class DailySecondarySalesService(BaseReportService):
             return None
 
         return {
-            "STN": round(cases_only[1]),
-            "GTN": round(cases_only[2]),
-            "TOTAL": round(cases_only[1] + cases_only[2]),
-            "CFED": round(cases_only[4]),
-            "BAR": round(cases_only[5]),
+            "STN": round(cases_only[1], 2),
+            "GTN": round(cases_only[2], 2),
+            "TOTAL": round(cases_only[1] + cases_only[2], 2),
+            "CFED": round(cases_only[4], 2),
+            "BAR": round(cases_only[5], 2),
         }
    # ================= PROCESS =================
     def process(self, report):
@@ -80,11 +80,11 @@ class DailySecondarySalesService(BaseReportService):
             final.append({
                 "warehouse": warehouse,
                 "date": report_date,
-                "STN": round(totals["STN"]),
-                "GTN": round(totals["GTN"]),
-                "TOTAL": round(totals["TOTAL"]),
-                "CFED": round(totals["CFED"]),
-                "BAR": round(totals["BAR"]),
+                "STN": round(totals["STN"], 2),
+                "GTN": round(totals["GTN"], 2),
+                "TOTAL": round(totals["TOTAL"], 2),
+                "CFED": round(totals["CFED"], 2),
+                "BAR": round(totals["BAR"], 2),
             })
 
         report["processed"] = final

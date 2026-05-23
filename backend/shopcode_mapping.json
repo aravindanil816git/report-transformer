@@ -2,1559 +2,1941 @@
   "ALAPPUZHA": [
     {
       "shop_code": "102016",
-      "shop_name": "2016-KARUNAGAPALLY"
+      "shop_name": "2016-KARUNAGAPALLY",
+      "category": "KSBC"
     },
     {
       "shop_code": "102018",
-      "shop_name": "2018-AALUMPEDIKA"
+      "shop_name": "2018-AALUMPEDIKA",
+      "category": "KSBC"
     },
     {
       "shop_code": "104013",
-      "shop_name": "4013-PULINKUNNU"
+      "shop_name": "4013-PULINKUNNU",
+      "category": "KSBC"
     },
     {
       "shop_code": "104016",
-      "shop_name": "4016-THAKAZHY"
+      "shop_name": "4016-THAKAZHY",
+      "category": "KSBC"
     },
     {
       "shop_code": "104020",
-      "shop_name": "4020-PALLARIMANGALAM"
+      "shop_name": "4020-PALLARIMANGALAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "104023",
-      "shop_name": "4023-HARIPAD"
+      "shop_name": "4023-HARIPAD",
+      "category": "KSBC"
     },
     {
       "shop_code": "104024",
-      "shop_name": "4024-THRIKKUNNAPUZHA"
+      "shop_name": "4024-THRIKKUNNAPUZHA",
+      "category": "KSBC"
     },
     {
       "shop_code": "104025",
-      "shop_name": "4025-KAYAMKULAM"
+      "shop_name": "4025-KAYAMKULAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "104001",
-      "shop_name": "4001-ANDHAKARANAZHI"
+      "shop_name": "4001-ANDHAKARANAZHI",
+      "category": "KSBC"
     },
     {
       "shop_code": "104002",
-      "shop_name": "4002-Thaikkattussery"
+      "shop_name": "4002-Thaikkattussery",
+      "category": "KSBC"
     },
     {
       "shop_code": "104003",
-      "shop_name": "4003-Court Junction Cherthala"
+      "shop_name": "4003-Court Junction Cherthala",
+      "category": "KSBC"
     },
     {
       "shop_code": "104004",
-      "shop_name": "4004-Cherthala Town"
+      "shop_name": "4004-Cherthala Town",
+      "category": "KSBC"
     },
     {
       "shop_code": "104005",
-      "shop_name": "4005-MUHAMMA"
+      "shop_name": "4005-MUHAMMA",
+      "category": "KSBC"
     },
     {
       "shop_code": "104008",
-      "shop_name": "4008-MULLACKAL (Pichu Iyer Jn)"
+      "shop_name": "4008-MULLACKAL (Pichu Iyer Jn)",
+      "category": "KSBC"
     },
     {
       "shop_code": "104011",
-      "shop_name": "4011-Valavanad"
+      "shop_name": "4011-Valavanad",
+      "category": "KSBC"
     },
     {
       "shop_code": "104012",
-      "shop_name": "4012-Chungam"
+      "shop_name": "4012-Chungam",
+      "category": "KSBC"
     },
     {
       "shop_code": "104015",
-      "shop_name": "4015-NEDUMUDI"
+      "shop_name": "4015-NEDUMUDI",
+      "category": "KSBC"
     },
     {
       "shop_code": "204006",
-      "shop_name": "FL1-4006 ALAPPUZHA"
+      "shop_name": "FL1-4006 ALAPPUZHA",
+      "category": "CFD"
     },
     {
       "shop_code": "204010",
-      "shop_name": "FL1-4010 AMBALAPUZHA"
+      "shop_name": "FL1-4010 AMBALAPUZHA",
+      "category": "CFD"
     }
   ],
   "ALUVA": [
     {
       "shop_code": "107016",
-      "shop_name": "7016-KALAMASSERY"
+      "shop_name": "7016-KALAMASSERY",
+      "category": "KSBC"
     },
     {
       "shop_code": "107029",
-      "shop_name": "7029-CHERAI"
+      "shop_name": "7029-CHERAI",
+      "category": "KSBC"
     },
     {
       "shop_code": "107031",
-      "shop_name": "7031-ALUVA"
+      "shop_name": "7031-ALUVA",
+      "category": "KSBC"
     },
     {
       "shop_code": "107032",
-      "shop_name": "7032-ALANGAD"
+      "shop_name": "7032-ALANGAD",
+      "category": "KSBC"
     },
     {
       "shop_code": "107033",
-      "shop_name": "7033-ATHANI"
+      "shop_name": "7033-ATHANI",
+      "category": "KSBC"
     },
     {
       "shop_code": "107038",
-      "shop_name": "7038-PUTHENCRUZ"
+      "shop_name": "7038-PUTHENCRUZ",
+      "category": "KSBC"
     },
     {
       "shop_code": "107040",
-      "shop_name": "7040-THRIKAKKARA(Kakkanad Info Park)"
+      "shop_name": "7040-THRIKAKKARA(Kakkanad Info Park)",
+      "category": "KSBC"
     },
     {
       "shop_code": "107042",
-      "shop_name": "7042-NORTH PARAVOOR"
+      "shop_name": "7042-NORTH PARAVOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "107043",
-      "shop_name": "7043-THATHAPPILLY"
+      "shop_name": "7043-THATHAPPILLY",
+      "category": "KSBC"
     },
     {
       "shop_code": "107044",
-      "shop_name": "7044-VARAPUZHA"
+      "shop_name": "7044-VARAPUZHA",
+      "category": "KSBC"
     },
     {
       "shop_code": "107045",
-      "shop_name": "7045-VANIYEKKAD"
+      "shop_name": "7045-VANIYEKKAD",
+      "category": "KSBC"
     },
     {
       "shop_code": "107048",
-      "shop_name": "7048-ELANJI TOWN"
+      "shop_name": "7048-ELANJI TOWN",
+      "category": "KSBC"
     },
     {
       "shop_code": "207028",
-      "shop_name": "FL1-7028 Njarakkal"
+      "shop_name": "FL1-7028 Njarakkal",
+      "category": "CFD"
     },
     {
       "shop_code": "207050",
-      "shop_name": "FL1-7050 Muvattupuzha"
+      "shop_name": "FL1-7050 Muvattupuzha",
+      "category": "CFD"
     },
     {
       "shop_code": "107035",
-      "shop_name": "7035-MANJAPRA"
+      "shop_name": "7035-MANJAPRA",
+      "category": "KSBC"
     },
     {
       "shop_code": "107036",
-      "shop_name": "7036-PERUMBAVOOR"
+      "shop_name": "7036-PERUMBAVOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "107037",
-      "shop_name": "7037-PAYYAL"
+      "shop_name": "7037-PAYYAL",
+      "category": "KSBC"
     },
     {
       "shop_code": "107039",
-      "shop_name": "7039-KOLENCHERY"
+      "shop_name": "7039-KOLENCHERY",
+      "category": "KSBC"
     },
     {
       "shop_code": "107041",
-      "shop_name": "7041-PATTIMATTOM"
+      "shop_name": "7041-PATTIMATTOM",
+      "category": "KSBC"
     },
     {
       "shop_code": "107051",
-      "shop_name": "7051-MUVATTUPUZHA"
+      "shop_name": "7051-MUVATTUPUZHA",
+      "category": "KSBC"
     },
     {
       "shop_code": "107053",
-      "shop_name": "7053-Kothamangalam"
+      "shop_name": "7053-Kothamangalam",
+      "category": "KSBC"
     },
     {
       "shop_code": "107054",
-      "shop_name": "7054-Kothamangalam"
+      "shop_name": "7054-Kothamangalam",
+      "category": "KSBC"
     },
     {
       "shop_code": "107055",
-      "shop_name": "7055-POTHANIKKADU"
+      "shop_name": "7055-POTHANIKKADU",
+      "category": "KSBC"
     },
     {
       "shop_code": "407119",
-      "shop_name": "VKG GROUP HOLIDAY HOTEL"
+      "shop_name": "VKG GROUP HOLIDAY HOTEL",
+      "category": "BAR"
     },
     {
       "shop_code": "107049",
-      "shop_name": "7049-RAMAMANGALAM"
+      "shop_name": "7049-RAMAMANGALAM",
+      "category": "KSBC"
     }
   ],
   "ATTINGAL": [
     {
       "shop_code": "101011",
-      "shop_name": "1011-POWERHOUSE ROAD"
+      "shop_name": "1011-POWERHOUSE ROAD",
+      "category": "KSBC"
     },
     {
       "shop_code": "101015",
-      "shop_name": "1015-GOWREESAPATTOM"
+      "shop_name": "1015-GOWREESAPATTOM",
+      "category": "KSBC"
     },
     {
       "shop_code": "101022",
-      "shop_name": "1022-MUTTATHARA"
+      "shop_name": "1022-MUTTATHARA",
+      "category": "KSBC"
     },
     {
       "shop_code": "101024",
-      "shop_name": "1024 -Mannanthala (Plamoodu)"
+      "shop_name": "1024 -Mannanthala (Plamoodu)",
+      "category": "KSBC"
     },
     {
       "shop_code": "101025",
-      "shop_name": "1025-ULOOR"
+      "shop_name": "1025-ULOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "101026",
-      "shop_name": "1026-Kazhakuttam(karikkakam)"
+      "shop_name": "1026-Kazhakuttam(karikkakam)",
+      "category": "KSBC"
     },
     {
       "shop_code": "101027",
-      "shop_name": "1027-MANGALAPURAM"
+      "shop_name": "1027-MANGALAPURAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "101028",
-      "shop_name": "1028-CHENKOTTUKONAM"
+      "shop_name": "1028-CHENKOTTUKONAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "101035",
-      "shop_name": "1035-KOLIYAKKODE"
+      "shop_name": "1035-KOLIYAKKODE",
+      "category": "KSBC"
     },
     {
       "shop_code": "401112",
-      "shop_name": "HOTEL DIAMOND PALACE"
+      "shop_name": "HOTEL DIAMOND PALACE",
+      "category": "BAR"
     },
     {
       "shop_code": "401114",
-      "shop_name": "AMBARA SUITES"
+      "shop_name": "AMBARA SUITES",
+      "category": "BAR"
     },
     {
       "shop_code": "101034",
-      "shop_name": "1034-KALLARA"
+      "shop_name": "1034-KALLARA",
+      "category": "KSBC"
     },
     {
       "shop_code": "101039",
-      "shop_name": "1039-CHIRAYINKIZH"
+      "shop_name": "1039-CHIRAYINKIZH",
+      "category": "KSBC"
     },
     {
       "shop_code": "101040",
-      "shop_name": "1040-VARKALA"
+      "shop_name": "1040-VARKALA",
+      "category": "KSBC"
     },
     {
       "shop_code": "101041",
-      "shop_name": "1041-KILIMANOOR"
+      "shop_name": "1041-KILIMANOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "101042",
-      "shop_name": "1042-KALLAMBALAM"
+      "shop_name": "1042-KALLAMBALAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "101043",
-      "shop_name": "1043-NILAKKAMUKKU"
+      "shop_name": "1043-NILAKKAMUKKU",
+      "category": "KSBC"
     },
     {
       "shop_code": "101044",
-      "shop_name": "1044-MADAVOOR"
+      "shop_name": "1044-MADAVOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "102014",
-      "shop_name": "2014-PARIPPALLY(KALLUVATHUKKAL)"
+      "shop_name": "2014-PARIPPALLY(KALLUVATHUKKAL)",
+      "category": "KSBC"
     },
     {
       "shop_code": "201038",
-      "shop_name": "FL1-1038 ATTINGAL"
+      "shop_name": "FL1-1038 ATTINGAL",
+      "category": "CFD"
     }
   ],
   "KANNUR": [
     {
       "shop_code": "113001",
-      "shop_name": "13001-CHIRAKKUNI"
+      "shop_name": "13001-CHIRAKKUNI",
+      "category": "KSBC"
     },
     {
       "shop_code": "113003",
-      "shop_name": "13003-KUTHUPARAMBA"
+      "shop_name": "13003-KUTHUPARAMBA",
+      "category": "KSBC"
     },
     {
       "shop_code": "113004",
-      "shop_name": "13004-EDOOR"
+      "shop_name": "13004-EDOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "213005",
-      "shop_name": "CONSUMER FED ULIKKAL"
+      "shop_name": "CONSUMER FED ULIKKAL",
+      "category": "CFD"
     },
     {
       "shop_code": "113006",
-      "shop_name": "13006-PAZHAYANGADI"
+      "shop_name": "13006-PAZHAYANGADI",
+      "category": "KSBC"
     },
     {
       "shop_code": "113007",
-      "shop_name": "13007-PANAPUZHA"
+      "shop_name": "13007-PANAPUZHA",
+      "category": "KSBC"
     },
     {
       "shop_code": "213008",
-      "shop_name": "CONSUMERFED VALAPATANAM"
+      "shop_name": "CONSUMERFED VALAPATANAM",
+      "category": "CFD"
     },
     {
       "shop_code": "113009",
-      "shop_name": "13009-KANNUR PARAKANDY"
+      "shop_name": "13009-KANNUR PARAKANDY",
+      "category": "KSBC"
     },
     {
       "shop_code": "113010",
-      "shop_name": "13010-KELAKAM"
+      "shop_name": "13010-KELAKAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "113011",
-      "shop_name": "13011-KIZHUTHALLY"
+      "shop_name": "13011-KIZHUTHALLY",
+      "category": "KSBC"
     },
     {
       "shop_code": "113012",
-      "shop_name": "13012-KANNUR THANA"
+      "shop_name": "13012-KANNUR THANA",
+      "category": "KSBC"
     },
     {
       "shop_code": "113013",
-      "shop_name": "13013-CHAKKARAKAL"
+      "shop_name": "13013-CHAKKARAKAL",
+      "category": "KSBC"
     },
     {
       "shop_code": "213015",
-      "shop_name": "Consumerfed  Alakode"
+      "shop_name": "Consumerfed  Alakode",
+      "category": "CFD"
     },
     {
       "shop_code": "113019",
-      "shop_name": "13019-PADIKKUNNU"
+      "shop_name": "13019-PADIKKUNNU",
+      "category": "KSBC"
     },
     {
       "shop_code": "213014",
-      "shop_name": "Consumer Fed FL1-13014,Pilathara"
+      "shop_name": "Consumer Fed FL1-13014,Pilathara",
+      "category": "CFD"
     },
     {
       "shop_code": "214004",
-      "shop_name": "FL1-14004 PALAKKUNNU (Cheemeni)"
+      "shop_name": "FL1-14004 PALAKKUNNU (Cheemeni)",
+      "category": "CFD"
     },
     {
       "shop_code": "413010",
-      "shop_name": "K.K TOURIST HOME"
+      "shop_name": "K.K TOURIST HOME",
+      "category": "BAR"
     },
     {
       "shop_code": "413025",
-      "shop_name": "HOTEL SURYA"
+      "shop_name": "HOTEL SURYA",
+      "category": "BAR"
     },
     {
       "shop_code": "413013",
-      "shop_name": "Hotel Sky Palace"
+      "shop_name": "Hotel Sky Palace",
+      "category": "BAR"
     },
     {
       "shop_code": "413007",
-      "shop_name": "BROADBEAN HOTEL, CHAKKARAKKAL"
+      "shop_name": "BROADBEAN HOTEL, CHAKKARAKKAL",
+      "category": "BAR"
     },
     {
       "shop_code": "nan",
-      "shop_name": "J K PARK RESIDENCY PUTHIYATHERU"
+      "shop_name": "J K PARK RESIDENCY PUTHIYATHERU",
+      "category": "BAR"
     },
     {
       "shop_code": "113016",
-      "shop_name": "13016-PAYYANNUR"
+      "shop_name": "13016-PAYYANNUR",
+      "category": "KSBC"
     },
     {
       "shop_code": "14001",
-      "shop_name": "14001-SEETHAMGOLI"
+      "shop_name": "14001-SEETHAMGOLI",
+      "category": "KSBC"
     },
     {
       "shop_code": "114002",
-      "shop_name": "14002-KASARGODE OLD"
+      "shop_name": "14002-KASARGODE OLD",
+      "category": "KSBC"
     },
     {
       "shop_code": "114003",
-      "shop_name": "14003 -PERLADUKKA"
+      "shop_name": "14003 -PERLADUKKA",
+      "category": "KSBC"
     },
     {
       "shop_code": "14005",
-      "shop_name": "14005-MULLERIA"
+      "shop_name": "14005-MULLERIA",
+      "category": "KSBC"
     },
     {
       "shop_code": "114006",
-      "shop_name": "14006-BANDADUKA"
+      "shop_name": "14006-BANDADUKA",
+      "category": "KSBC"
     },
     {
       "shop_code": "114008",
-      "shop_name": "14008-KANHANGAD"
+      "shop_name": "14008-KANHANGAD",
+      "category": "KSBC"
     },
     {
       "shop_code": "114009",
-      "shop_name": "14009-MOONAMKUTTY"
+      "shop_name": "14009-MOONAMKUTTY",
+      "category": "KSBC"
     },
     {
       "shop_code": "114010",
-      "shop_name": "14010-VELLARIKUNDU"
+      "shop_name": "14010-VELLARIKUNDU",
+      "category": "KSBC"
     }
   ],
   "KOLLAM": [
     {
       "shop_code": "102001",
-      "shop_name": "2001-HQ KOLLAM"
+      "shop_name": "2001-HQ KOLLAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "102002",
-      "shop_name": "2002-KUNDARA (MULAVANA)"
+      "shop_name": "2002-KUNDARA (MULAVANA)",
+      "category": "KSBC"
     },
     {
       "shop_code": "102003",
-      "shop_name": "2003-KAVANAD (ASRAMAM)"
+      "shop_name": "2003-KAVANAD (ASRAMAM)",
+      "category": "KSBC"
     },
     {
       "shop_code": "102004",
-      "shop_name": "2004-PUNTHALATHAZHAM"
+      "shop_name": "2004-PUNTHALATHAZHAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "102007",
-      "shop_name": "2007-CHAVARA THEKKUMBHAGOM"
+      "shop_name": "2007-CHAVARA THEKKUMBHAGOM",
+      "category": "KSBC"
     },
     {
       "shop_code": "102009",
-      "shop_name": "2009-ERAVIPURAM"
+      "shop_name": "2009-ERAVIPURAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "102010",
-      "shop_name": "2010-ANCHALUMOODU"
+      "shop_name": "2010-ANCHALUMOODU",
+      "category": "KSBC"
     },
     {
       "shop_code": "102011",
-      "shop_name": "2011-CHATHANOOR"
+      "shop_name": "2011-CHATHANOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "102013",
-      "shop_name": "2013-KOTTIYAM (THAZHUTHALLA)"
+      "shop_name": "2013-KOTTIYAM (THAZHUTHALLA)",
+      "category": "KSBC"
     },
     {
       "shop_code": "102017",
-      "shop_name": "2017-CHAVARA"
+      "shop_name": "2017-CHAVARA",
+      "category": "KSBC"
     },
     {
       "shop_code": "102023",
-      "shop_name": "2023-OYOOR"
+      "shop_name": "2023-OYOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "102029",
-      "shop_name": "2029-NEDUMON KAVU"
+      "shop_name": "2029-NEDUMON KAVU",
+      "category": "KSBC"
     },
     {
       "shop_code": "202005",
-      "shop_name": "FL1-2005 Kollam"
+      "shop_name": "FL1-2005 Kollam",
+      "category": "CFD"
     },
     {
       "shop_code": "202012",
-      "shop_name": "FL1-2012 PARAVOOR"
+      "shop_name": "FL1-2012 PARAVOOR",
+      "category": "CFD"
     },
     {
       "shop_code": "402074",
-      "shop_name": "HOTEL SOUPARNIKA"
+      "shop_name": "HOTEL SOUPARNIKA",
+      "category": "BAR"
     }
   ],
   "KOTTARAKARA": [
     {
       "shop_code": "202035",
-      "shop_name": "FL-01 2035 KULATHUPUZHA"
+      "shop_name": "FL-01 2035 KULATHUPUZHA",
+      "category": "CFD"
     },
     {
       "shop_code": "102020",
-      "shop_name": "2020- Bharanikavu"
+      "shop_name": "2020- Bharanikavu",
+      "category": "KSBC"
     },
     {
       "shop_code": "102021",
-      "shop_name": "2021-EDAKKADU"
+      "shop_name": "2021-EDAKKADU",
+      "category": "KSBC"
     },
     {
       "shop_code": "102022",
-      "shop_name": "2022-KOTTARAKKARA"
+      "shop_name": "2022-KOTTARAKKARA",
+      "category": "KSBC"
     },
     {
       "shop_code": "102024",
-      "shop_name": "2024-VALAKOM (ANDOOR )"
+      "shop_name": "2024-VALAKOM (ANDOOR )",
+      "category": "KSBC"
     },
     {
       "shop_code": "102025",
-      "shop_name": "2025-CHADAYAMANGALAM"
+      "shop_name": "2025-CHADAYAMANGALAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "102026",
-      "shop_name": "2026-KADAKKAL"
+      "shop_name": "2026-KADAKKAL",
+      "category": "KSBC"
     },
     {
       "shop_code": "102027",
-      "shop_name": "2027-EZHUKONE"
+      "shop_name": "2027-EZHUKONE",
+      "category": "KSBC"
     },
     {
       "shop_code": "102028",
-      "shop_name": "2028-PUTHOOR"
+      "shop_name": "2028-PUTHOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "102030",
-      "shop_name": "2030-PATHANAPURAM"
+      "shop_name": "2030-PATHANAPURAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "102031",
-      "shop_name": "2031-PUNALUR"
+      "shop_name": "2031-PUNALUR",
+      "category": "KSBC"
     },
     {
       "shop_code": "102032",
-      "shop_name": "2032-PATTAZHI"
+      "shop_name": "2032-PATTAZHI",
+      "category": "KSBC"
     },
     {
       "shop_code": "102033",
-      "shop_name": "2033- KUNNICODE (PANAMPATTA)"
+      "shop_name": "2033- KUNNICODE (PANAMPATTA)",
+      "category": "KSBC"
     },
     {
       "shop_code": "102034",
-      "shop_name": "2034-THENMALA"
+      "shop_name": "2034-THENMALA",
+      "category": "KSBC"
     },
     {
       "shop_code": "102036",
-      "shop_name": "2036-ANCHAL (KURUVIKONAM)"
+      "shop_name": "2036-ANCHAL (KURUVIKONAM)",
+      "category": "KSBC"
     },
     {
       "shop_code": "102037",
-      "shop_name": "2037-AYOOR"
+      "shop_name": "2037-AYOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "102038",
-      "shop_name": "2038-YEROOR"
+      "shop_name": "2038-YEROOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "102039",
-      "shop_name": "2039-MADATHARA"
+      "shop_name": "2039-MADATHARA",
+      "category": "KSBC"
     },
     {
       "shop_code": "402026",
-      "shop_name": "HOTEL PANACEA VENTURES"
+      "shop_name": "HOTEL PANACEA VENTURES",
+      "category": "BAR"
     }
   ],
   "KOTTAYAM": [
     {
       "shop_code": "105001",
-      "shop_name": "5001-KARUKACHAL"
+      "shop_name": "5001-KARUKACHAL",
+      "category": "KSBC"
     },
     {
       "shop_code": "105003",
-      "shop_name": "5003-POONJAR"
+      "shop_name": "5003-POONJAR",
+      "category": "KSBC"
     },
     {
       "shop_code": "105004",
-      "shop_name": "5004-MANIMALA"
+      "shop_name": "5004-MANIMALA",
+      "category": "KSBC"
     },
     {
       "shop_code": "105009",
-      "shop_name": "5009-MUNDAKAYAM"
+      "shop_name": "5009-MUNDAKAYAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "105014",
-      "shop_name": "5014-KANJIRAPPALLY 2"
+      "shop_name": "5014-KANJIRAPPALLY 2",
+      "category": "KSBC"
     },
     {
       "shop_code": "105019",
-      "shop_name": "5019-PALLICKATHODU"
+      "shop_name": "5019-PALLICKATHODU",
+      "category": "KSBC"
     },
     {
       "shop_code": "105025",
-      "shop_name": "5025-UZHAVOOR"
+      "shop_name": "5025-UZHAVOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "105026",
-      "shop_name": "5026-PALAI"
+      "shop_name": "5026-PALAI",
+      "category": "KSBC"
     },
     {
       "shop_code": "105028",
-      "shop_name": "5028-RAMAPURAM"
+      "shop_name": "5028-RAMAPURAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "105029",
-      "shop_name": "5029-Kollappally"
+      "shop_name": "5029-Kollappally",
+      "category": "KSBC"
     },
     {
       "shop_code": "105030",
-      "shop_name": "5030-ERATTUPETTA"
+      "shop_name": "5030-ERATTUPETTA",
+      "category": "KSBC"
     },
     {
       "shop_code": "205007",
-      "shop_name": "FL1-5007  Ponkunnam"
+      "shop_name": "FL1-5007  Ponkunnam",
+      "category": "CFD"
     },
     {
       "shop_code": "205027",
-      "shop_name": "FL1-5027 PALA"
+      "shop_name": "FL1-5027 PALA",
+      "category": "CFD"
     },
     {
       "shop_code": "105008",
-      "shop_name": "5008-KANJIRAPALLY"
+      "shop_name": "5008-KANJIRAPALLY",
+      "category": "KSBC"
     },
     {
       "shop_code": "105002",
-      "shop_name": "5002- CHANGANASSERY"
+      "shop_name": "5002- CHANGANASSERY",
+      "category": "KSBC"
     },
     {
       "shop_code": "105011",
-      "shop_name": "5011-CHINGAVANAM"
+      "shop_name": "5011-CHINGAVANAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "105012",
-      "shop_name": "5012-OLD SHOP KOTTAYAM"
+      "shop_name": "5012-OLD SHOP KOTTAYAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "105013",
-      "shop_name": "5013-KODIMATHA"
+      "shop_name": "5013-KODIMATHA",
+      "category": "KSBC"
     },
     {
       "shop_code": "105015",
-      "shop_name": "5015-NAGAMPADOM"
+      "shop_name": "5015-NAGAMPADOM",
+      "category": "KSBC"
     },
     {
       "shop_code": "105017",
-      "shop_name": "5017-KUMARAKOM"
+      "shop_name": "5017-KUMARAKOM",
+      "category": "KSBC"
     },
     {
       "shop_code": "105020",
-      "shop_name": "5020-GANDHINAGAR"
+      "shop_name": "5020-GANDHINAGAR",
+      "category": "KSBC"
     },
     {
       "shop_code": "105021",
-      "shop_name": "5021-OLD BOAT JETTY"
+      "shop_name": "5021-OLD BOAT JETTY",
+      "category": "KSBC"
     },
     {
       "shop_code": "105023",
-      "shop_name": "5023-KURAVALANGAD"
+      "shop_name": "5023-KURAVALANGAD",
+      "category": "KSBC"
     },
     {
       "shop_code": "105032",
-      "shop_name": "5032-PERUVA"
+      "shop_name": "5032-PERUVA",
+      "category": "KSBC"
     },
     {
       "shop_code": "105033",
-      "shop_name": "5033-ADITHYAPURAM"
+      "shop_name": "5033-ADITHYAPURAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "105034",
-      "shop_name": "5034-THALAYOLAPARAMBU"
+      "shop_name": "5034-THALAYOLAPARAMBU",
+      "category": "KSBC"
     },
     {
       "shop_code": "205022",
-      "shop_name": "FL1-5022 Ettumanoor"
+      "shop_name": "FL1-5022 Ettumanoor",
+      "category": "CFD"
     },
     {
       "shop_code": "205016",
-      "shop_name": "FL1- 5016 ELAMPUNKAL"
+      "shop_name": "FL1- 5016 ELAMPUNKAL",
+      "category": "CFD"
     },
     {
       "shop_code": "105031",
-      "shop_name": "5031-VAIKKOM"
+      "shop_name": "5031-VAIKKOM",
+      "category": "KSBC"
     }
   ],
   "KOZHIKODE": [
     {
       "shop_code": "111001",
-      "shop_name": "11001-KOTTAKADAVU"
+      "shop_name": "11001-KOTTAKADAVU",
+      "category": "KSBC"
     },
     {
       "shop_code": "111002",
-      "shop_name": "11002-RAMANATTUKARA"
+      "shop_name": "11002-RAMANATTUKARA",
+      "category": "KSBC"
     },
     {
       "shop_code": "111003",
-      "shop_name": "11003-THANEERPANTHAL"
+      "shop_name": "11003-THANEERPANTHAL",
+      "category": "KSBC"
     },
     {
       "shop_code": "211005",
-      "shop_name": "CONSUMERFED, KOZHIKODE"
+      "shop_name": "CONSUMERFED, KOZHIKODE",
+      "category": "CFD"
     },
     {
       "shop_code": "111006",
-      "shop_name": "11006-KARIKKAMKULAM"
+      "shop_name": "11006-KARIKKAMKULAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "111008",
-      "shop_name": "11008-YMCA PAVAMANY"
+      "shop_name": "11008-YMCA PAVAMANY",
+      "category": "KSBC"
     },
     {
       "shop_code": "111009",
-      "shop_name": "11009-Arappuzha Old Kallayi"
+      "shop_name": "11009-Arappuzha Old Kallayi",
+      "category": "KSBC"
     },
     {
       "shop_code": "111011",
-      "shop_name": "11011-BYPASS PAVAMANY"
+      "shop_name": "11011-BYPASS PAVAMANY",
+      "category": "KSBC"
     },
     {
       "shop_code": "111012",
-      "shop_name": "11012-MINI BYPASS"
+      "shop_name": "11012-MINI BYPASS",
+      "category": "KSBC"
     },
     {
       "shop_code": "411016",
-      "shop_name": "HOTEL SASTHAPURI"
+      "shop_name": "HOTEL SASTHAPURI",
+      "category": "BAR"
     },
     {
       "shop_code": "nan",
-      "shop_name": "J K PARK RESIDENCY PUTHIYATHERU"
+      "shop_name": "J K PARK RESIDENCY PUTHIYATHERU",
+      "category": "BAR"
     },
     {
       "shop_code": "411048",
-      "shop_name": "HOTEL BEYFORT"
+      "shop_name": "HOTEL BEYFORT",
+      "category": "BAR"
     },
     {
       "shop_code": "411006",
-      "shop_name": "HOTEL DE GRAND MALABAR PVT LTD"
+      "shop_name": "HOTEL DE GRAND MALABAR PVT LTD",
+      "category": "BAR"
     },
     {
       "shop_code": "411005",
-      "shop_name": "HOTEL MALAYORAM GATEWAY PVT LTD"
+      "shop_name": "HOTEL MALAYORAM GATEWAY PVT LTD",
+      "category": "BAR"
     },
     {
       "shop_code": "411002",
-      "shop_name": "HOTEL MERIYA"
+      "shop_name": "HOTEL MERIYA",
+      "category": "BAR"
     },
     {
       "shop_code": "411030",
-      "shop_name": "SEAQUEEN HOTEL"
+      "shop_name": "SEAQUEEN HOTEL",
+      "category": "BAR"
     },
     {
       "shop_code": "111013",
-      "shop_name": "11013-THIRUVAMBADI"
+      "shop_name": "11013-THIRUVAMBADI",
+      "category": "KSBC"
     },
     {
       "shop_code": "111014",
-      "shop_name": "11014-MUKKAM"
+      "shop_name": "11014-MUKKAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "111015",
-      "shop_name": "11015-THAMARASSERY (NARIKKUNI)"
+      "shop_name": "11015-THAMARASSERY (NARIKKUNI)",
+      "category": "KSBC"
     },
     {
       "shop_code": "111017",
-      "shop_name": "11017-PAYYOLI"
+      "shop_name": "11017-PAYYOLI",
+      "category": "KSBC"
     },
     {
       "shop_code": "111019",
-      "shop_name": "11019-PERAMBRA"
+      "shop_name": "11019-PERAMBRA",
+      "category": "KSBC"
     },
     {
       "shop_code": "111020",
-      "shop_name": "11020-VADAKARA"
+      "shop_name": "11020-VADAKARA",
+      "category": "KSBC"
     },
     {
       "shop_code": "211021",
-      "shop_name": "CONSUMERFED THOTILPALAM"
+      "shop_name": "CONSUMERFED THOTILPALAM",
+      "category": "CFD"
     },
     {
       "shop_code": "211016",
-      "shop_name": "CONSUMERFED KOYILANDI"
+      "shop_name": "CONSUMERFED KOYILANDI",
+      "category": "CFD"
     },
     {
       "shop_code": "211018",
-      "shop_name": "FL1-11018 Balussery"
+      "shop_name": "FL1-11018 Balussery",
+      "category": "CFD"
     },
     {
       "shop_code": "411022",
-      "shop_name": "GAYATHRI HOTELS"
+      "shop_name": "GAYATHRI HOTELS",
+      "category": "BAR"
     },
     {
       "shop_code": "411027",
-      "shop_name": "HOTEL THEERTHA INTERNATIONAL"
+      "shop_name": "HOTEL THEERTHA INTERNATIONAL",
+      "category": "BAR"
     },
     {
       "shop_code": "411031",
-      "shop_name": "KALYAN RESIDENCY"
+      "shop_name": "KALYAN RESIDENCY",
+      "category": "BAR"
     },
     {
       "shop_code": "411011",
-      "shop_name": "QUEENS TOURIST HOME VADAKARA"
+      "shop_name": "QUEENS TOURIST HOME VADAKARA",
+      "category": "BAR"
     },
     {
       "shop_code": "411049",
-      "shop_name": "HOTEL INDRAPRASTHA"
+      "shop_name": "HOTEL INDRAPRASTHA",
+      "category": "BAR"
     },
     {
       "shop_code": "411038",
-      "shop_name": "MAVOOR REGENCY"
+      "shop_name": "MAVOOR REGENCY",
+      "category": "BAR"
     },
     {
       "shop_code": "410029",
-      "shop_name": "Luxora Hotel And Spa, Corniche Hospitality P Ltd"
+      "shop_name": "Luxora Hotel And Spa, Corniche Hospitality P Ltd",
+      "category": "BAR"
     },
     {
       "shop_code": "112001",
-      "shop_name": "12001-VYTHIRI"
+      "shop_name": "12001-VYTHIRI",
+      "category": "KSBC"
     },
     {
       "shop_code": "112005",
-      "shop_name": "12005-BEENACHI"
+      "shop_name": "12005-BEENACHI",
+      "category": "KSBC"
     },
     {
       "shop_code": "112007",
-      "shop_name": "12007-PULPALLY"
+      "shop_name": "12007-PULPALLY",
+      "category": "KSBC"
     },
     {
       "shop_code": "112008",
-      "shop_name": "12008-AMBALAWAYAL"
+      "shop_name": "12008-AMBALAWAYAL",
+      "category": "KSBC"
     },
     {
       "shop_code": "112009",
-      "shop_name": "12009-MANANTHAVADI"
+      "shop_name": "12009-MANANTHAVADI",
+      "category": "KSBC"
     },
     {
       "shop_code": "112010",
-      "shop_name": "12010-CHEAPAD"
+      "shop_name": "12010-CHEAPAD",
+      "category": "KSBC"
     },
     {
       "shop_code": "112011",
-      "shop_name": "12011-PANAMARAM"
+      "shop_name": "12011-PANAMARAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "212002",
-      "shop_name": "Fl 1 12002 Meppady"
+      "shop_name": "Fl 1 12002 Meppady",
+      "category": "CFD"
     },
     {
       "shop_code": "112003",
-      "shop_name": "12003-PADINHARATHARA (KAVUMMANNAM)"
+      "shop_name": "12003-PADINHARATHARA (KAVUMMANNAM)",
+      "category": "KSBC"
     }
   ],
   "NEDUMANGAD": [
     {
       "shop_code": "101001",
-      "shop_name": "1001-PARASSALA"
+      "shop_name": "1001-PARASSALA",
+      "category": "KSBC"
     },
     {
       "shop_code": "101002",
-      "shop_name": "1002-PAZHAYA UCHAKKADA"
+      "shop_name": "1002-PAZHAYA UCHAKKADA",
+      "category": "KSBC"
     },
     {
       "shop_code": "101003",
-      "shop_name": "1003-VELLARADA"
+      "shop_name": "1003-VELLARADA",
+      "category": "KSBC"
     },
     {
       "shop_code": "101005",
-      "shop_name": "1005-NEYYATTINKARA"
+      "shop_name": "1005-NEYYATTINKARA",
+      "category": "KSBC"
     },
     {
       "shop_code": "101006",
-      "shop_name": "1006-MUKKOLA"
+      "shop_name": "1006-MUKKOLA",
+      "category": "KSBC"
     },
     {
       "shop_code": "101007",
-      "shop_name": "1007-BALARAMAPURAM"
+      "shop_name": "1007-BALARAMAPURAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "101008",
-      "shop_name": "1008-THIRUPURAM"
+      "shop_name": "1008-THIRUPURAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "101009",
-      "shop_name": "1009-KATTAKKADA"
+      "shop_name": "1009-KATTAKKADA",
+      "category": "KSBC"
     },
     {
       "shop_code": "101010",
-      "shop_name": "1010-MALAYINKEEZHU"
+      "shop_name": "1010-MALAYINKEEZHU",
+      "category": "KSBC"
     },
     {
       "shop_code": "101021",
-      "shop_name": "1021-CHAPATH VIZHINJAM"
+      "shop_name": "1021-CHAPATH VIZHINJAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "101045",
-      "shop_name": "1045-GRAMAM"
+      "shop_name": "1045-GRAMAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "401015",
-      "shop_name": "HOTEL PORT PALACE"
+      "shop_name": "HOTEL PORT PALACE",
+      "category": "BAR"
     },
     {
       "shop_code": "101018",
-      "shop_name": "1018-NETTAYAM MUKKOLA"
+      "shop_name": "1018-NETTAYAM MUKKOLA",
+      "category": "KSBC"
     },
     {
       "shop_code": "101020",
-      "shop_name": "1020-AMBALAMUKKU"
+      "shop_name": "1020-AMBALAMUKKU",
+      "category": "KSBC"
     },
     {
       "shop_code": "101030",
-      "shop_name": "1030-NEDUMANGAD"
+      "shop_name": "1030-NEDUMANGAD",
+      "category": "KSBC"
     },
     {
       "shop_code": "101031",
-      "shop_name": "1031 VATTAPPARA"
+      "shop_name": "1031 VATTAPPARA",
+      "category": "KSBC"
     },
     {
       "shop_code": "101032",
-      "shop_name": "1032-VITHURA"
+      "shop_name": "1032-VITHURA",
+      "category": "KSBC"
     },
     {
       "shop_code": "101036",
-      "shop_name": "1036-PANDIYAPARA"
+      "shop_name": "1036-PANDIYAPARA",
+      "category": "KSBC"
     },
     {
       "shop_code": "101037",
-      "shop_name": "1037-ARYANAD"
+      "shop_name": "1037-ARYANAD",
+      "category": "KSBC"
     },
     {
       "shop_code": "201014",
-      "shop_name": "FL 1014 STATUE"
+      "shop_name": "FL 1014 STATUE",
+      "category": "CFD"
     },
     {
       "shop_code": "201016",
-      "shop_name": "FL 1016 OVERBRIDGE"
+      "shop_name": "FL 1016 OVERBRIDGE",
+      "category": "CFD"
     },
     {
       "shop_code": "201019",
-      "shop_name": "FL-1/1019 AMBOORI"
+      "shop_name": "FL-1/1019 AMBOORI",
+      "category": "CFD"
     },
     {
       "shop_code": "201012",
-      "shop_name": "FL1-1012 PEROORKADA"
+      "shop_name": "FL1-1012 PEROORKADA",
+      "category": "CFD"
     },
     {
       "shop_code": "201033",
-      "shop_name": "FL1-1033 VENJARAMOODU"
+      "shop_name": "FL1-1033 VENJARAMOODU",
+      "category": "CFD"
     },
     {
       "shop_code": "401020",
-      "shop_name": "AMALAS RESIDENCY"
+      "shop_name": "AMALAS RESIDENCY",
+      "category": "BAR"
     },
     {
       "shop_code": "401064",
-      "shop_name": "PATTOM ROYAL"
+      "shop_name": "PATTOM ROYAL",
+      "category": "BAR"
     },
     {
       "shop_code": "401010",
-      "shop_name": "Hotel New Indraprastha"
+      "shop_name": "Hotel New Indraprastha",
+      "category": "BAR"
     }
   ],
   "PALAKKAD": [
     {
       "shop_code": "109001",
-      "shop_name": "9001-KOLLENGODE"
+      "shop_name": "9001-KOLLENGODE",
+      "category": "KSBC"
     },
     {
       "shop_code": "109004",
-      "shop_name": "9004-KODUVAYOOR (CHITTUR)"
+      "shop_name": "9004-KODUVAYOOR (CHITTUR)",
+      "category": "KSBC"
     },
     {
       "shop_code": "109005",
-      "shop_name": "9005 - Nenmara (Meenakshipuram)"
+      "shop_name": "9005 - Nenmara (Meenakshipuram)",
+      "category": "KSBC"
     },
     {
       "shop_code": "109014",
-      "shop_name": "9014-THANAVU"
+      "shop_name": "9014-THANAVU",
+      "category": "KSBC"
     },
     {
       "shop_code": "109015",
-      "shop_name": "9015-PARAPIRIV KANJIKODE"
+      "shop_name": "9015-PARAPIRIV KANJIKODE",
+      "category": "KSBC"
     },
     {
       "shop_code": "109025",
-      "shop_name": "9025-Alathur"
+      "shop_name": "9025-Alathur",
+      "category": "KSBC"
     },
     {
       "shop_code": "109026",
-      "shop_name": "9026-Vadakkancheri"
+      "shop_name": "9026-Vadakkancheri",
+      "category": "KSBC"
     },
     {
       "shop_code": "109027",
-      "shop_name": "9027-MUDAPALLUR"
+      "shop_name": "9027-MUDAPALLUR",
+      "category": "KSBC"
     },
     {
       "shop_code": "109028",
-      "shop_name": "9028-THENKURISSY"
+      "shop_name": "9028-THENKURISSY",
+      "category": "KSBC"
     },
     {
       "shop_code": "109031",
-      "shop_name": "9031-MENONPARA"
+      "shop_name": "9031-MENONPARA",
+      "category": "KSBC"
     },
     {
       "shop_code": "209002",
-      "shop_name": "CONSUMERFED KOZHINJAMPARA (FL1 09002)"
+      "shop_name": "CONSUMERFED KOZHINJAMPARA (FL1 09002)",
+      "category": "CFD"
     },
     {
       "shop_code": "109003",
-      "shop_name": "9003-KOLLENGODE(VANDITHAVALAM)"
+      "shop_name": "9003-KOLLENGODE(VANDITHAVALAM)",
+      "category": "KSBC"
     },
     {
       "shop_code": "409003",
-      "shop_name": "HOTEL GOPALAPURAM INTERNATIONAL"
+      "shop_name": "HOTEL GOPALAPURAM INTERNATIONAL",
+      "category": "BAR"
     },
     {
       "shop_code": "109006",
-      "shop_name": "9006-OLD SHOP PALAKKAD"
+      "shop_name": "9006-OLD SHOP PALAKKAD",
+      "category": "KSBC"
     },
     {
       "shop_code": "109007",
-      "shop_name": "9007-FORT MAIDAN"
+      "shop_name": "9007-FORT MAIDAN",
+      "category": "KSBC"
     },
     {
       "shop_code": "109008",
-      "shop_name": "9008-KANNADI"
+      "shop_name": "9008-KANNADI",
+      "category": "KSBC"
     },
     {
       "shop_code": "109013",
-      "shop_name": "9013-MAGALAM TOWERS PALAKKAD"
+      "shop_name": "9013-MAGALAM TOWERS PALAKKAD",
+      "category": "KSBC"
     },
     {
       "shop_code": "109016",
-      "shop_name": "9016-KONGAD"
+      "shop_name": "9016-KONGAD",
+      "category": "KSBC"
     },
     {
       "shop_code": "109017",
-      "shop_name": "9017-PATHIRIPALA"
+      "shop_name": "9017-PATHIRIPALA",
+      "category": "KSBC"
     },
     {
       "shop_code": "109019",
-      "shop_name": "9019-KULAPPULLY"
+      "shop_name": "9019-KULAPPULLY",
+      "category": "KSBC"
     },
     {
       "shop_code": "109023",
-      "shop_name": "9023-SREE KRISHNAPURAM"
+      "shop_name": "9023-SREE KRISHNAPURAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "109030",
-      "shop_name": "9030-KANJIRAM"
+      "shop_name": "9030-KANJIRAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "209011",
-      "shop_name": "FL-1 9011 CONSUMERFED,PALAKKAD KSRTC"
+      "shop_name": "FL-1 9011 CONSUMERFED,PALAKKAD KSRTC",
+      "category": "CFD"
     },
     {
       "shop_code": "209012",
-      "shop_name": "FL-1 9012 CONSUMERFED, KAPPLIPPARA"
+      "shop_name": "FL-1 9012 CONSUMERFED, KAPPLIPPARA",
+      "category": "CFD"
     },
     {
       "shop_code": "209018",
-      "shop_name": "FL-1 9018 CONSUMERFED, OTTAPALAM"
+      "shop_name": "FL-1 9018 CONSUMERFED, OTTAPALAM",
+      "category": "CFD"
     },
     {
       "shop_code": "409025",
-      "shop_name": "HOTEL KAIRALI"
+      "shop_name": "HOTEL KAIRALI",
+      "category": "BAR"
     }
   ],
   "PATHANAMTHITTA": [
     {
       "shop_code": "103001",
-      "shop_name": "3001-PATHANAMTHITTA OLD SHOP"
+      "shop_name": "3001-PATHANAMTHITTA OLD SHOP",
+      "category": "KSBC"
     },
     {
       "shop_code": "103003",
-      "shop_name": "3003-VETTIPURAM KANNANKARA"
+      "shop_name": "3003-VETTIPURAM KANNANKARA",
+      "category": "KSBC"
     },
     {
       "shop_code": "103005",
-      "shop_name": "3005-PANIL"
+      "shop_name": "3005-PANIL",
+      "category": "KSBC"
     },
     {
       "shop_code": "103006",
-      "shop_name": "3006-KIDANGANOOR"
+      "shop_name": "3006-KIDANGANOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "103007",
-      "shop_name": "3007-KOODAL"
+      "shop_name": "3007-KOODAL",
+      "category": "KSBC"
     },
     {
       "shop_code": "103008",
-      "shop_name": "3008-RANNI"
+      "shop_name": "3008-RANNI",
+      "category": "KSBC"
     },
     {
       "shop_code": "103009",
-      "shop_name": "3009-CHITTAR"
+      "shop_name": "3009-CHITTAR",
+      "category": "KSBC"
     },
     {
       "shop_code": "103010",
-      "shop_name": "3010-PERINADU"
+      "shop_name": "3010-PERINADU",
+      "category": "KSBC"
     },
     {
       "shop_code": "103014",
-      "shop_name": "3014-ADOOR"
+      "shop_name": "3014-ADOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "103015",
-      "shop_name": "3015-MUDIYOORKANAM KUNNU KUZHI"
+      "shop_name": "3015-MUDIYOORKANAM KUNNU KUZHI",
+      "category": "KSBC"
     },
     {
       "shop_code": "103016",
-      "shop_name": "3016-KODUMON"
+      "shop_name": "3016-KODUMON",
+      "category": "KSBC"
     },
     {
       "shop_code": "203002",
-      "shop_name": "FL1-3002-Pathanamthitta"
+      "shop_name": "FL1-3002-Pathanamthitta",
+      "category": "CFD"
     },
     {
       "shop_code": "403010",
-      "shop_name": "HOTEL CENTRAL PARK"
+      "shop_name": "HOTEL CENTRAL PARK",
+      "category": "BAR"
     },
     {
       "shop_code": "103011",
-      "shop_name": "3011-MALLAPPALLY"
+      "shop_name": "3011-MALLAPPALLY",
+      "category": "KSBC"
     },
     {
       "shop_code": "103012",
-      "shop_name": "3012-THIRUVALLA"
+      "shop_name": "3012-THIRUVALLA",
+      "category": "KSBC"
     },
     {
       "shop_code": "103013",
-      "shop_name": "3013-VALANJAVATTOM"
+      "shop_name": "3013-VALANJAVATTOM",
+      "category": "KSBC"
     },
     {
       "shop_code": "103017",
-      "shop_name": "3017-ERAVIPERUR"
+      "shop_name": "3017-ERAVIPERUR",
+      "category": "KSBC"
     },
     {
       "shop_code": "104017",
-      "shop_name": "4017-CHENGANNOOR"
+      "shop_name": "4017-CHENGANNOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "104018",
-      "shop_name": "4018-PALACHUVADU"
+      "shop_name": "4018-PALACHUVADU",
+      "category": "KSBC"
     },
     {
       "shop_code": "104019",
-      "shop_name": "4019-KODUKULANJI"
+      "shop_name": "4019-KODUKULANJI",
+      "category": "KSBC"
     },
     {
       "shop_code": "104021",
-      "shop_name": "4021--KATTANAM"
+      "shop_name": "4021--KATTANAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "104022",
-      "shop_name": "4022-EDAPPON"
+      "shop_name": "4022-EDAPPON",
+      "category": "KSBC"
     },
     {
       "shop_code": "102019",
-      "shop_name": "2019-VAVVAKKAVU"
+      "shop_name": "2019-VAVVAKKAVU",
+      "category": "KSBC"
     }
   ],
   "PERINTHALMANNA": [
     {
       "shop_code": "110001",
-      "shop_name": "10001-PONNANI"
+      "shop_name": "10001-PONNANI",
+      "category": "KSBC"
     },
     {
       "shop_code": "110002",
-      "shop_name": "10002-KUTTIPPALA EDAPPAL"
+      "shop_name": "10002-KUTTIPPALA EDAPPAL",
+      "category": "KSBC"
     },
     {
       "shop_code": "110003",
-      "shop_name": "10003-TIRUR"
+      "shop_name": "10003-TIRUR",
+      "category": "KSBC"
     },
     {
       "shop_code": "110004",
-      "shop_name": "10004-PARAPPANANGADI"
+      "shop_name": "10004-PARAPPANANGADI",
+      "category": "KSBC"
     },
     {
       "shop_code": "110006",
-      "shop_name": "10006-PERINTHALMANNA"
+      "shop_name": "10006-PERINTHALMANNA",
+      "category": "KSBC"
     },
     {
       "shop_code": "110008",
-      "shop_name": "10008-MALAPPURAM"
+      "shop_name": "10008-MALAPPURAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "110010",
-      "shop_name": "10010-MANJERI"
+      "shop_name": "10010-MANJERI",
+      "category": "KSBC"
     },
     {
       "shop_code": "110011",
-      "shop_name": "10011-Wandoor"
+      "shop_name": "10011-Wandoor",
+      "category": "KSBC"
     },
     {
       "shop_code": "110012",
-      "shop_name": "10012-NILAMBUR"
+      "shop_name": "10012-NILAMBUR",
+      "category": "KSBC"
     },
     {
       "shop_code": "110013",
-      "shop_name": "10013-EDAKKARA"
+      "shop_name": "10013-EDAKKARA",
+      "category": "KSBC"
     },
     {
       "shop_code": "109021",
-      "shop_name": "9021-KOPPAM PATTAMBI"
+      "shop_name": "9021-KOPPAM PATTAMBI",
+      "category": "KSBC"
     },
     {
       "shop_code": "109022",
-      "shop_name": "9022-CHERPULASSERY"
+      "shop_name": "9022-CHERPULASSERY",
+      "category": "KSBC"
     },
     {
       "shop_code": "109024",
-      "shop_name": "9024-THRITHALA"
+      "shop_name": "9024-THRITHALA",
+      "category": "KSBC"
     },
     {
       "shop_code": "109029",
-      "shop_name": "9029-MANNARKKADU"
+      "shop_name": "9029-MANNARKKADU",
+      "category": "KSBC"
     },
     {
       "shop_code": "210007",
-      "shop_name": "FL1-10007-MALAPPURAM"
+      "shop_name": "FL1-10007-MALAPPURAM",
+      "category": "CFD"
     },
     {
       "shop_code": "nan",
-      "shop_name": "J K PARK RESIDENCY PUTHIYATHERU"
+      "shop_name": "J K PARK RESIDENCY PUTHIYATHERU",
+      "category": "BAR"
     },
     {
       "shop_code": "410034",
-      "shop_name": "Le Moshe Inn (A Unit of Neelambary)"
+      "shop_name": "Le Moshe Inn (A Unit of Neelambary)",
+      "category": "BAR"
     },
     {
       "shop_code": "410031",
-      "shop_name": "Hotel Deepa Restaurant"
+      "shop_name": "Hotel Deepa Restaurant",
+      "category": "BAR"
     },
     {
       "shop_code": "410006",
-      "shop_name": "Hotel Samrat And Tourist Home"
+      "shop_name": "Hotel Samrat And Tourist Home",
+      "category": "BAR"
     },
     {
       "shop_code": "410036",
-      "shop_name": "VALLUVANAD RESIDENCY"
+      "shop_name": "VALLUVANAD RESIDENCY",
+      "category": "BAR"
     },
     {
       "shop_code": "410023",
-      "shop_name": "Hotel Saayooj"
+      "shop_name": "Hotel Saayooj",
+      "category": "BAR"
     },
     {
       "shop_code": "410017",
-      "shop_name": "Hotel Rydges Inn, Corniche Hospitality P Ltd"
+      "shop_name": "Hotel Rydges Inn, Corniche Hospitality P Ltd",
+      "category": "BAR"
     }
   ],
   "THODUPUZHA": [
     {
       "shop_code": "106001",
-      "shop_name": "6001-THODUPUZHA"
+      "shop_name": "6001-THODUPUZHA",
+      "category": "KSBC"
     },
     {
       "shop_code": "106002",
-      "shop_name": "6002-CHUNGAM"
+      "shop_name": "6002-CHUNGAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "106004",
-      "shop_name": "6004-KARIMANNOOR"
+      "shop_name": "6004-KARIMANNOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "106006",
-      "shop_name": "6006-MOOLAMATTOM"
+      "shop_name": "6006-MOOLAMATTOM",
+      "category": "KSBC"
     },
     {
       "shop_code": "106007",
-      "shop_name": "6007-THADIYAMPADU"
+      "shop_name": "6007-THADIYAMPADU",
+      "category": "KSBC"
     },
     {
       "shop_code": "106008",
-      "shop_name": "6008-KANJIKKUZHY"
+      "shop_name": "6008-KANJIKKUZHY",
+      "category": "KSBC"
     },
     {
       "shop_code": "106009",
-      "shop_name": "6009-MUNNAR"
+      "shop_name": "6009-MUNNAR",
+      "category": "KSBC"
     },
     {
       "shop_code": "106010",
-      "shop_name": "6010-MUNNAR"
+      "shop_name": "6010-MUNNAR",
+      "category": "KSBC"
     },
     {
       "shop_code": "106012",
-      "shop_name": "6012-KUNJITHANNY"
+      "shop_name": "6012-KUNJITHANNY",
+      "category": "KSBC"
     },
     {
       "shop_code": "106014",
-      "shop_name": "6014-VELLATHOOVAL"
+      "shop_name": "6014-VELLATHOOVAL",
+      "category": "KSBC"
     },
     {
       "shop_code": "106015",
-      "shop_name": "6015-MARAYOOR"
+      "shop_name": "6015-MARAYOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "106016",
-      "shop_name": "6016-RAJAKKAD"
+      "shop_name": "6016-RAJAKKAD",
+      "category": "KSBC"
     },
     {
       "shop_code": "106017",
-      "shop_name": "6017-THOOKKUPALAM"
+      "shop_name": "6017-THOOKKUPALAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "106018",
-      "shop_name": "6018-POOPPARA"
+      "shop_name": "6018-POOPPARA",
+      "category": "KSBC"
     },
     {
       "shop_code": "106019",
-      "shop_name": "6019-RAJAKUMARI"
+      "shop_name": "6019-RAJAKUMARI",
+      "category": "KSBC"
     },
     {
       "shop_code": "106020",
-      "shop_name": "6020-CHINNAKANAL"
+      "shop_name": "6020-CHINNAKANAL",
+      "category": "KSBC"
     },
     {
       "shop_code": "106021",
-      "shop_name": "6021-KATTAPPANA"
+      "shop_name": "6021-KATTAPPANA",
+      "category": "KSBC"
     },
     {
       "shop_code": "106022",
-      "shop_name": "6022-KOCHERA"
+      "shop_name": "6022-KOCHERA",
+      "category": "KSBC"
     },
     {
       "shop_code": "106027",
-      "shop_name": "6027-UPPUTHARA"
+      "shop_name": "6027-UPPUTHARA",
+      "category": "KSBC"
     },
     {
       "shop_code": "107052",
-      "shop_name": "7052-VAZHAKKULAM"
+      "shop_name": "7052-VAZHAKKULAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "406014",
-      "shop_name": "CITY RESIDENCY"
+      "shop_name": "CITY RESIDENCY",
+      "category": "BAR"
     },
     {
       "shop_code": "206003",
-      "shop_name": "FL1-6003-Thodupuzha"
+      "shop_name": "FL1-6003-Thodupuzha",
+      "category": "CFD"
     },
     {
       "shop_code": "206013",
-      "shop_name": "FL1-6013-Adimaly"
+      "shop_name": "FL1-6013-Adimaly",
+      "category": "CFD"
     },
     {
       "shop_code": "207046",
-      "shop_name": "FL1-7046-KOOTHATTUKULAM"
+      "shop_name": "FL1-7046-KOOTHATTUKULAM",
+      "category": "CFD"
     },
     {
       "shop_code": "406048",
-      "shop_name": "JOANCE REGENCY"
+      "shop_name": "JOANCE REGENCY",
+      "category": "BAR"
     },
     {
       "shop_code": "nan",
-      "shop_name": "J K PARK RESIDENCY PUTHIYATHERU"
+      "shop_name": "J K PARK RESIDENCY PUTHIYATHERU",
+      "category": "BAR"
     },
     {
       "shop_code": "406011",
-      "shop_name": "AMBADY TOURIST HOME"
+      "shop_name": "AMBADY TOURIST HOME",
+      "category": "BAR"
     },
     {
       "shop_code": "406020",
-      "shop_name": "Vrindavan Hotels"
+      "shop_name": "Vrindavan Hotels",
+      "category": "BAR"
     },
     {
       "shop_code": "106026",
-      "shop_name": "6026-VAGAMON"
+      "shop_name": "6026-VAGAMON",
+      "category": "KSBC"
     },
     {
       "shop_code": "106028",
-      "shop_name": "6028- PEERUMEDU 35TH MILE"
+      "shop_name": "6028- PEERUMEDU 35TH MILE",
+      "category": "KSBC"
     },
     {
       "shop_code": "106029",
-      "shop_name": "6029-VANDIPERIYAR"
+      "shop_name": "6029-VANDIPERIYAR",
+      "category": "KSBC"
     },
     {
       "shop_code": "106030",
-      "shop_name": "6030-KUMILY"
+      "shop_name": "6030-KUMILY",
+      "category": "KSBC"
     },
     {
       "shop_code": "206025",
-      "shop_name": "FL-6025 -AZHUTHA  PEERUMADE"
+      "shop_name": "FL-6025 -AZHUTHA  PEERUMADE",
+      "category": "CFD"
     }
   ],
   "THRISSUR": [
     {
       "shop_code": "108001",
-      "shop_name": "8001-PATTIKKAD"
+      "shop_name": "8001-PATTIKKAD",
+      "category": "KSBC"
     },
     {
       "shop_code": "108002",
-      "shop_name": "8002-PATTALAKUNNU"
+      "shop_name": "8002-PATTALAKUNNU",
+      "category": "KSBC"
     },
     {
       "shop_code": "108003",
-      "shop_name": "8003-PANCHIKKAL AYYANTHOLE"
+      "shop_name": "8003-PANCHIKKAL AYYANTHOLE",
+      "category": "KSBC"
     },
     {
       "shop_code": "108004",
-      "shop_name": "8004-MANNUTHY"
+      "shop_name": "8004-MANNUTHY",
+      "category": "KSBC"
     },
     {
       "shop_code": "108005",
-      "shop_name": "8005-SAKTHAN NAGAR"
+      "shop_name": "8005-SAKTHAN NAGAR",
+      "category": "KSBC"
     },
     {
       "shop_code": "108007",
-      "shop_name": "8007-KUTTANALLUR"
+      "shop_name": "8007-KUTTANALLUR",
+      "category": "KSBC"
     },
     {
       "shop_code": "108008",
-      "shop_name": "8008-ANTHIKKAD"
+      "shop_name": "8008-ANTHIKKAD",
+      "category": "KSBC"
     },
     {
       "shop_code": "108010",
-      "shop_name": "8010-MANORAMA JUNCTION"
+      "shop_name": "8010-MANORAMA JUNCTION",
+      "category": "KSBC"
     },
     {
       "shop_code": "108011",
-      "shop_name": "8011-VALLACHIRA"
+      "shop_name": "8011-VALLACHIRA",
+      "category": "KSBC"
     },
     {
       "shop_code": "108012",
-      "shop_name": "8012-KOORKANCHERY"
+      "shop_name": "8012-KOORKANCHERY",
+      "category": "KSBC"
     },
     {
       "shop_code": "108013",
-      "shop_name": "8013-MULANKUNNATHUKAU"
+      "shop_name": "8013-MULANKUNNATHUKAU",
+      "category": "KSBC"
     },
     {
       "shop_code": "108014",
-      "shop_name": "8014-Avanoor"
+      "shop_name": "8014-Avanoor",
+      "category": "KSBC"
     },
     {
       "shop_code": "108028",
-      "shop_name": "8028-THAIKKADU GURUVAYUR"
+      "shop_name": "8028-THAIKKADU GURUVAYUR",
+      "category": "KSBC"
     },
     {
       "shop_code": "108031",
-      "shop_name": "8031-MULLASSERY"
+      "shop_name": "8031-MULLASSERY",
+      "category": "KSBC"
     },
     {
       "shop_code": "208006",
-      "shop_name": "FL1-8006-THRISSUR"
+      "shop_name": "FL1-8006-THRISSUR",
+      "category": "CFD"
     },
     {
       "shop_code": "208025",
-      "shop_name": "FL1-8025-KUNNAMKULAM"
+      "shop_name": "FL1-8025-KUNNAMKULAM",
+      "category": "CFD"
     },
     {
       "shop_code": "208026",
-      "shop_name": "FL1-8026-WADAKKANCHERY"
+      "shop_name": "FL1-8026-WADAKKANCHERY",
+      "category": "CFD"
     },
     {
       "shop_code": "108017",
-      "shop_name": "8017-POKLAI"
+      "shop_name": "8017-POKLAI",
+      "category": "KSBC"
     },
     {
       "shop_code": "108018",
-      "shop_name": "8018-KODALI"
+      "shop_name": "8018-KODALI",
+      "category": "KSBC"
     },
     {
       "shop_code": "108019",
-      "shop_name": "8019-IRINJALAKKUDA"
+      "shop_name": "8019-IRINJALAKKUDA",
+      "category": "KSBC"
     },
     {
       "shop_code": "108020",
-      "shop_name": "8020-AMBALLUR"
+      "shop_name": "8020-AMBALLUR",
+      "category": "KSBC"
     },
     {
       "shop_code": "108021",
-      "shop_name": "8021-NEDUMBAL"
+      "shop_name": "8021-NEDUMBAL",
+      "category": "KSBC"
     },
     {
       "shop_code": "108022",
-      "shop_name": "8022-CHALAKUDY"
+      "shop_name": "8022-CHALAKUDY",
+      "category": "KSBC"
     },
     {
       "shop_code": "108023",
-      "shop_name": "8023-KORATTY"
+      "shop_name": "8023-KORATTY",
+      "category": "KSBC"
     },
     {
       "shop_code": "108024",
-      "shop_name": "8024-MALA"
+      "shop_name": "8024-MALA",
+      "category": "KSBC"
     },
     {
       "shop_code": "108030",
-      "shop_name": "8030-EDAMUTTOM"
+      "shop_name": "8030-EDAMUTTOM",
+      "category": "KSBC"
     },
     {
       "shop_code": "108032",
-      "shop_name": "8032-MELOOR"
+      "shop_name": "8032-MELOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "208016",
-      "shop_name": "FL1-8016-KODUNGALLUR"
+      "shop_name": "FL1-8016-KODUNGALLUR",
+      "category": "CFD"
     },
     {
       "shop_code": "408138",
-      "shop_name": "ABAAM THARAVADU(Unit of abaam Hospitality Pvt.Ltd)"
+      "shop_name": "ABAAM THARAVADU(Unit of abaam Hospitality Pvt.Ltd)",
+      "category": "BAR"
     }
   ],
   "TRIPUNITHURA": [
     {
       "shop_code": "107005",
-      "shop_name": "7005- (Edappally)-KADAVANTHRA"
+      "shop_name": "7005- (Edappally)-KADAVANTHRA",
+      "category": "KSBC"
     },
     {
       "shop_code": "107006",
-      "shop_name": "7006-KALOOR"
+      "shop_name": "7006-KALOOR",
+      "category": "KSBC"
     },
     {
       "shop_code": "107009",
-      "shop_name": "7009-RAVIPURAM"
+      "shop_name": "7009-RAVIPURAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "107013",
-      "shop_name": "7013-GANDHINAGAR"
+      "shop_name": "7013-GANDHINAGAR",
+      "category": "KSBC"
     },
     {
       "shop_code": "107015",
-      "shop_name": "7015-PADIVATTOM"
+      "shop_name": "7015-PADIVATTOM",
+      "category": "KSBC"
     },
     {
       "shop_code": "107022",
-      "shop_name": "7022-PANDIKUDY"
+      "shop_name": "7022-PANDIKUDY",
+      "category": "KSBC"
     },
     {
       "shop_code": "107026",
-      "shop_name": "7026-THOPPUMPADY"
+      "shop_name": "7026-THOPPUMPADY",
+      "category": "KSBC"
     },
     {
       "shop_code": "207003",
-      "shop_name": "FL1-7003 Gandhinagar"
+      "shop_name": "FL1-7003 Gandhinagar",
+      "category": "CFD"
     },
     {
       "shop_code": "107007",
-      "shop_name": "7007-Kadavanthra (Puthiyakavu)"
+      "shop_name": "7007-Kadavanthra (Puthiyakavu)",
+      "category": "KSBC"
     },
     {
       "shop_code": "107010",
-      "shop_name": "7010- HIGH COURT JN(VYTTILA)"
+      "shop_name": "7010- HIGH COURT JN(VYTTILA)",
+      "category": "KSBC"
     },
     {
       "shop_code": "107012",
-      "shop_name": "7012- LISSIE JN(MULANTHURUTHY)"
+      "shop_name": "7012- LISSIE JN(MULANTHURUTHY)",
+      "category": "KSBC"
     },
     {
       "shop_code": "107017",
-      "shop_name": "7017-Ravipuram (PALARIVATTOM)"
+      "shop_name": "7017-Ravipuram (PALARIVATTOM)",
+      "category": "KSBC"
     },
     {
       "shop_code": "107018",
-      "shop_name": "7018-IRUMPANAM"
+      "shop_name": "7018-IRUMPANAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "107023",
-      "shop_name": "7023-KARUVELIPADY"
+      "shop_name": "7023-KARUVELIPADY",
+      "category": "KSBC"
     },
     {
       "shop_code": "107024",
-      "shop_name": "7024-FORT KOCHI"
+      "shop_name": "7024-FORT KOCHI",
+      "category": "KSBC"
     },
     {
       "shop_code": "107025",
-      "shop_name": "7025-PALLURUTHI"
+      "shop_name": "7025-PALLURUTHI",
+      "category": "KSBC"
     },
     {
       "shop_code": "107047",
-      "shop_name": "7047-PIRAVAM"
+      "shop_name": "7047-PIRAVAM",
+      "category": "KSBC"
     },
     {
       "shop_code": "207021",
-      "shop_name": "FL1-7021 Thoppumpady (Kumbalangi)"
+      "shop_name": "FL1-7021 Thoppumpady (Kumbalangi)",
+      "category": "CFD"
     },
     {
       "shop_code": "207001",
-      "shop_name": "FL1-7001 BANERJI ROAD"
+      "shop_name": "FL1-7001 BANERJI ROAD",
+      "category": "CFD"
     },
     {
       "shop_code": "207002",
-      "shop_name": "FL1-7002 VYTTILA"
+      "shop_name": "FL1-7002 VYTTILA",
+      "category": "CFD"
     },
     {
       "shop_code": "207004",
-      "shop_name": "FL1-7004 KADAVANTHRA (THIRUVANKULAM)"
+      "shop_name": "FL1-7004 KADAVANTHRA (THIRUVANKULAM)",
+      "category": "CFD"
     },
     {
       "shop_code": "407174",
-      "shop_name": "Park Residency"
+      "shop_name": "Park Residency",
+      "category": "BAR"
     },
     {
       "shop_code": "407270",
-      "shop_name": "THE CLASSIK FORT HOTEL"
+      "shop_name": "THE CLASSIK FORT HOTEL",
+      "category": "BAR"
     },
     {
       "shop_code": "107020",
-      "shop_name": "7020-Poothotta"
+      "shop_name": "7020-Poothotta",
+      "category": "KSBC"
     }
   ]
 }

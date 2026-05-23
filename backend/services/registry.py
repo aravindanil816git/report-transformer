@@ -10,6 +10,7 @@ from services.reports.monthly_stock_sales import MonthlyStockSalesService
 from services.reports.daily_warehouse_offtake import DailyWarehouseOfftakeService
 from services.reports.combined_shopwise import CombinedShopwiseReportService
 from services.reports.cumulative_shopwise import CumulativeShopwiseReportService
+from services.reports.achieved_target import AchievedTargetReportService
 
 _registry = {
     "shopwise": ShopwiseReportService(),
@@ -26,6 +27,7 @@ _registry = {
     "combined_shopwise": CombinedShopwiseMultiReportService(),
     "combined_shopwise_multi": CombinedShopwiseMultiReportService(),
     "shop_sales_cumulative": CombinedShopwiseMultiReportService(),
+    "achieved_target": AchievedTargetReportService(),
 }
 
 def get_service(report_type):

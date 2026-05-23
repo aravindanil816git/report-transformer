@@ -16,9 +16,11 @@ export const listReports = () => api.get("/reports");
 export const deleteReport = (id) => api.delete(`/reports/${id}`);
 
 export const createReport = (name, type, extra = {}) => {
+  // Ultimate safety fallback for name to prevent FastAPI 422 crashes
+  const safeName = name && name.trim() !== "" ? name : `${type} Report`;
   const clean = Object.fromEntries(
     Object.entries({
-      name,
+      name: safeName,
       type,
       ...extra,
     }).filter(([_, v]) => v !== undefined && v !== null && v !== "")

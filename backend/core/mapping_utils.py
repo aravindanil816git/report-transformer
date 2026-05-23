@@ -7,9 +7,7 @@ CORE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Go up one level to the backend directory
 BACKEND_DIR = os.path.dirname(CORE_DIR)
 MAPPING_FILE_PATH = os.path.join(BACKEND_DIR, "mapping.json")
-WAREHOUSE_MAPPING_PATH = os.path.join(BACKEND_DIR, "warehouse_mapping.json")
 BOND_MAPPING_PATH = os.path.join(BACKEND_DIR, "bond_mapping.json")
-SHOPCODE_MAPPING_PATH = os.path.join(BACKEND_DIR, "shopcode_mapping.json")
 SHOPS_MASTER_PATH = os.path.join(BACKEND_DIR, "shops.json")
 WAREHOUSES_MASTER_PATH = os.path.join(BACKEND_DIR, "warehouses.json")
 BONDS_MASTER_PATH = os.path.join(BACKEND_DIR, "bonds.json")
@@ -135,63 +133,48 @@ def get_bond_mapping_data():
 
 @lru_cache(maxsize=1)
 def get_warehouse_mapping_data():
-    """Loads warehouse -> shops mapping with compatibility objects."""
-    data = _load_json(WAREHOUSE_MAPPING_PATH)
+    """Builds warehouse -> shops mapping dynamically from shops.json."""
     shop_master = get_shop_master_data()
     warehouse_master = get_warehouse_master_data()
-    if data:
-        warehouse_map = {}
-        for wh_name, shop_codes in data.items():
-            warehouse_map[wh_name] = {
-                "warehouse_code": warehouse_master.get(wh_name, {}).get("warehouse_code"),
-                "shops": [
-                    {
-                        "shop_code": code,
-                        "shop_name": shop_master.get(code, {}).get("shop_name")
-                    }
-                    for code in shop_codes
-                ]
-            }
-        return warehouse_map
 
-    raw = get_mapping_data()
     warehouse_map = {}
-    for bond_data in raw.get("bonds", {}).values():
-        for wh_name, wh_data in bond_data.get("warehouses", {}).items():
-            shops = []
-            for shop_code, shop_data in wh_data.get("shops", {}).items():
-                shops.append({
-                    "shop_code": str(shop_code),
-                    "shop_name": shop_data.get("shop_name"),
-                    "staffs": shop_data.get("staffs")
-                })
-            warehouse_map[wh_name] = {
-                "warehouse_code": wh_data.get("warehouse_code"),
-                "shops": shops
-            }
+    for wh_name, wh_data in warehouse_master.items():
+        warehouse_map[wh_name] = {
+            "warehouse_code": wh_data.get("warehouse_code"),
+            "shops": []
+        }
+        
+    for shop_code, shop_data in shop_master.items():
+        wh_name = shop_data.get("warehouse")
+        if wh_name:
+            if wh_name not in warehouse_map:
+                warehouse_map[wh_name] = {"warehouse_code": None, "shops": []}
+            warehouse_map[wh_name]["shops"].append({
+                "shop_code": str(shop_code),
+                "shop_name": shop_data.get("name", shop_data.get("shop_name", "Unknown"))
+            })
+            
+    # Fallback to legacy if shops.json hasn't been populated with warehouses yet
+    if not any(wh.get("shops") for wh in warehouse_map.values()):
+        raw = get_mapping_data()
+        for bond_data in raw.get("bonds", {}).values():
+            for wh_name, wh_data in bond_data.get("warehouses", {}).items():
+                shops = []
+                for shop_code, shop_data in wh_data.get("shops", {}).items():
+                    shops.append({
+                        "shop_code": str(shop_code),
+                        "shop_name": shop_data.get("shop_name"),
+                        "staffs": shop_data.get("staffs")
+                    })
+                if wh_name in warehouse_map:
+                    warehouse_map[wh_name]["shops"] = shops
+                else:
+                    warehouse_map[wh_name] = {
+                        "warehouse_code": wh_data.get("warehouse_code"),
+                        "shops": shops
+                    }
+
     return warehouse_map
-
-
-@lru_cache(maxsize=1)
-def get_shopcode_mapping_data():
-    """Loads bond -> shop name mapping."""
-    data = _load_json(SHOPCODE_MAPPING_PATH)
-    if data:
-        return data
-
-    bond_mapping = get_bond_mapping_data()
-    shop_master = get_shop_master_data()
-    shopcode_map = {}
-    for bond_name, bond_data in bond_mapping.items():
-        shopcode_map[bond_name] = [
-            {
-                "shop_code": code,
-                "shop_name": shop_master.get(code, {}).get("shop_name")
-            }
-            for code in bond_data.get("shops", [])
-        ]
-    return shopcode_map
-
 
 @lru_cache(maxsize=1)
 def get_shop_lookup_and_warehouse_to_bond():
@@ -305,3 +288,14 @@ def get_filters_from_mapping():
         "mapping": warehouse_to_shops_map,
         "bond_mapping": bond_to_warehouses_map
     }
+
+def clear_mapping_caches():
+    """Clears all LRU caches for mapping data to ensure fresh reads after updates."""
+    get_mapping_data.cache_clear()
+    get_shop_master_data.cache_clear()
+    get_warehouse_master_data.cache_clear()
+    get_bond_master_data.cache_clear()
+    get_bond_mapping_data.cache_clear()
+    get_warehouse_mapping_data.cache_clear()
+    get_shop_lookup_and_warehouse_to_bond.cache_clear()
+    get_shop_to_parent_maps.cache_clear()
