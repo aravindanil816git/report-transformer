@@ -103,12 +103,21 @@ class CumulativeWarehouseMatrixService(BaseReportService):
         # 🔍 Link with daily source data if missing from a primary sync
         from services.store import reports as all_reports
         
+        reports_list = list(all_reports.values())
+        
+        # Fallback to Supabase if the server restarted and memory is wiped
+        if not reports_list:
+            from services.db import supabase
+            res = supabase.table("reports").select("id, type, status, config, data").eq("type", "daily_warehouse_offtake").execute()
+            if res.data:
+                reports_list = res.data
+
         # Determine source report type based on the cumulative report being processed
         source_type = "daily_warehouse_offtake"
 
         # Build date-to-data map from the appropriate source
         source_data_map = {}
-        for r in all_reports.values():
+        for r in reports_list:
             if r.get("type") == source_type and r.get("status") in ["Processed", "Ready", "Uploaded"]:
                 rd = r.get("config", {}).get("date")
                 if rd and r.get("data"):
