@@ -1,17 +1,21 @@
 import { useEffect, useState } from "react";
-import { Table, Button } from "antd";
+import { Table, Button, Space, message } from "antd";
 import { useParams } from "react-router-dom";
-import { getReport } from "../../api";
+import { getReport, processReport } from "../../api";
 import { exportToExcel } from "../../utils/exportUtils";
 
 export default function MonthlyStockSales() {
   const { id } = useParams();
   const [data, setData] = useState([]);
 
-  useEffect(() => {
+  const loadData = () => {
     getReport(id).then((res) => {
       setData(res.data.data || []);
     });
+  };
+
+  useEffect(() => {
+    loadData();
   }, [id]);
 
   const totals = data.reduce(
@@ -64,11 +68,27 @@ export default function MonthlyStockSales() {
     );
   };
 
+  // ✅ REFRESH DATA
+  const handleRefresh = async () => {
+    try {
+      const hide = message.loading("Refreshing report data...", 0);
+      await processReport(id);
+      hide();
+      message.success("Report refreshed successfully!");
+      loadData();
+    } catch (error) {
+      message.error("Failed to refresh report");
+    }
+  };
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <h2>Monthly Stock Sales Report</h2>
-        <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
+        <Space>
+          <Button onClick={handleRefresh}>Refresh Data</Button>
+          <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
+        </Space>
       </div>
       <Table
         columns={columns}

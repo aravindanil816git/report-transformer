@@ -5,12 +5,13 @@ import dayjs from "dayjs";
 import { DeleteOutlined, EyeOutlined, DownloadOutlined } from "@ant-design/icons";
 import { REPORT_REGISTRY } from "../reports";
 import { listReports, createReport, deleteReport, processReport, getReport } from "../api";
-import DailySecondaryUploadModal from "./DailySecondaryUploadModal";
+import MultiWarehouseFileUpload from "./DailySecondaryUploadModal";
 import SingleFileUploadModal from "./SingleFileUploadModal";
 import { exportToExcel } from "../utils/exportUtils";
 
 const RAW_DATA_TYPES = [
   "daily_warehouse",
+  "warehouse_stock",
   "shopwise",
   "shop_sales_cumulative",
   "daily_warehouse_offtake",
@@ -22,18 +23,31 @@ function RawDataView({ type, onOpenCreate }) {
   const [current, setCurrent] = useState(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const navigate = useNavigate();
+  
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
+
+  const [loading, setLoading] = useState(false);
 
   const load = () => {
-    listReports().then((r) => {
-      const reports = r.data || [];
-      // Filter by type on the frontend since api.js doesn't support server-side filtering yet
-      setData(reports.filter((item) => item.type === type));
+    setLoading(true);
+    listReports({ type, skip: (currentPage - 1) * pageSize, limit: pageSize }).then((r) => {
+      const reports = r.data?.items || r.data || [];
+      setData(reports);
+      setTotal(r.data?.total || reports.length);
+    }).finally(() => {
+      setLoading(false);
     });
   };
+  
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [type]);
 
   useEffect(() => {
     load();
-  }, [type]);
+  }, [type, currentPage, pageSize]);
 
   const handleDelete = async (id) => {
     try {
@@ -57,7 +71,7 @@ function RawDataView({ type, onOpenCreate }) {
         return;
       }
       
-      exportToExcel(reportData, { "Report Name": report.name, "Type": REPORT_REGISTRY[report.type]?.label || report.type, "Date": dayjs().format("DD MMM YYYY") }, `${report.name || report.type}.xlsx`);
+      exportToExcel(reportData, { "Report Name": report.name, "Type": REPORT_REGISTRY[report.type]?.label || report.type.replace(/_/g, ' '), "Date": dayjs().format("DD MMM YYYY") }, `${report.name || report.type}.xlsx`);
     } catch (error) {
       message.error("Failed to download report");
     }
@@ -82,18 +96,22 @@ function RawDataView({ type, onOpenCreate }) {
         const isProcessed = r.status === "Processed" || r.status === "Ready";
 
         return (<Space direction="horizontal">
-          {config?.route && (
-            <Tooltip title={!isProcessed ? "Upload/Process report first to view" : ""}>
-              <Button
-                type="primary"
-                disabled={!isProcessed}
-                icon={<EyeOutlined />}
-                onClick={() => navigate(config.route.replace(":id", r.id))}
-              >
-                View
-              </Button>
-            </Tooltip>
-          )}
+          <Tooltip title={!isProcessed ? "Upload/Process report first to view" : ""}>
+            <Button
+              type="primary"
+              disabled={!isProcessed}
+              icon={<EyeOutlined />}
+              onClick={() => {
+                if (config?.route) {
+                  navigate(config.route.replace(":id", r.id));
+                } else {
+                  navigate(`/report/${r.type}/${r.id}`);
+                }
+              }}
+            >
+              View
+            </Button>
+          </Tooltip>
           <Tooltip title={!isProcessed ? "Upload/Process report first to download" : ""}>
             <Button
               disabled={!isProcessed}
@@ -129,9 +147,23 @@ function RawDataView({ type, onOpenCreate }) {
       <Button type="primary" onClick={() => onOpenCreate(type)} style={{ marginBottom: 16 }}>
         Add New Upload
       </Button>
-      <Table columns={columns} dataSource={data} rowKey="id" />
-      {uploadOpen && ["daily_secondary_sales", "daily_warehouse"].includes(current?.type) && (
-        <DailySecondaryUploadModal report={current} onClose={() => setUploadOpen(false)} reload={load} />
+      <Table 
+        columns={columns} 
+        dataSource={data} 
+        rowKey="id" 
+        loading={loading}
+        pagination={{
+          current: currentPage,
+          pageSize: pageSize,
+          total: total,
+          onChange: (page, size) => {
+            setCurrentPage(page);
+            setPageSize(size);
+          }
+        }}
+      />
+      {uploadOpen && ["daily_secondary_sales", "daily_warehouse", "warehouse_stock"].includes(current?.type) && (
+        <MultiWarehouseFileUpload report={current} onClose={() => setUploadOpen(false)} reload={load} />
       )}
       {uploadOpen && ["shopwise", "daily_warehouse_offtake", "shop_sales_cumulative"].includes(current?.type) && (
         <SingleFileUploadModal report={current} onClose={() => setUploadOpen(false)} reload={load} />
@@ -172,6 +204,8 @@ export default function RawDataUpload() {
     
     if (dateStr) {
       setName(`${label} - ${dateStr}`);
+    } else {
+      setName("");
     }
   }, [createType, reportDate, date1, date2]);
 
@@ -210,7 +244,7 @@ export default function RawDataUpload() {
     if (!createOpen) return null;
     return (
       <Modal
-        title={`Add New ${REPORT_REGISTRY[createType]?.label || 'Upload'}`}
+        title={`Add New ${REPORT_REGISTRY[createType]?.label || createType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`}
         open={createOpen}
         onOk={handleCreate}
         onCancel={() => setCreateOpen(false)}
@@ -220,7 +254,7 @@ export default function RawDataUpload() {
         <Form layout="vertical" style={{ marginTop: 20 }}>
           <Form.Item label="Name">
             <Input
-              placeholder="Enter name"
+              placeholder="Auto-generated on date selection"
               value={name}
               disabled
             />
@@ -278,8 +312,8 @@ export default function RawDataUpload() {
       window.location.reload(); // Simple way to ensure all data is fresh
     };
 
-    if (["daily_secondary_sales", "daily_warehouse"].includes(current.type)) {
-      return <DailySecondaryUploadModal report={current} onClose={() => setUploadOpen(false)} reload={refresh} />;
+    if (["daily_secondary_sales", "daily_warehouse", "warehouse_stock"].includes(current.type)) {
+      return <MultiWarehouseFileUpload report={current} onClose={() => setUploadOpen(false)} reload={refresh} />;
     }
     if (["shopwise", "daily_warehouse_offtake", "shop_sales_cumulative"].includes(current.type)) {
       return <SingleFileUploadModal report={current} onClose={() => setUploadOpen(false)} reload={refresh} />;
@@ -292,7 +326,7 @@ export default function RawDataUpload() {
       <div>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
           <Button onClick={() => setView(null)}>Back to Tiles</Button>
-          <h2 style={{ marginLeft: 16, marginBottom: 0 }}>{REPORT_REGISTRY[view]?.label} History</h2>
+          <h2 style={{ marginLeft: 16, marginBottom: 0 }}>{REPORT_REGISTRY[view]?.label || view.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} History</h2>
         </div>
         <RawDataView type={view} onOpenCreate={handleOpenCreate} />
         <CreateModal />
@@ -309,7 +343,7 @@ export default function RawDataUpload() {
         {RAW_DATA_TYPES.map((type) => (
           <Col span={8} key={type}>
             <Card>
-              <Card.Meta title={REPORT_REGISTRY[type].label} />
+              <Card.Meta title={REPORT_REGISTRY[type]?.label || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} />
               <Space style={{ marginTop: 16 }}>
                 <Button type="primary" onClick={() => handleOpenCreate(type)}>Upload</Button>
                 <Button onClick={() => setView(type)}>History</Button>

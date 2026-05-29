@@ -11,6 +11,7 @@ from services.reports.daily_warehouse_offtake import DailyWarehouseOfftakeServic
 from services.reports.combined_shopwise import CombinedShopwiseReportService
 from services.reports.cumulative_shopwise import CumulativeShopwiseReportService
 from services.reports.achieved_target import AchievedTargetReportService
+from services.reports.warehouse_stock import WarehouseStockService
 
 _registry = {
     "shopwise": ShopwiseReportService(),
@@ -28,6 +29,7 @@ _registry = {
     "combined_shopwise_multi": CombinedShopwiseMultiReportService(),
     "shop_sales_cumulative": CombinedShopwiseMultiReportService(),
     "achieved_target": AchievedTargetReportService(),
+    "warehouse_stock": WarehouseStockService(),
 }
 
 def get_service(report_type):

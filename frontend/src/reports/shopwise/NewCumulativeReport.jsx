@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Table, Button, Select, DatePicker, Space, Typography } from "antd";
+import { Table, Button, Select, DatePicker, Space, Typography, message } from "antd";
 
 const { Text } = Typography;
 import { useParams } from "react-router-dom";
-import { getReport } from "../../api";
+import { getReport, processReport } from "../../api";
 import dayjs from "dayjs";
 import { exportToExcel } from "../../utils/exportUtils";
 
@@ -26,20 +26,29 @@ export default function CumulativeShopwiseReport() {
   const [drilledBond, setDrilledBond] = useState(null);
 
   // 🔹 load
-  const load = async (startIdx = null, endIdx = null, selectedWarehouse = warehouseFilter, selectedBond = null, selectedMode = mode) => {
-    const res = await getReport(id, null, view, {
+  const load = async (startIdx = null, endIdx = null, selectedWarehouse = warehouseFilter, selectedBond = null, selectedMode = mode, d1 = null, d2 = null) => {
+    const params = {
       start_idx: startIdx,
       end_idx: endIdx,
       mode: selectedMode,
       warehouse: selectedWarehouse,
       bond: selectedBond
-    });
+    };
+    if (d1 && d2) {
+      params.start_date = d1;
+      params.end_date = d2;
+    }
+    const res = await getReport(id, null, view, params);
 
     const cleaned = (res.data.data || []).filter(d => d.warehouse);
 
     setData(cleaned);
     setLabels(res.data.labels || []);
     setConfig(res.data.config || {});
+
+    if (res.data.config?.date1 && res.data.config?.date2 && dateRange.length === 0) {
+      setDateRange([dayjs(res.data.config.date1), dayjs(res.data.config.date2)]);
+    }
 
     if (allLabels.length === 0) {
       setAllLabels(res.data.labels || []);
@@ -49,7 +58,7 @@ export default function CumulativeShopwiseReport() {
   // 🔥 retain filters on view switch
 useEffect(() => {
   applyFilters();
-}, [view, mode, drilledWarehouse, drilledBond]);
+}, [view, mode, drilledWarehouse, drilledBond, dateRange]);
 
   const labelToDate = (label) => dayjs(label.split(" ")[0], "DD-MMM");
 
@@ -60,30 +69,65 @@ useEffect(() => {
   };
 
   // 🔥 APPLY
-  const applyFilters = () => {
-    let startIdx = null;
-    let endIdx = null;
-
-    if (dateRange.length === 2) {
-      startIdx = getIndexFromDate(dateRange[0]);
-      endIdx = getIndexFromDate(dateRange[1]);
-    }
-
+  const applyFilters = async () => {
     let currentMode = mode;
     if (drilledWarehouse) currentMode = "shop";
     else if (drilledBond) currentMode = "shop";
 
-    load(startIdx, endIdx, drilledWarehouse || warehouseFilter, drilledBond, currentMode);
+    // 🛑 EARLY RETURN: Do not make the network call if dates are missing
+    if ((!dateRange || dateRange.length !== 2) && Object.keys(config).length > 0) {
+      message.warning("Please select a date range");
+      return;
+    }
+
+    if (dateRange && dateRange.length === 2) {
+      const d1 = dateRange[0].format("YYYY-MM-DD");
+      const d2 = dateRange[1].format("YYYY-MM-DD");
+      const hide = message.loading("Processing selected date range...", 0);
+      try {
+        await load(null, null, drilledWarehouse || warehouseFilter, drilledBond, currentMode, d1, d2);
+        hide();
+        message.success("Report updated successfully");
+      } catch (e) {
+        hide();
+        message.error("Failed to process date range");
+      }
+    } else {
+      load(null, null, drilledWarehouse || warehouseFilter, drilledBond, currentMode);
+    }
   };
 
   // 🔥 RESET
-  const resetFilters = () => {
+  const resetFilters = async () => {
     setWarehouseFilter(null);
     setDateRange([]);
     setDrilledWarehouse(null);
     setDrilledBond(null);
     setMode("warehouse");
-    load(null, null, null, null, "warehouse");
+    
+    const hide = message.loading("Resetting date range...", 0);
+    try {
+      await load(null, null, null, null, "warehouse", "RESET", "RESET");
+      hide();
+    } catch (e) {
+      hide();
+      message.error("Failed to reset filters");
+    }
+  };
+
+  const handleRefresh = async () => {
+    try {
+      const hide = message.loading("Refreshing report data...", 0);
+      await processReport(id);
+      hide();
+      message.success("Report refreshed successfully!");
+      let currentMode = mode;
+      if (drilledWarehouse) currentMode = "shop";
+      else if (drilledBond) currentMode = "shop";
+      load(null, null, drilledWarehouse || warehouseFilter, drilledBond, currentMode);
+    } catch (error) {
+      message.error("Failed to refresh report");
+    }
   };
 
   const filteredData = warehouseFilter
@@ -194,7 +238,10 @@ useEffect(() => {
     <div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2>Comparitive Shopsales</h2>
-        <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
+        <Space>
+          <Button onClick={handleRefresh}>Refresh Data</Button>
+          <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
+        </Space>
       </div>
 
       <div style={{ marginBottom: 16 }}>

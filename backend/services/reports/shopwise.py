@@ -20,6 +20,19 @@ class ShopwiseReportService(BaseReportService):
         code_col, name_col = self._detect_shop_cols(df)
         wh_col = self._detect_warehouse_col(df)
 
+        # Pre-detect data columns to keep only what's necessary
+        brand_col = find_column(df, ["brand"])
+        pack_col = find_column(df, ["pack"])
+        opening_cases = find_dynamic(df, ["opening", "case"], exclude=["info"])
+        opening_bottles = find_dynamic(df, ["opening", "bottle"], exclude=["info"])
+        in_cases = find_dynamic(df, ["receipt", "case"], exclude=["info"]) or find_dynamic(df, ["shop", "in", "case"], exclude=["info"]) or find_dynamic(df, ["inward", "case"], exclude=["info"]) or find_dynamic(df, ["in", "case"], exclude=["info"])
+        in_bottles = find_dynamic(df, ["receipt", "bottle"], exclude=["info"]) or find_dynamic(df, ["shop", "in", "bottle"], exclude=["info"]) or find_dynamic(df, ["inward", "bottle"], exclude=["info"]) or find_dynamic(df, ["in", "bottle"], exclude=["info"])
+        out_cases = find_dynamic(df, ["sales", "case"], exclude=["info"]) or find_dynamic(df, ["shop", "out", "case"], exclude=["info"]) or find_dynamic(df, ["outward", "case"], exclude=["info"]) or find_dynamic(df, ["out", "case"], exclude=["info"])
+        out_bottles = find_dynamic(df, ["sales", "bottle"], exclude=["info"]) or find_dynamic(df, ["shop", "out", "bottle"], exclude=["info"]) or find_dynamic(df, ["outward", "bottle"], exclude=["info"]) or find_dynamic(df, ["out", "bottle"], exclude=["info"])
+        closing_cases = find_dynamic(df, ["closing", "case"], exclude=["info"])
+        closing_bottles = find_dynamic(df, ["closing", "bottle"], exclude=["info"])
+        bottles_per_case = find_dynamic(df, ["bottle", "per", "case"], exclude=["info"]) or find_dynamic(df, ["bottles_per_case"], exclude=["info"])
+
         if code_col:
             shop_lookup, _ = get_shop_lookup_and_warehouse_to_bond()
             # Create standardized internal columns for reliability
@@ -44,7 +57,25 @@ class ShopwiseReportService(BaseReportService):
             # Remove bond info for this report type as per requirements
             df["bond_info"] = "N/A"
 
-        report["data"] = df.to_dict("records")
+        # Drop unneeded columns to prevent massive JSON payload and Cloudflare 520 timeouts
+        cols_to_keep = {
+            code_col, name_col, "shop_code_internal", "shop_name_internal",
+            wh_col, "warehouse_info", "bond_info", brand_col, pack_col,
+            opening_cases, opening_bottles, in_cases, in_bottles,
+            out_cases, out_bottles, closing_cases, closing_bottles, bottles_per_case
+        }
+        valid_cols = [c for c in cols_to_keep if c and c in df.columns]
+        df = df[valid_cols]
+
+        # Convert NaNs to None to ensure clean JSON serialization and reduce payload size
+        df = df.astype(object).where(pd.notna(df), None)
+
+        new_data = df.to_dict("records")
+        if "data" not in report or not report["data"]:
+            report["data"] = new_data
+        else:
+            report["data"].extend(new_data)
+
         report.setdefault("uploads", []).append({
             "file": file_name,
             "from": from_date,

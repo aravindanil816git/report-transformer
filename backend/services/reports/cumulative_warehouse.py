@@ -100,30 +100,46 @@ class CumulativeWarehouseMatrixService(BaseReportService):
 
         labels = self._generate_labels(start_date, num_days)
 
-        # 🔍 Link with Daily Warehouse Offtake data if missing
+        # 🔍 Link with daily source data if missing from a primary sync
         from services.store import reports as all_reports
         
-        # Build date to data map for daily warehouse offtake
-        daily_offtake_map = {}
+        # Determine source report type based on the cumulative report being processed
+        source_type = "daily_warehouse_offtake"
+
+        # Build date-to-data map from the appropriate source
+        source_data_map = {}
         for r in all_reports.values():
-            if r.get("type") == "daily_warehouse_offtake" and r.get("status") in ["Processed", "Ready", "Uploaded"]:
+            if r.get("type") == source_type and r.get("status") in ["Processed", "Ready", "Uploaded"]:
                 rd = r.get("config", {}).get("date")
                 if rd and r.get("data"):
-                    daily_offtake_map[rd] = r.get("data")
+                    source_data_map[rd] = r.get("data")
 
         final_map = {}
         shop_map = {} # For drilling
 
-        for idx, u in enumerate(uploads):
-            dt = u.get("date")
+        uploads_by_date = {u.get("date"): u for u in uploads if u.get("date")}
+        
+        from datetime import datetime, timedelta
+        try:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        except ValueError:
+            return
+
+        for i in range(num_days):
+            current_date_dt = start_dt + timedelta(days=i)
+            dt = current_date_dt.strftime("%Y-%m-%d")
+            label = labels[i]
+
+            u = uploads_by_date.get(dt, {})
             data = u.get("data")
             
             # Auto-link if data is missing but available in daily reports
-            if not data and dt in daily_offtake_map:
-                data = daily_offtake_map[dt]
-                u["status"] = "uploaded"
-                u["file"] = "Auto-linked from Daily Warehouse Offtake"
-                u["data"] = data
+            if not data and dt in source_data_map:
+                data = source_data_map[dt]
+                if u:
+                    u["status"] = "uploaded"
+                    u["file"] = f"Auto-linked from {source_type.replace('_', ' ').title()}"
+                    u["data"] = data
 
             if not data:
                 continue
@@ -135,8 +151,6 @@ class CumulativeWarehouseMatrixService(BaseReportService):
             df_calc = self._compute(df)
             if df_calc.empty:
                 continue
-
-            label = labels[idx]
 
             # 1. Warehouse level
             wh_grouped = df_calc.groupby("warehouse")["issues"].sum().reset_index()

@@ -44,6 +44,7 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         
         # 1. Use the report's config date to categorize into sets
         config_date = report.get("config", {}).get("date1")
+        print("cfdate",config_date)
         if config_date:
             try:
                 day = int(pd.to_datetime(config_date).day)

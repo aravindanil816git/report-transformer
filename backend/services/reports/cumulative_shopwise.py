@@ -58,6 +58,17 @@ class CumulativeShopwiseReportService(BaseReportService):
     def _compute(self, df):
         # 🔍 Detect columns
         shop_col = next((c for c in df.columns if "shop" in c and "code" in c), None)
+        
+        if not shop_col:
+            # Try fallback to just 'code' or 'license'
+            for c in df.columns:
+                if c == "code" or "license" in c:
+                    shop_col = c
+                    break
+                    
+        if not shop_col:
+            return pd.DataFrame()
+
         bpc_col = next((c for c in df.columns if "bottle" in c and "case" in c), None)
 
         open_case_col = next((c for c in df.columns if "opening" in c and "case" in c), None)
@@ -69,25 +80,41 @@ class CumulativeShopwiseReportService(BaseReportService):
         out_case_col = next((c for c in df.columns if "out" in c and "case" in c), None)
         out_bottle_col = next((c for c in df.columns if "out" in c and "bottle" in c), None)
 
-        if not all([shop_col, bpc_col, open_case_col, open_bottle_col]):
-            return pd.DataFrame()
-
         # ✅ Normalize
         df[shop_col] = df[shop_col].astype(str).str.strip()
-        df[bpc_col] = pd.to_numeric(df[bpc_col], errors="coerce").fillna(1)
+        
+        if bpc_col:
+            df[bpc_col] = pd.to_numeric(df[bpc_col], errors="coerce").fillna(1)
+        else:
+            bpc_col = "_bpc_temp"
+            df[bpc_col] = 1
 
-        for col in [
-            open_case_col, open_bottle_col,
-            in_case_col, in_bottle_col,
-            out_case_col, out_bottle_col
+        for col_name, col_var in [
+            ("open_case", open_case_col), ("open_bottle", open_bottle_col),
+            ("in_case", in_case_col), ("in_bottle", in_bottle_col),
+            ("out_case", out_case_col), ("out_bottle", out_bottle_col)
         ]:
-            if col:
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            if col_var and col_var in df.columns:
+                df[col_var] = pd.to_numeric(df[col_var], errors="coerce").fillna(0)
 
         # ✅ Calculations
-        df["opening"] = ((df[open_case_col] * df[bpc_col]) + df[open_bottle_col]) / df[bpc_col]
-        df["receipt"] = ((df[in_case_col] * df[bpc_col]) + df[in_bottle_col]) / df[bpc_col] if in_case_col and in_bottle_col else 0
-        df["sales"] = ((df[out_case_col] * df[bpc_col]) + df[out_bottle_col]) / df[bpc_col] if out_case_col and out_bottle_col else 0
+        df["opening"] = 0
+        if open_case_col or open_bottle_col:
+            oc = df[open_case_col] if open_case_col else 0
+            ob = df[open_bottle_col] if open_bottle_col else 0
+            df["opening"] = ((oc * df[bpc_col]) + ob) / df[bpc_col]
+            
+        df["receipt"] = 0
+        if in_case_col or in_bottle_col:
+            ic = df[in_case_col] if in_case_col else 0
+            ib = df[in_bottle_col] if in_bottle_col else 0
+            df["receipt"] = ((ic * df[bpc_col]) + ib) / df[bpc_col]
+            
+        df["sales"] = 0
+        if out_case_col or out_bottle_col:
+            sc = df[out_case_col] if out_case_col else 0
+            sb = df[out_bottle_col] if out_bottle_col else 0
+            df["sales"] = ((sc * df[bpc_col]) + sb) / df[bpc_col]
 
         # ✅ MAP USING SHOP CODE (KEY FIX)
         df["shop_code"] = df[shop_col]
@@ -152,6 +179,12 @@ class CumulativeShopwiseReportService(BaseReportService):
         
         start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
         end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+
+        # 🔥 OOM SAFETY LIMIT: Prevent processing more than 35 days at once
+        if (end_date - start_date).days > 35:
+            end_date = start_date + timedelta(days=35)
+            end_date_str = end_date.strftime("%Y-%m-%d")
+            config["date2"] = end_date_str
 
         # Filter uploads to only include those within the date range
         relevant_uploads = []

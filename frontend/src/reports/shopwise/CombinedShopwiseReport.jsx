@@ -122,7 +122,7 @@ export default function CombinedShopwiseReport() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [dateRange]);
 
   const periodLabel = useMemo(() => {
     if (!uploads.length) return "";
