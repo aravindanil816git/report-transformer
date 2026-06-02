@@ -11,6 +11,39 @@ from core.mapping_utils import get_shop_lookup_and_warehouse_to_bond
 class ShopwiseReportService(BaseReportService):
     type_name = "shopwise"
 
+    def _shrink_data(self, df):
+        """Pre-aggregates raw data to prevent massive JSON payloads (Cloudflare 520 errors) and RAM exhaustion."""
+        if df.empty:
+            return df
+
+        code_col, name_col = self._detect_shop_cols(df)
+        wh_col = self._detect_warehouse_col(df)
+        brand_col = find_column(df, ["brand"])
+        pack_col = find_column(df, ["pack"])
+
+        opening_cases = find_dynamic(df, ["opening", "case"], exclude=["info"])
+        opening_bottles = find_dynamic(df, ["opening", "bottle"], exclude=["info"])
+        in_cases = find_dynamic(df, ["receipt", "case"], exclude=["info"]) or find_dynamic(df, ["shop", "in", "case"], exclude=["info"]) or find_dynamic(df, ["inward", "case"], exclude=["info"]) or find_dynamic(df, ["in", "case"], exclude=["info"])
+        in_bottles = find_dynamic(df, ["receipt", "bottle"], exclude=["info"]) or find_dynamic(df, ["shop", "in", "bottle"], exclude=["info"]) or find_dynamic(df, ["inward", "bottle"], exclude=["info"]) or find_dynamic(df, ["in", "bottle"], exclude=["info"])
+        out_cases = find_dynamic(df, ["sales", "case"], exclude=["info"]) or find_dynamic(df, ["shop", "out", "case"], exclude=["info"]) or find_dynamic(df, ["outward", "case"], exclude=["info"]) or find_dynamic(df, ["out", "case"], exclude=["info"])
+        out_bottles = find_dynamic(df, ["sales", "bottle"], exclude=["info"]) or find_dynamic(df, ["shop", "out", "bottle"], exclude=["info"]) or find_dynamic(df, ["outward", "bottle"], exclude=["info"]) or find_dynamic(df, ["out", "bottle"], exclude=["info"])
+        closing_cases = find_dynamic(df, ["closing", "case"], exclude=["info"])
+        closing_bottles = find_dynamic(df, ["closing", "bottle"], exclude=["info"])
+
+        metrics = [opening_cases, opening_bottles, in_cases, in_bottles, out_cases, out_bottles, closing_cases, closing_bottles]
+        metric_cols = [c for c in metrics if c and c in df.columns]
+        
+        cat_cols = [c for c in df.columns if c not in metric_cols]
+
+        for c in metric_cols:
+            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+        for c in cat_cols:
+            df[c] = df[c].astype(str).fillna("Unknown")
+
+        if metric_cols and cat_cols:
+            df = df.groupby(cat_cols, as_index=False)[metric_cols].sum()
+        return df
+
     def upload(self, report, path, file_name, from_date, to_date):
         df = read_excel_robust(path)
         df = normalize(df)
@@ -57,15 +90,21 @@ class ShopwiseReportService(BaseReportService):
             # Remove bond info for this report type as per requirements
             df["bond_info"] = "N/A"
 
+        # 🔥 INJECT DATE TO PRESERVE DATE-WISE FILTERING AFTER SHRINKING
+        df["report_date"] = from_date
+
         # Drop unneeded columns to prevent massive JSON payload and Cloudflare 520 timeouts
         cols_to_keep = {
             code_col, name_col, "shop_code_internal", "shop_name_internal",
             wh_col, "warehouse_info", "bond_info", brand_col, pack_col,
             opening_cases, opening_bottles, in_cases, in_bottles,
-            out_cases, out_bottles, closing_cases, closing_bottles, bottles_per_case
+            out_cases, out_bottles, closing_cases, closing_bottles, bottles_per_case, "report_date"
         }
         valid_cols = [c for c in cols_to_keep if c and c in df.columns]
         df = df[valid_cols]
+
+        # 🔥 CRITICAL FIX: Shrink the individual file's data FIRST before appending it to the payload
+        df = self._shrink_data(df)
 
         # Convert NaNs to None to ensure clean JSON serialization and reduce payload size
         df = df.astype(object).where(pd.notna(df), None)
@@ -75,9 +114,18 @@ class ShopwiseReportService(BaseReportService):
             report["data"] = new_data
         else:
             report["data"].extend(new_data)
+            
+            # Shrink combined data again to prevent unlimited growth across 30 uploads
+            combined_df = pd.DataFrame(report["data"])
+            combined_df = self._shrink_data(combined_df)
+            combined_df = combined_df.astype(object).where(pd.notna(combined_df), None)
+            report["data"] = combined_df.to_dict("records")
 
+        # Do not store raw data in the database payload to prevent 520 errors.
+        # We simply record the upload metadata so it can be processed directly from storage later.
         report.setdefault("uploads", []).append({
             "file": file_name,
+            "path": path,
             "from": from_date,
             "to": to_date
         })
@@ -143,7 +191,14 @@ class ShopwiseReportService(BaseReportService):
         return None
 
     def process(self, report):
-        return
+        # Allow fixing existing bloated reports by clicking "Process Report"
+        data = report.get("data") or []
+        if not data:
+            return
+        df = pd.DataFrame(data)
+        df = self._shrink_data(df)
+        df = df.astype(object).where(pd.notna(df), None)
+        report["data"] = df.to_dict("records")
 
     def _aggregate(self, df, shop_code=None, warehouse=None, bond=None, view="case"):
         brand_col = find_column(df, ["brand"])
@@ -175,6 +230,10 @@ class ShopwiseReportService(BaseReportService):
             df_local = df_local[df_local["warehouse_info"] == warehouse]
         if bond:
             df_local = df_local[df_local["bond_info"] == bond]
+        if start_date and "report_date" in df_local.columns:
+            df_local = df_local[df_local["report_date"] >= start_date]
+        if end_date and "report_date" in df_local.columns:
+            df_local = df_local[df_local["report_date"] <= end_date]
 
         if df_local.empty:
             return []
@@ -251,12 +310,12 @@ class ShopwiseReportService(BaseReportService):
                 })
         return result
 
-    def get_report(self, report, shop_code=None, warehouse=None, bond=None, view="case", **kwargs):
+    def get_report(self, report, shop_code=None, warehouse=None, bond=None, view="case", start_date=None, end_date=None, **kwargs):
         data = report.get("data") or []
         if not data:
             return {"data": [], "uploads": report.get("uploads", []), "config": report.get("config", {})}
         df = pd.DataFrame(data)
-        result = self._aggregate(df, shop_code=shop_code, warehouse=warehouse, bond=bond, view=view)
+        result = self._aggregate(df, shop_code=shop_code, warehouse=warehouse, bond=bond, view=view, start_date=start_date, end_date=end_date)
         return {"data": result, "uploads": report.get("uploads", []), "config": report.get("config", {})}
 
     def get_filters(self, report):

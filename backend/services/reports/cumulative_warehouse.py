@@ -1,4 +1,5 @@
 import pandas as pd
+import os
 from datetime import datetime, timedelta
 from .base import BaseReportService
 from core.utils import read_excel_robust
@@ -148,12 +149,17 @@ class CumulativeWarehouseMatrixService(BaseReportService):
                 if u:
                     u["status"] = "uploaded"
                     u["file"] = f"Auto-linked from {source_type.replace('_', ' ').title()}"
-                    u["data"] = data
+                    # Data is loaded into memory for processing but not saved to the DB to prevent timeouts
 
-            if not data:
-                continue
+            if data and len(data) > 0:
+                df = pd.DataFrame(data)
+            else:
+                path = u.get("path")
+                if path and os.path.exists(path):
+                    df = read_excel_robust(path)
+                else:
+                    continue
 
-            df = pd.DataFrame(data)
             if df.empty:
                 continue
 

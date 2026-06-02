@@ -13,6 +13,10 @@ from services.registry import get_service
 from core.utils import read_excel_robust
 from core.mapping_utils import get_warehouse_mapping_data, get_bond_mapping_data, get_warehouse_master_data, clear_mapping_caches
 
+import functools
+import concurrent.futures
+print = functools.partial(print, flush=True)
+
 router = APIRouter()
 
 
@@ -158,7 +162,8 @@ def sync_cumulative_report(report, all_reports=None):
         return
 
     if all_reports is None:
-        all_reports = get_all_reports(types=allowed_sources, columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data")
+        # 🔥 CRITICAL FIX: Do NOT fetch 'data' or 'processed'. Only fetch paths and metadata to prevent the server from hanging/timeout.
+        all_reports = get_all_reports(types=allowed_sources, columns="id, name, type, status, config, uploads, created_at, path, file, storage_path")
         
     original_status = report.get("status")
     
@@ -185,15 +190,13 @@ def sync_cumulative_report(report, all_reports=None):
         if d:
             source_data = None
             if r.get("type") == "daily_secondary_sales":
-                # For daily_secondary_sales, data is scattered in uploads. We need to combine it.
-                combined_data = []
-                for u_source in r.get("uploads", []):
-                    if u_source.get("status") == "uploaded" and u_source.get("data"):
-                        combined_data.extend(u_source["data"])
-                if combined_data:
-                    source_data = combined_data
-            elif r.get("data"):
-                source_data = r.get("data")
+                source_data = {"is_ready": True}
+            else:
+                source_data = {
+                    "path": r.get("path"),
+                    "storage_path": r.get("storage_path"),
+                    "file": r.get("file")
+                }
 
             if source_data and (r.get("type") == primary_source or d not in available_data):
                 available_data[d] = source_data
@@ -201,10 +204,14 @@ def sync_cumulative_report(report, all_reports=None):
         # 2. check uploads (cumulative reports)
         for u in r.get("uploads", []):
             ud = u.get("date")
-            if ud and u.get("status") == "uploaded" and u.get("data"):
+            if ud and u.get("status") == "uploaded":
                 # Daily reports take priority
                 if ud not in available_data:
-                   available_data[ud] = u["data"]
+                   available_data[ud] = {
+                       "path": u.get("path"),
+                       "storage_path": u.get("storage_path"),
+                       "file": u.get("file")
+                   }
                    
     # Special-case range-based shop sales cumulative uploads for combined_shopwise reports.
     # These uploads are stored by range (e.g. 1-16 / 17-30) instead of daily dates,
@@ -222,7 +229,7 @@ def sync_cumulative_report(report, all_reports=None):
             if r_month and rep_month and r_month == rep_month:
                 # Accumulate uploads from ALL matching shop_sales_cumulative reports for the month
                 for u in r.get("uploads", []):
-                    if u.get("status") == "uploaded" and u.get("data"):
+                    if u.get("status") == "uploaded":
                         rk = u.get("range_key") or u.get("date") or "1-16"
                         source_uploads_map[rk] = {**u, "status": "uploaded"}
 
@@ -239,7 +246,10 @@ def sync_cumulative_report(report, all_reports=None):
             dt = u.get("date")
             if dt in available_data:
                 u["status"] = "uploaded"
-                u["data"] = available_data[dt]
+                meta = available_data[dt]
+                if "path" in meta and meta["path"]:
+                    u["path"] = meta["path"]
+                    u["storage_path"] = meta.get("storage_path")
                 u["file"] = "Auto-synced from system"
                 changed = True
                 
@@ -815,7 +825,10 @@ async def upload(
                 u["path"] = path
                 u["storage_path"] = storage_path
                 u["status"] = "uploaded"
-                u["data"] = df.replace({pd.NA: None}).astype(object).where(pd.notnull(df), None).to_dict("records")
+                
+                # 🔥 CRITICAL FIX: Do not store massive raw data dicts in the database payload to prevent timeout errors.
+                # The background process() function will read directly from the file path instead.
+                u.pop("data", None)
                 match_found = True
                 break
 
@@ -843,12 +856,19 @@ def process(rid: str):
     report = get_report_by_id(rid)
     if not report: raise HTTPException(status_code=404, detail="Report not found")
 
-    # 🔥 RESTORE FILES FROM SUPABASE IF MISSING LOCALLY BEFORE PROCESSING
-    if report.get("storage_path") and report.get("path"):
-        ensure_local_file(report["storage_path"], report["path"])
+    # 🔥 CONCURRENTLY RESTORE FILES FROM SUPABASE IF MISSING LOCALLY BEFORE PROCESSING
+    missing_files = []
+    if report.get("storage_path") and report.get("path") and not os.path.exists(report["path"]):
+        missing_files.append((report["storage_path"], report["path"]))
     for u in report.get("uploads", []):
-        if u.get("storage_path") and u.get("path"):
-            ensure_local_file(u["storage_path"], u["path"])
+        if u.get("storage_path") and u.get("path") and not os.path.exists(u["path"]):
+            missing_files.append((u["storage_path"], u["path"]))
+            
+    if missing_files:
+        print(f"Fetching {len(missing_files)} missing files from Supabase concurrently...")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+            futures = [executor.submit(ensure_local_file, sp, lp) for sp, lp in missing_files]
+            concurrent.futures.wait(futures)
 
     if report["type"] == "monthly_stock_sales":
         report["all_reports"] = get_all_reports(types=["daily_warehouse", "warehouse_stock", "daily_secondary_sales"], columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data, processed")
@@ -1015,6 +1035,8 @@ def get_report(
     if mode: kwargs["mode"] = mode
     if start_idx is not None: kwargs["start_idx"] = start_idx
     if end_idx is not None: kwargs["end_idx"] = end_idx
+    if start_date and start_date != "RESET": kwargs["start_date"] = start_date
+    if end_date and end_date != "RESET": kwargs["end_date"] = end_date
     
     result = svc.get_report(report, **kwargs)
     result["name"] = report.get("name")

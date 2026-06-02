@@ -92,7 +92,7 @@ export default function CombinedShopwiseReport() {
     let startIdx = null;
     let endIdx = null;
 
-    if (dateRange && dateRange.length === 2) {
+    if (dateRange && Array.isArray(dateRange) && dateRange.length === 2 && dateRange[0] && dateRange[1]) {
       const allDates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
       const sStr = dateRange[0].format("YYYY-MM-DD");
       const eStr = dateRange[1].format("YYYY-MM-DD");
@@ -121,8 +121,18 @@ export default function CombinedShopwiseReport() {
   };
 
   useEffect(() => {
+    // 🔥 Remove dateRange from dependencies so clearing/picking a date 
+    // doesn't trigger an automatic unwanted API call.
     load();
-  }, [dateRange]);
+  }, []);
+
+  const handleApply = () => {
+    if (!dateRange || !Array.isArray(dateRange) || dateRange.length !== 2 || !dateRange[0] || !dateRange[1]) {
+      message.warning("Please select a complete start and end date");
+      return;
+    }
+    load();
+  };
 
   const periodLabel = useMemo(() => {
     if (!uploads.length) return "";
@@ -429,7 +439,7 @@ export default function CombinedShopwiseReport() {
         </Col>
 
         <Col>
-          <Button type="primary" onClick={load}>Apply</Button>
+          <Button type="primary" onClick={handleApply}>Apply Date Range</Button>
         </Col>
 
         <Col>
