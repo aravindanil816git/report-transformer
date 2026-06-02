@@ -35,7 +35,7 @@ export const REPORT_REGISTRY = {
   daily_warehouse: {
     component: DailyWarehouseReport,
     route: "/report/daily_warehouse/:id",
-    label: "Physical Stock",
+    label: "Warehouse Physical Stock",
   },
   daily_warehouse_offtake: {
     component: DailyWarehouseOfftakeReport,

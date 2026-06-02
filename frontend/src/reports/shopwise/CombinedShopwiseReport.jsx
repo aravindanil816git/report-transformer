@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Table, Select, Segmented, Row, Col, Button, Checkbox, DatePicker } from "antd";
+import { Table, Select, Segmented, Row, Col, Button, Checkbox, DatePicker, message } from "antd";
 import { useParams } from "react-router-dom";
 import { PlusSquareOutlined, MinusSquareOutlined } from "@ant-design/icons";
 import { getReport, getFilters } from "../../api";
@@ -91,11 +91,13 @@ export default function CombinedShopwiseReport() {
   const load = () => {
     let startIdx = null;
     let endIdx = null;
+    let sStr = null;
+    let eStr = null;
 
     if (dateRange && Array.isArray(dateRange) && dateRange.length === 2 && dateRange[0] && dateRange[1]) {
       const allDates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
-      const sStr = dateRange[0].format("YYYY-MM-DD");
-      const eStr = dateRange[1].format("YYYY-MM-DD");
+      sStr = dateRange[0].format("YYYY-MM-DD");
+      eStr = dateRange[1].format("YYYY-MM-DD");
       
       startIdx = allDates.findIndex(d => d >= sStr);
       if (startIdx === -1) startIdx = null;
@@ -108,11 +110,21 @@ export default function CombinedShopwiseReport() {
       }
     }
 
-    getReport(id, shop, view, { warehouse, bond, start_idx: startIdx, end_idx: endIdx }).then((res) => {
+    const params = { warehouse, bond, start_idx: startIdx, end_idx: endIdx };
+    if (sStr && eStr) {
+      params.start_date = sStr;
+      params.end_date = eStr;
+    }
+
+    getReport(id, shop, view, params).then((res) => {
       setData(res.data.data || []);
       setUploads(res.data.uploads || []);
       setConfig(res.data.config || {});
       
+      if (res.data.config?.date1 && res.data.config?.date2 && (!dateRange || dateRange.length === 0)) {
+        setDateRange([dayjs(res.data.config.date1), dayjs(res.data.config.date2)]);
+      }
+
       const initialCollapsed = {};
       const uniqueShops = [...new Set((res.data.data || []).map(r => r.shop_code))];
       uniqueShops.forEach(s => initialCollapsed[s] = true);
@@ -124,7 +136,7 @@ export default function CombinedShopwiseReport() {
     // 🔥 Remove dateRange from dependencies so clearing/picking a date 
     // doesn't trigger an automatic unwanted API call.
     load();
-  }, []);
+  }, [view, warehouse, bond, shop]);
 
   const handleApply = () => {
     if (!dateRange || !Array.isArray(dateRange) || dateRange.length !== 2 || !dateRange[0] || !dateRange[1]) {

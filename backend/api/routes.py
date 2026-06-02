@@ -858,11 +858,23 @@ def process(rid: str):
 
     # 🔥 CONCURRENTLY RESTORE FILES FROM SUPABASE IF MISSING LOCALLY BEFORE PROCESSING
     missing_files = []
-    if report.get("storage_path") and report.get("path") and not os.path.exists(report["path"]):
-        missing_files.append((report["storage_path"], report["path"]))
+    
+    def resolve_path(p):
+        if not p: return p
+        filename = os.path.basename(p)
+        temp_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "temp"))
+        return os.path.join(temp_dir, filename)
+
+    if report.get("storage_path") and report.get("path"):
+        report["path"] = resolve_path(report["path"])
+        if not os.path.exists(report["path"]):
+            missing_files.append((report["storage_path"], report["path"]))
+            
     for u in report.get("uploads", []):
-        if u.get("storage_path") and u.get("path") and not os.path.exists(u["path"]):
-            missing_files.append((u["storage_path"], u["path"]))
+        if u.get("storage_path") and u.get("path"):
+            u["path"] = resolve_path(u["path"])
+            if not os.path.exists(u["path"]):
+                missing_files.append((u["storage_path"], u["path"]))
             
     if missing_files:
         print(f"Fetching {len(missing_files)} missing files from Supabase concurrently...")
@@ -871,16 +883,21 @@ def process(rid: str):
             concurrent.futures.wait(futures)
 
     if report["type"] == "monthly_stock_sales":
-        report["all_reports"] = get_all_reports(types=["daily_warehouse", "warehouse_stock", "daily_secondary_sales"], columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data, processed")
+        report["all_reports"] = get_all_reports(types=["daily_warehouse", "warehouse_stock", "daily_secondary_sales", "daily_warehouse_offtake"], columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data, processed")
     elif report["type"] == "achieved_target":
         report["all_reports"] = get_all_reports(types=["daily_secondary_sales", "daily_warehouse_offtake", "combined_shopwise", "combined_shopwise_multi", "shop_sales_cumulative"], columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data, processed")
 
     if report["type"] == "month_comparative":
-        daily_reports = get_all_reports(types=["daily_secondary_sales"], columns="id, type, status, processed")
+        daily_reports = get_all_reports(types=["daily_secondary_sales"], columns="id, type, status, config, processed")
 
         combined = []
         for d in daily_reports:
-            combined.extend(d.get("processed") or [])
+            rep_date = d.get("config", {}).get("date")
+            for item in (d.get("processed") or []):
+                if isinstance(item, dict):
+                    if not item.get("date") and rep_date:
+                        item["date"] = rep_date
+                combined.append(item)
 
         report["_live_source"] = combined
 
@@ -962,13 +979,18 @@ def update_report_config(rid: str, payload: dict = Body(...)):
 @router.get("/compare-live")
 def compare_live(date1: str, date2: str):
     daily_reports = [
-        r for r in get_all_reports(types=["daily_secondary_sales"], columns="id, type, status, processed")
+        r for r in get_all_reports(types=["daily_secondary_sales"], columns="id, type, status, config, processed")
         if r.get("status") == "Processed"
     ]
 
     combined = []
     for d in daily_reports:
-        combined.extend(d.get("processed") or [])
+        rep_date = d.get("config", {}).get("date")
+        for item in (d.get("processed") or []):
+            if isinstance(item, dict):
+                if not item.get("date") and rep_date:
+                    item["date"] = rep_date
+            combined.append(item)
 
     svc = get_service("month_comparative")
     
@@ -1100,6 +1122,11 @@ def download_raw(rid: str, key: str = None):
         path = report.get("path")
         storage_path = report.get("storage_path")
         filename = report.get("file", "download.xlsx")
+        
+    if path:
+        filename_only = os.path.basename(path)
+        temp_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "temp"))
+        path = os.path.join(temp_dir, filename_only)
 
     if storage_path and path:
         ensure_local_file(storage_path, path)

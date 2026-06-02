@@ -62,7 +62,7 @@ export default function CleanupReport() {
       dataIndex: "product_code",
     },
     {
-      title: "Physical Stock",
+      title: "WarehousePhysical Stock",
       children: [{ title: "Case", dataIndex: "physical" }],
     },
     {
@@ -152,7 +152,7 @@ export default function CleanupReport() {
       </Row>
 
       <div style={{ marginBottom: 0, padding: "8px 12px", backgroundColor: "#ADC9E6", border: "1px solid #999", borderBottom: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>Physical Stock report</span>
+        <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>Warehouse Physical Stock report</span>
         <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>Warehouse: {warehouse || "All"} , Report Period: {reportDate}</span>
       </div>
 

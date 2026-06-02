@@ -7,12 +7,29 @@ class MonthComparativeService(BaseReportService):
     def process(self, report):
         base = report.get("_live_source", [])
 
-        d1 = report["config"]["date1"]
-        d2 = report["config"]["date2"]
+        d1 = str(report.get("config", {}).get("date1") or "").strip()[:10]
+        d2 = str(report.get("config", {}).get("date2") or "").strip()[:10]
 
-        d1_map = {d.get("warehouse"): d for d in base if d.get("date") == d1 and d.get("warehouse")}
-        d2_map = {d.get("warehouse"): d for d in base if d.get("date") == d2 and d.get("warehouse")}
+        print(f"[DEBUG] MonthComparativeService: Processing for dates {d1} and {d2} with {len(base)} source records.")
+
+        d1_map = {}
+        d2_map = {}
+
+        for d in base:
+            if not isinstance(d, dict): continue
+            w = d.get("warehouse")
+            if not w: continue
+            
+            item_date = str(d.get("date") or "").strip()[:10]
+            if item_date == d1:
+                d1_map[w] = d
+            if item_date == d2:
+                d2_map[w] = d
+                
         all_warehouses = sorted(list(set(d1_map.keys()) | set(d2_map.keys())))
+        
+        print(f"[DEBUG] MonthComparativeService: Found {len(d1_map)} records for {d1}, and {len(d2_map)} records for {d2}.")
+        print(f"[DEBUG] MonthComparativeService: Unique warehouses across both dates: {len(all_warehouses)}")
 
         result = []
 

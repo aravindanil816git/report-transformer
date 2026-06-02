@@ -20,11 +20,11 @@ export default function CleanupReport() {
     const tos = uploads.map(u => u.to).filter(Boolean);
     
     if (froms.length && tos.length) {
-      return `PERIOD : ${froms[0]} - ${tos[0]}`;
+      return `As on : ${froms[0]}`;
     }
     
     if (config.date) {
-      return `PERIOD : ${config.date} - ${config.date}`;
+      return `As On : ${config.date}`;
     }
     
     return "";
@@ -148,7 +148,8 @@ export default function CleanupReport() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h2>Physical Stock Report</h2>
+        <h2>Warehouse Physical Stock Report</h2>
+        <div>
         <Space>
           <Button type="default" onClick={downloadAllWarehouses} disabled={!report?.data}>
             Download All Warehouses
@@ -177,6 +178,7 @@ export default function CleanupReport() {
             Download Excel
           </Button>
         </Space>
+        </div>
       </div>
 
       <div style={{ marginBottom: 0, padding: "8px 12px", backgroundColor: "#ADC9E6", border: "1px solid #999", borderBottom: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>

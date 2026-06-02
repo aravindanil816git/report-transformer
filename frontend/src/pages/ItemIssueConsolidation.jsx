@@ -44,7 +44,8 @@ export default function ItemIssueConsolidation() {
     setLoading(true);
     try {
       const res = await compareLive(date1.format("YYYY-MM-DD"), date2.format("YYYY-MM-DD"));
-      setData(res.data.data || []);
+      const payload = res?.data || res;
+      setData(payload?.data || payload || []);
     } catch (e) {
       message.error("Failed to fetch comparison data");
     } finally {
