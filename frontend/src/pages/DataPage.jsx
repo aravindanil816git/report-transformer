@@ -137,7 +137,7 @@ export default function DataPage() {
 
   // 🔥 available dates for comparative (based on Item Issue Consolidation)
   const dailyDates = data
-    .filter((d) => d.type === "daily_secondary_sales" && (d.status === "Processed" || d.status === "Ready" || d.status === "Uploaded"))
+    .filter((d) => ["item_issue_consolidation", "daily_secondary_sales"].includes(d.type) && (d.status === "Processed" || d.status === "Ready" || d.status === "Uploaded"))
     .map((d) => d.config?.date)
     .filter(Boolean);
 
@@ -515,20 +515,20 @@ export default function DataPage() {
           {/* 🔥 DAILY */}
           {["daily_secondary_sales", "shopwise", "daily_warehouse_offtake", "warehouse_stock"].includes(type) && (
             <Form.Item label="Date">
-              <DatePicker style={{ width: '100%' }} onChange={setReportDate} />
+              <DatePicker style={{ width: '100%' }} onChange={setReportDate} disabledDate={(current) => current && current > dayjs().endOf('day')} />
             </Form.Item>
           )}
 
           {/* 🔥 CLEANUP */}
           {type === "daily_warehouse" && (
             <Form.Item label="Date">
-              <DatePicker style={{ width: '100%' }} onChange={setReportDate} />
+              <DatePicker style={{ width: '100%' }} onChange={setReportDate} disabledDate={(current) => current && current > dayjs().endOf('day')} />
             </Form.Item>
           )}
 
           {["monthly_stock_sales", "achieved_target"].includes(type) && (
             <Form.Item label="Month">
-              <DatePicker picker="month" style={{ width: '100%' }} onChange={setReportDate} />
+              <DatePicker picker="month" style={{ width: '100%' }} onChange={setReportDate} disabledDate={(current) => current && current > dayjs().endOf('day')} />
             </Form.Item>
           )}
 
@@ -546,6 +546,7 @@ export default function DataPage() {
                     }
                   }}
                   disabledDate={(current) => {
+                    if (current && current > dayjs().endOf('day')) return true;
                     if (type === "month_comparative") {
                       return !isDateAvailable(current);
                     }
@@ -558,6 +559,7 @@ export default function DataPage() {
                   value={date2}
                   onChange={setDate2}
                   disabledDate={(current) => {
+                    if (current && current > dayjs().endOf('day')) return true;
                     if (type === "month_comparative") {
                       return !isDateAvailable(current);
                     }

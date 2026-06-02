@@ -224,14 +224,22 @@ export default function CumulativeWarehouseReport() {
     return "warehouse";
   };
 
+  const formatName = (name) => {
+    if (name && typeof name === "string") {
+      return name.replace(/^WH-/i, "").split(/\s+(?:FL|RFL)/i)[0].trim();
+    }
+    return name;
+  };
+
   const renderFirstCol = (text, record) => {
+    const displayText = formatName(text);
     if (mode === "warehouse" && !drilledWarehouse) {
-      return <a onClick={() => setDrilledWarehouse(record.warehouse)}>{text}</a>;
+      return <a onClick={() => setDrilledWarehouse(record.warehouse)}>{displayText}</a>;
     }
     if (mode === "bond" && !drilledBond) {
-      return <a onClick={() => setDrilledBond(record.warehouse)}>{text}</a>;
+      return <a onClick={() => setDrilledBond(record.warehouse)}>{displayText}</a>;
     }
-    return <span>{record.shop_code ? `${record.shop_code} - ` : ""}{text}</span>;
+    return <span>{record.shop_code ? `${record.shop_code} - ` : ""}{displayText}</span>;
   };
 
   // 🔹 columns
@@ -264,13 +272,18 @@ export default function CumulativeWarehouseReport() {
       ? "DailyWise Secondary Sales" 
       : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "Consolidated Secondary Sales (Legacy)");
 
+    const exportData = processedData.map(d => ({
+      ...d,
+      warehouse: formatName(d.warehouse)
+    }));
+
     exportToExcel(
-      processedData,
+      exportData,
       {
         Mode: mode,
         View: view,
         Bond: bondFilter,
-        Warehouse: warehouseFilter,
+        Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
         "Date Range": dateRange.length === 2 ? `${dateRange[0].format("YYYY-MM-DD")} to ${dateRange[1].format("YYYY-MM-DD")}` : "All",
         "Start Date": config.start_date,
         "Total Days": config.num_days
@@ -336,7 +349,7 @@ export default function CumulativeWarehouseReport() {
             onClick={() => setDrilledWarehouse(null)}
             style={{ marginLeft: 8 }}
           >
-            Back to {drilledBond ? "Bond Details" : "Warehouse View"} (Exit Drilling: {drilledWarehouse})
+            Back to {drilledBond ? "Bond Details" : "Warehouse View"} (Exit Drilling: {formatName(drilledWarehouse)})
           </Button>
         )}
         {drilledBond && !drilledWarehouse && (
@@ -346,7 +359,7 @@ export default function CumulativeWarehouseReport() {
             onClick={() => setDrilledBond(null)}
             style={{ marginLeft: 8 }}
           >
-            Back to Bond View (Exit Drilling: {drilledBond})
+            Back to Bond View (Exit Drilling: {formatName(drilledBond)})
           </Button>
         )}
       </div>
@@ -376,7 +389,7 @@ export default function CumulativeWarehouseReport() {
           allowClear
         >
           {uniqueWarehouses.map(w => (
-            <Select.Option key={w} value={w}>{w}</Select.Option>
+            <Select.Option key={w} value={w}>{formatName(w)}</Select.Option>
           ))}
         </Select>
 

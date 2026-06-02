@@ -12,6 +12,7 @@ export default function CombinedShopwiseReport() {
   const { id } = useParams();
 
   const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [warehouse, setWarehouse] = useState();
   const [shop, setShop] = useState();
   const [bond, setBond] = useState();
@@ -89,6 +90,7 @@ export default function CombinedShopwiseReport() {
 
 
   const load = () => {
+    setLoading(true);
     let startIdx = null;
     let endIdx = null;
     let sStr = null;
@@ -129,7 +131,8 @@ export default function CombinedShopwiseReport() {
       const uniqueShops = [...new Set((res.data.data || []).map(r => r.shop_code))];
       uniqueShops.forEach(s => initialCollapsed[s] = true);
       setCollapsedShops(initialCollapsed);
-    });
+      setLoading(false);
+    }).catch(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -204,12 +207,25 @@ export default function CombinedShopwiseReport() {
 
     Object.entries(shopGrouped).forEach(([shopCode, brands]) => {
       const isCollapsed = collapsedShops[shopCode];
+
+      let shopOpening = 0, shopInward = 0, shopOutward = 0, shopClosing = 0;
+      Object.values(brands).flat().forEach(item => {
+        shopOpening += item.opening || 0;
+        shopInward += item.inward || 0;
+        shopOutward += item.outward || 0;
+        shopClosing += item.closing || 0;
+      });
+
       rows.push({
         key: `shop_${shopCode}`,
         label: shopCode,
         shopCode: shopCode,
         isShopHeader: true,
-        isCollapsed
+        isCollapsed,
+        opening: shopOpening,
+        inward: shopInward,
+        outward: shopOutward,
+        closing: shopClosing
       });
 
       if (!isCollapsed) {
@@ -250,29 +266,21 @@ export default function CombinedShopwiseReport() {
         const shopTotal = {
           key: `shop_total_${shopCode}`,
           label: `Shop ${shopCode} Total`,
-          opening: 0,
-          inward: 0,
-          outward: 0,
-          closing: 0,
+          opening: shopOpening,
+          inward: shopInward,
+          outward: shopOutward,
+          closing: shopClosing,
           isShopTotal: true
         };
 
-        Object.values(brands).flat().forEach(item => {
-          shopTotal.opening += item.opening || 0;
-          shopTotal.inward += item.inward || 0;
-          shopTotal.outward += item.outward || 0;
-          shopTotal.closing += item.closing || 0;
-        });
         rows.push(shopTotal);
         rows.push({ key: `shop_spacer_${shopCode}`, isSpacer: true });
       }
 
-      Object.values(brands).flat().forEach(item => {
-        grandTotal.opening += item.opening || 0;
-        grandTotal.inward += item.inward || 0;
-        grandTotal.outward += item.outward || 0;
-        grandTotal.closing += item.closing || 0;
-      });
+      grandTotal.opening += shopOpening;
+      grandTotal.inward += shopInward;
+      grandTotal.outward += shopOutward;
+      grandTotal.closing += shopClosing;
     });
 
     if (rows.length > 0) {
@@ -304,10 +312,10 @@ export default function CombinedShopwiseReport() {
         return <span style={{ paddingLeft: 24 }}>{text}</span>;
       },
     },
-    { title: "Sum of Shop Opening Cases", dataIndex: "opening", className: "val-col", render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)), },
-    { title: "Sum of Shop In Cases", dataIndex: "inward", className: "val-col", render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)), },
-    { title: "Sum of Shop Out Cases", dataIndex: "outward", className: "val-col", render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)), },
-    { title: "Sum of Shop Closing Cases", dataIndex: "closing", className: "val-col", render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)), },
+    { title: "Sum of Shop Opening Cases", dataIndex: "opening", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
+    { title: "Sum of Shop In Cases", dataIndex: "inward", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
+    { title: "Sum of Shop Out Cases", dataIndex: "outward", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
+    { title: "Sum of Shop Closing Cases", dataIndex: "closing", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
   ];
 
   const downloadExcel = () => {
@@ -322,7 +330,20 @@ export default function CombinedShopwiseReport() {
     });
 
     Object.entries(shopGrouped).forEach(([shopCode, brands]) => {
-      exportData.push({ "Row Labels": "Shop - " + shopCode });
+      let sOpening = 0, sIn = 0, sOut = 0, sClosing = 0;
+      Object.values(brands).flat().forEach(item => {
+        sOpening += useWholeNumbers ? Math.floor(item.opening) : item.opening;
+        sIn += useWholeNumbers ? Math.floor(item.inward) : item.inward;
+        sOut += useWholeNumbers ? Math.floor(item.outward) : item.outward;
+        sClosing += useWholeNumbers ? Math.floor(item.closing) : item.closing;
+      });
+      exportData.push({
+        "Row Labels": "Shop - " + shopCode,
+        "Sum of Shop Opening Cases": sOpening,
+        "Sum of Shop In Cases": sIn,
+        "Sum of Shop Out Cases": sOut,
+        "Sum of Shop Closing Cases": sClosing
+      });
       Object.entries(brands).forEach(([brand, items]) => {
         exportData.push({ "Row Labels": brand });
         let bOpening = 0, bIn = 0, bOut = 0, bClosing = 0;
@@ -350,13 +371,6 @@ export default function CombinedShopwiseReport() {
         });
       });
 
-      let sOpening = 0, sIn = 0, sOut = 0, sClosing = 0;
-      Object.values(brands).flat().forEach(item => {
-        sOpening += useWholeNumbers ? Math.floor(item.opening) : item.opening;
-        sIn += useWholeNumbers ? Math.floor(item.inward) : item.inward;
-        sOut += useWholeNumbers ? Math.floor(item.outward) : item.outward;
-        sClosing += useWholeNumbers ? Math.floor(item.closing) : item.closing;
-      });
       exportData.push({
         "Row Labels": `Shop ${shopCode} Total`,
         "Sum of Shop Opening Cases": sOpening,
@@ -464,6 +478,7 @@ export default function CombinedShopwiseReport() {
         <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{uploadDateLabel}</span>
       </div>
       <Table
+        loading={loading}
         columns={columns}
         dataSource={tableData}
         pagination={false}

@@ -268,13 +268,17 @@ export default function RawDataUpload() {
                   style={{ width: '100%' }}
                   value={date1}
                   onChange={setDate1}
+                  disabledDate={(current) => current && current > dayjs().endOf('day')}
                 />
                 <DatePicker
                   placeholder="End Date"
                   style={{ width: '100%' }}
                   value={date2}
                   onChange={setDate2}
-                  disabledDate={(current) => date1 ? current && current.isBefore(date1, 'day') : false}
+                  disabledDate={(current) => {
+                    if (current && current > dayjs().endOf('day')) return true;
+                    return date1 ? current && current.isBefore(date1, 'day') : false;
+                  }}
                 />
               </Space>
             </Form.Item>
@@ -285,6 +289,7 @@ export default function RawDataUpload() {
             style={{ width: '100%' }} 
             value={reportDate}
             onChange={setReportDate} 
+            disabledDate={(current) => current && current > dayjs().endOf('day')}
           />
         </Form.Item>
           ) : (
@@ -293,6 +298,7 @@ export default function RawDataUpload() {
                 style={{ width: '100%' }} 
                 value={reportDate}
                 onChange={setReportDate} 
+                disabledDate={(current) => current && current > dayjs().endOf('day')}
               />
             </Form.Item>
           )}

@@ -68,6 +68,14 @@ class AchievedTargetReportService(BaseReportService):
         achieved_map = {}
 
         # Dynamic Aggregation across all loaded reports
+        print(f"[DEBUG] achieved_target: Starting aggregation for month '{month}'. Start Date: '{start_date}', End Date: '{end_date}'")
+        print(f"[DEBUG] achieved_target: Evaluating {len(reports_list)} reports from database/memory.")
+        
+        type_counts = {}
+        for r in reports_list:
+            type_counts[r.get("type", "unknown")] = type_counts.get(r.get("type", "unknown"), 0) + 1
+        print(f"[DEBUG] achieved_target: Breakdown of evaluated reports: {type_counts}")
+
         for r in reports_list:
             r_type = r.get("type")
             
@@ -76,6 +84,8 @@ class AchievedTargetReportService(BaseReportService):
                 if str(r_date)[:7] != month: continue
                 if start_date and end_date and not (start_date <= str(r_date) <= end_date): continue
                 
+                rows_processed = 0
+                rows_skipped = 0
                 for row in (r.get("processed") or []):
                     shop_code = str(row.get("shop_code", row.get("shop", "")))
                     if shop_type_lookup.get(shop_code, "") in ["bar", "cfd"]:
@@ -85,12 +95,18 @@ class AchievedTargetReportService(BaseReportService):
                         if bond not in achieved_map: achieved_map[bond] = {}
                         if brand not in achieved_map[bond]: achieved_map[bond][brand] = 0
                         achieved_map[bond][brand] += cases
+                        rows_processed += 1
+                    else:
+                        rows_skipped += 1
+                print(f"[DEBUG] achieved_target: Parsed {rows_processed} matching rows, skipped {rows_skipped} (non BAR/CFD) from daily_secondary_sales (date: {r_date})")
 
             elif r_type == "daily_warehouse_offtake":
                 r_date = r.get("config", {}).get("date", "")
                 if str(r_date)[:7] != month: continue
                 if start_date and end_date and not (start_date <= str(r_date) <= end_date): continue
                 
+                rows_processed = 0
+                rows_skipped = 0
                 for row in (r.get("processed") or []):
                     shop_code = str(row.get("shop_code", ""))
                     if shop_type_lookup.get(shop_code, "") in ["bar", "cfd"]:
@@ -100,6 +116,10 @@ class AchievedTargetReportService(BaseReportService):
                         if bond not in achieved_map: achieved_map[bond] = {}
                         if brand not in achieved_map[bond]: achieved_map[bond][brand] = 0
                         achieved_map[bond][brand] += issues
+                        rows_processed += 1
+                    else:
+                        rows_skipped += 1
+                print(f"[DEBUG] achieved_target: Parsed {rows_processed} matching rows, skipped {rows_skipped} (non BAR/CFD) from daily_warehouse_offtake (date: {r_date})")
                         
             elif r_type in ["combined_shopwise", "combined_shopwise_multi", "shop_sales_cumulative"]:
                 r_start = r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))
@@ -113,6 +133,8 @@ class AchievedTargetReportService(BaseReportService):
                 
                 svc = get_service("combined_shopwise")
                 res = svc.get_report(r, view="case")
+                rows_processed = 0
+                rows_skipped = 0
                 for row in res.get("data", []):
                     shop_code = str(row.get("shop_code", ""))
                     if shop_type_lookup.get(shop_code, "") in ["bar", "cfd"]:
@@ -122,6 +144,10 @@ class AchievedTargetReportService(BaseReportService):
                         if bond not in achieved_map: achieved_map[bond] = {}
                         if brand not in achieved_map[bond]: achieved_map[bond][brand] = 0
                         achieved_map[bond][brand] += outward
+                        rows_processed += 1
+                    else:
+                        rows_skipped += 1
+                print(f"[DEBUG] achieved_target: Parsed {rows_processed} matching rows, skipped {rows_skipped} (non BAR/CFD) from {r_type} (dates: {r_start} to {r_end})")
 
         targets_map = report.get("config", {}).get("targets", {})
         all_bonds = set(bond_staffs.keys()).union(set(achieved_map.keys())).union(set(targets_map.keys()))

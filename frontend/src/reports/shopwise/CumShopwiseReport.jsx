@@ -165,14 +165,22 @@ export default function CumulativeShopwiseReport() {
     return "warehouse";
   };
 
+  const formatName = (name) => {
+    if (name && typeof name === "string") {
+      return name.replace(/^WH-/i, "").split(/\s+(?:FL|RFL)/i)[0].trim();
+    }
+    return name;
+  };
+
   const renderFirstCol = (text, record) => {
+    const displayText = formatName(text);
     if (mode === "warehouse" && !drilledWarehouse) {
-      return <a onClick={() => setDrilledWarehouse(record.warehouse)}>{text}</a>;
+      return <a onClick={() => setDrilledWarehouse(record.warehouse)}>{displayText}</a>;
     }
     if (mode === "bond" && !drilledBond) {
-      return <a onClick={() => setDrilledBond(record.warehouse)}>{text}</a>;
+      return <a onClick={() => setDrilledBond(record.warehouse)}>{displayText}</a>;
     }
-    return <span>{record.shop_code ? `${record.shop_code} - ` : ""}{text}</span>;
+    return <span>{record.shop_code ? `${record.shop_code} - ` : ""}{displayText}</span>;
   };
 
   // 🔹 daywise + total
@@ -203,7 +211,7 @@ export default function CumulativeShopwiseReport() {
     let exportData = [];
     if (view === "cumulative") {
       exportData = filteredData.map(d => ({
-        [getTitle()]: d.shop_code ? `${d.shop_code} - ${d.shop_name}` : d.warehouse,
+        [getTitle()]: d.shop_code ? `${d.shop_code} - ${d.shop_name}` : formatName(d.warehouse),
         Opening: d.opening,
         Receipt: d.receipt,
         Sales: d.sales,
@@ -213,7 +221,7 @@ export default function CumulativeShopwiseReport() {
       }));
     } else {
       exportData = filteredData.map(row => {
-        const obj = { [getTitle()]: row.shop_code ? `${row.shop_code} - ${row.shop_name}` : row.warehouse };
+        const obj = { [getTitle()]: row.shop_code ? `${row.shop_code} - ${row.shop_name}` : formatName(row.warehouse) };
         let total = 0;
         labels.forEach(l => {
           obj[l] = row[l] || 0;
@@ -229,7 +237,7 @@ export default function CumulativeShopwiseReport() {
       {
         Mode: mode,
         View: view,
-        Warehouse: warehouseFilter,
+        Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
         "Date Range": dateRange.length === 2 ? `${dateRange[0].format("YYYY-MM-DD")} to ${dateRange[1].format("YYYY-MM-DD")}` : "All",
         "Start Date": config.start_date,
         "Total Days": config.num_days
@@ -275,12 +283,12 @@ export default function CumulativeShopwiseReport() {
 
   {drilledWarehouse && (
     <Button type="dashed" danger onClick={() => setDrilledWarehouse(null)} style={{ marginLeft: 8 }}>
-      Back to Warehouse View (Exit Drilling: {drilledWarehouse})
+      Back to Warehouse View (Exit Drilling: {formatName(drilledWarehouse)})
     </Button>
   )}
   {drilledBond && (
     <Button type="dashed" danger onClick={() => setDrilledBond(null)} style={{ marginLeft: 8 }}>
-      Back to Bond View (Exit Drilling: {drilledBond})
+      Back to Bond View (Exit Drilling: {formatName(drilledBond)})
     </Button>
   )}
 </div>
@@ -300,7 +308,7 @@ export default function CumulativeShopwiseReport() {
           allowClear
         >
           {uniqueWarehouses.map(w => (
-            <Select.Option key={w} value={w}>{w}</Select.Option>
+            <Select.Option key={w} value={w}>{formatName(w)}</Select.Option>
           ))}
         </Select>
 

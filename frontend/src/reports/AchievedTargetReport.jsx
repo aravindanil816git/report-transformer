@@ -15,13 +15,13 @@ export default function AchievedTargetReport() {
   const [dateRange, setDateRange] = useState([]);
 
   useEffect(() => {
-    loadData();
-  }, [id, dateRange]);
+    // 🛑 Intentionally leaving this blank so data doesn't auto-fetch on open.
+    // The user must explicitly choose dates and click "Apply Filter".
+  }, [id]);
 
-  const loadData = () => {
-    // 🛑 EARLY RETURN: Do not make the network call if dates are missing
-    if ((!dateRange || dateRange.length !== 2) && Object.keys(config).length > 0) {
-      message.warning("Please select a date range");
+  const loadData = (isManual = false) => {
+    if (!dateRange || !Array.isArray(dateRange) || dateRange.length !== 2) {
+      if (isManual === true) message.warning("Please select a date range before loading data");
       return;
     }
 

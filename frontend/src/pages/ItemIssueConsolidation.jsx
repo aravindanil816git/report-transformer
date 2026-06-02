@@ -12,6 +12,9 @@ export default function ItemIssueConsolidation() {
   const [loading, setLoading] = useState(false);
   const [warehouses, setWarehouses] = useState([]);
   const [selectedWarehouse, setSelectedWarehouse] = useState(null);
+  const [lastMonthLabel, setLastMonthLabel] = useState("");
+  const [daySales1, setDaySales1] = useState("-");
+  const [daySales2, setDaySales2] = useState("-");
 
   useEffect(() => {
     listReports().then((res) => {
@@ -25,7 +28,7 @@ export default function ItemIssueConsolidation() {
 
   const availableDates = useMemo(() => {
     return reports
-      .filter((r) => r.type === "daily_secondary_sales" && r.status === "Processed")
+      .filter((r) => ["item_issue_consolidation", "daily_secondary_sales"].includes(r.type) && r.status === "Processed")
       .map((r) => r.config?.date)
       .filter(Boolean);
   }, [reports]);
@@ -46,6 +49,9 @@ export default function ItemIssueConsolidation() {
       const res = await compareLive(date1.format("YYYY-MM-DD"), date2.format("YYYY-MM-DD"));
       const payload = res?.data || res;
       setData(payload?.data || payload || []);
+      setLastMonthLabel(payload?.last_month_date_label || "");
+      setDaySales1(payload?.day_sales1 ?? "-");
+      setDaySales2(payload?.day_sales2 ?? "-");
     } catch (e) {
       message.error("Failed to fetch comparison data");
     } finally {
@@ -61,7 +67,7 @@ export default function ItemIssueConsolidation() {
   const totals = useMemo(() => {
     const t = {
       stn1: 0, gtn1: 0, total1: 0, cfed1: 0, bar1: 0, final1: 0,
-      stn2: 0, gtn2: 0, total2: 0, cfed2: 0, bar2: 0, final2: 0,
+      stn2: 0, gtn2: 0, total2: 0, cfed2: 0, bar2: 0, final2: 0, last_month_final: 0,
       diff: 0
     };
     filteredData.forEach(d => {
@@ -77,14 +83,23 @@ export default function ItemIssueConsolidation() {
       t.cfed2 += d.cfed2 || 0;
       t.bar2 += d.bar2 || 0;
       t.final2 += d.final2 || 0;
+      t.last_month_final += d.last_month_final || 0;
       t.diff += d.diff || 0;
     });
     t.pct = t.final2 ? Math.round((t.diff / t.final2) * 100) : 0;
     return t;
   }, [filteredData]);
 
-  const d1Label = date1 ? date1.format("DD MMM") : "First";
-  const d2Label = date2 ? date2.format("DD MMM") : "Second";
+  const formatDepot = (name) => {
+    if (name && typeof name === "string") {
+      return name.replace(/^WH-/i, "").split(/\s+(?:FL|RFL)/i)[0].trim();
+    }
+    return name;
+  };
+
+  const d1Label = date1 ? date1.format("DD MMM") : "Date 1";
+  const d2Label = date2 ? date2.format("DD MMM") : "Date 2";
+  const lmLabel = lastMonthLabel ? `Last Month (${lastMonthLabel})` : "Last Month";
 
   const columns = [
     {
@@ -92,28 +107,24 @@ export default function ItemIssueConsolidation() {
       dataIndex: "warehouse",
       fixed: "left",
       width: 180,
+      render: (text) => formatDepot(text),
     },
     {
-      title: `First (${d1Label})`,
+      title: `Secondary Sales (${d1Label} vs ${d2Label})`,
       children: [
         { title: "STN", dataIndex: "stn1" },
         { title: "GTN", dataIndex: "gtn1" },
         { title: "TOTAL", dataIndex: "total1" },
         { title: "CFED", dataIndex: "cfed1" },
         { title: "BAR", dataIndex: "bar1" },
-        { title: "Final", dataIndex: "final1" },
-      ],
-    },
-    {
-      title: `Second (${d2Label})`,
-      children: [
+        { title: d1Label, dataIndex: "final1" },
         { title: "STN", dataIndex: "stn2" },
         { title: "GTN", dataIndex: "gtn2" },
         { title: "TOTAL", dataIndex: "total2" },
         { title: "CFED", dataIndex: "cfed2" },
         { title: "BAR", dataIndex: "bar2" },
-        { title: "Final", dataIndex: "final2" },
-      ],
+        { title: d2Label, dataIndex: "final2" },
+      ]
     },
     {
       title: "Difference",
@@ -130,44 +141,58 @@ export default function ItemIssueConsolidation() {
         },
       ],
     },
+    {
+      title: lmLabel,
+      dataIndex: "last_month_final",
+      width: 150,
+    },
   ];
 
   const downloadExcel = () => {
     const exportData = filteredData.map(d => ({
-      Depot: d.warehouse,
-      [`First STN (${d1Label})`]: d.stn1,
-      [`First GTN (${d1Label})`]: d.gtn1,
-      [`First TOTAL (${d1Label})`]: d.total1,
-      [`First CFED (${d1Label})`]: d.cfed1,
-      [`First BAR (${d1Label})`]: d.bar1,
-      [`First Final (${d1Label})`]: d.final1,
-      [`Second STN (${d2Label})`]: d.stn2,
-      [`Second GTN (${d2Label})`]: d.gtn2,
-      [`Second TOTAL (${d2Label})`]: d.total2,
-      [`Second CFED (${d2Label})`]: d.cfed2,
-      [`Second BAR (${d2Label})`]: d.bar2,
-      [`Second Final (${d2Label})`]: d.final2,
+      Depot: formatDepot(d.warehouse),
+      [`STN (${d1Label})`]: d.stn1,
+      [`GTN (${d1Label})`]: d.gtn1,
+      [`TOTAL (${d1Label})`]: d.total1,
+      [`CFED (${d1Label})`]: d.cfed1,
+      [`BAR (${d1Label})`]: d.bar1,
+      [d1Label]: d.final1,
+      [`STN (${d2Label})`]: d.stn2,
+      [`GTN (${d2Label})`]: d.gtn2,
+      [`TOTAL (${d2Label})`]: d.total2,
+      [`CFED (${d2Label})`]: d.cfed2,
+      [`BAR (${d2Label})`]: d.bar2,
+      [d2Label]: d.final2,
       "Difference Cases": d.diff,
-      "Difference %": d.pct
+      "Difference %": d.pct,
+      [lmLabel]: d.last_month_final,
     }));
 
     // Add totals row to export
     exportData.push({
       Depot: "TOTAL",
-      [`First STN (${d1Label})`]: totals.stn1,
-      [`First GTN (${d1Label})`]: totals.gtn1,
-      [`First TOTAL (${d1Label})`]: totals.total1,
-      [`First CFED (${d1Label})`]: totals.cfed1,
-      [`First BAR (${d1Label})`]: totals.bar1,
-      [`First Final (${d1Label})`]: totals.final1,
-      [`Second STN (${d2Label})`]: totals.stn2,
-      [`Second GTN (${d2Label})`]: totals.gtn2,
-      [`Second TOTAL (${d2Label})`]: totals.total2,
-      [`Second CFED (${d2Label})`]: totals.cfed2,
-      [`Second BAR (${d2Label})`]: totals.bar2,
-      [`Second Final (${d2Label})`]: totals.final2,
+      [`STN (${d1Label})`]: totals.stn1,
+      [`GTN (${d1Label})`]: totals.gtn1,
+      [`TOTAL (${d1Label})`]: totals.total1,
+      [`CFED (${d1Label})`]: totals.cfed1,
+      [`BAR (${d1Label})`]: totals.bar1,
+      [d1Label]: totals.final1,
+      [`STN (${d2Label})`]: totals.stn2,
+      [`GTN (${d2Label})`]: totals.gtn2,
+      [`TOTAL (${d2Label})`]: totals.total2,
+      [`CFED (${d2Label})`]: totals.cfed2,
+      [`BAR (${d2Label})`]: totals.bar2,
+      [d2Label]: totals.final2,
       "Difference Cases": totals.diff,
-      "Difference %": totals.pct
+      "Difference %": totals.pct,
+      [lmLabel]: totals.last_month_final,
+    });
+
+    // Add Day Sales row
+    exportData.push({
+      Depot: "Day Sales",
+      [`TOTAL (${d1Label})`]: daySales1,
+      [`TOTAL (${d2Label})`]: daySales2,
     });
 
     exportToExcel(
@@ -217,7 +242,7 @@ export default function ItemIssueConsolidation() {
                 allowClear
                 value={selectedWarehouse}
                 onChange={setSelectedWarehouse}
-                options={warehouses.map(w => ({ value: w, label: w }))}
+                options={warehouses.map(w => ({ value: w, label: formatDepot(w) }))}
               />
             </div>
           )}
@@ -242,27 +267,38 @@ export default function ItemIssueConsolidation() {
             summary={(pageData) => {
               return (
                 <Table.Summary fixed>
-                  <Table.Summary.Row style={{ backgroundColor: "#fafafa", fontWeight: "bold" }}>
-                    <Table.Summary.Cell index={0} fixed="left">TOTAL</Table.Summary.Cell>
-                    <Table.Summary.Cell index={1}>{totals.stn1}</Table.Summary.Cell>
-                    <Table.Summary.Cell index={2}>{totals.gtn1}</Table.Summary.Cell>
-                    <Table.Summary.Cell index={3}>{totals.total1}</Table.Summary.Cell>
-                    <Table.Summary.Cell index={4}>{totals.cfed1}</Table.Summary.Cell>
-                    <Table.Summary.Cell index={5}>{totals.bar1}</Table.Summary.Cell>
-                    <Table.Summary.Cell index={6}>{totals.final1}</Table.Summary.Cell>
-                    <Table.Summary.Cell index={7}>{totals.stn2}</Table.Summary.Cell>
-                    <Table.Summary.Cell index={8}>{totals.gtn2}</Table.Summary.Cell>
-                    <Table.Summary.Cell index={9}>{totals.total2}</Table.Summary.Cell>
-                    <Table.Summary.Cell index={10}>{totals.cfed2}</Table.Summary.Cell>
-                    <Table.Summary.Cell index={11}>{totals.bar2}</Table.Summary.Cell>
-                    <Table.Summary.Cell index={12}>{totals.final2}</Table.Summary.Cell>
-                    <Table.Summary.Cell index={13}>{totals.diff}</Table.Summary.Cell>
-                    <Table.Summary.Cell index={14}>
-                      <span style={{ color: totals.pct < 0 ? "#d94f4f" : "#2ca02c" }}>
-                        {totals.pct}%
-                      </span>
-                    </Table.Summary.Cell>
-                  </Table.Summary.Row>
+                  <>
+                    <Table.Summary.Row style={{ backgroundColor: "#fafafa", fontWeight: "bold" }}>
+                      <Table.Summary.Cell index={0} fixed="left">TOTAL</Table.Summary.Cell>
+                      <Table.Summary.Cell index={1}>{totals.stn1}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={2}>{totals.gtn1}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={3}>{totals.total1}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={4}>{totals.cfed1}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={5}>{totals.bar1}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={6}>{totals.final1}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={7}>{totals.stn2}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={8}>{totals.gtn2}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={9}>{totals.total2}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={10}>{totals.cfed2}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={11}>{totals.bar2}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={12}>{totals.final2}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={13}>{totals.diff}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={14}>
+                        <span style={{ color: totals.pct < 0 ? "#d94f4f" : "#2ca02c" }}>
+                          {totals.pct}%
+                        </span>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={15}>{totals.last_month_final}</Table.Summary.Cell>
+                    </Table.Summary.Row>
+                    <Table.Summary.Row style={{ backgroundColor: "#f0f2f5", fontWeight: "bold" }}>
+                      <Table.Summary.Cell index={0} fixed="left">Day Sales</Table.Summary.Cell>
+                      <Table.Summary.Cell index={1} colSpan={2} />
+                      <Table.Summary.Cell index={3}>{daySales1}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={4} colSpan={5} />
+                      <Table.Summary.Cell index={9}>{daySales2}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={10} colSpan={6} />
+                    </Table.Summary.Row>
+                  </>
                 </Table.Summary>
               );
             }}

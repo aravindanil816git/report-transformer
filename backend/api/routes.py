@@ -26,6 +26,7 @@ RAW_DATA_TYPES = [
     "daily_warehouse",
     "daily_warehouse_offtake",
     "daily_secondary_sales",
+    "item_issue_consolidation",
     "warehouse_stock",
 ]
 
@@ -189,7 +190,7 @@ def sync_cumulative_report(report, all_reports=None):
         d = r.get("config", {}).get("date")
         if d:
             source_data = None
-            if r.get("type") == "daily_secondary_sales":
+            if r.get("type") in ["daily_secondary_sales", "item_issue_consolidation"]:
                 source_data = {"is_ready": True}
             else:
                 source_data = {
@@ -281,8 +282,8 @@ def create_report(
     uploads = []
     config = {}
 
-    # 🔥 DAILY SECONDARY
-    if type == "daily_secondary_sales":
+    # 🔥 DAILY SECONDARY & ITEM ISSUE CONSOLIDATION
+    if type in ["daily_secondary_sales", "item_issue_consolidation"]:
         # Use master warehouse data instead of static mapping
         from core.mapping_utils import get_warehouse_master_data
 
@@ -737,7 +738,7 @@ async def upload(
                 print(f"DEBUG: Error auto-detecting: {e}")
 
     match_found = False
-    if report["type"] == "daily_secondary_sales":
+    if report["type"] in ["daily_secondary_sales", "item_issue_consolidation"]:
         for u in report["uploads"]:
             if u["warehouse"].strip().upper() == detected_key.strip().upper():
                 df = read_excel_robust(path)
@@ -888,16 +889,18 @@ def process(rid: str):
         report["all_reports"] = get_all_reports(types=["daily_secondary_sales", "daily_warehouse_offtake", "combined_shopwise", "combined_shopwise_multi", "shop_sales_cumulative"], columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data, processed")
 
     if report["type"] == "month_comparative":
-        daily_reports = get_all_reports(types=["daily_secondary_sales"], columns="id, type, status, config, processed")
+        all_reports = get_all_reports(types=["item_issue_consolidation", "daily_secondary_sales"], columns="id, type, status, config, processed")
+        all_reports.sort(key=lambda x: 0 if x.get("type") == "daily_secondary_sales" else 1)
 
         combined = []
-        for d in daily_reports:
+        for d in all_reports:
             rep_date = d.get("config", {}).get("date")
             for item in (d.get("processed") or []):
                 if isinstance(item, dict):
-                    if not item.get("date") and rep_date:
-                        item["date"] = rep_date
-                combined.append(item)
+                    new_item = dict(item)
+                    if not new_item.get("date") and rep_date:
+                        new_item["date"] = rep_date
+                    combined.append(new_item)
 
         report["_live_source"] = combined
 
@@ -978,19 +981,36 @@ def update_report_config(rid: str, payload: dict = Body(...)):
 # ================= LIVE COMPARISON =================
 @router.get("/compare-live")
 def compare_live(date1: str, date2: str):
-    daily_reports = [
-        r for r in get_all_reports(types=["daily_secondary_sales"], columns="id, type, status, config, processed")
+    all_reports = [
+        r for r in get_all_reports(types=["item_issue_consolidation", "daily_secondary_sales", "daily_warehouse_offtake"], columns="id, type, status, config, processed")
         if r.get("status") == "Processed"
     ]
 
+    ds1_offtake = None
+    ds2_offtake = None
+
+    for d in all_reports:
+        rep_date = str(d.get("config", {}).get("date") or "").strip()[:10]
+        if d.get("type") == "daily_warehouse_offtake":
+            if rep_date == date1:
+                if ds1_offtake is None: ds1_offtake = 0
+                ds1_offtake += sum(float(item.get("issues") or 0) for item in (d.get("processed") or []))
+            if rep_date == date2:
+                if ds2_offtake is None: ds2_offtake = 0
+                ds2_offtake += sum(float(item.get("issues") or 0) for item in (d.get("processed") or []))
+
+    compare_reports = [r for r in all_reports if r.get("type") in ["item_issue_consolidation", "daily_secondary_sales"]]
+    compare_reports.sort(key=lambda x: 0 if x.get("type") == "daily_secondary_sales" else 1)
+
     combined = []
-    for d in daily_reports:
+    for d in compare_reports:
         rep_date = d.get("config", {}).get("date")
         for item in (d.get("processed") or []):
             if isinstance(item, dict):
-                if not item.get("date") and rep_date:
-                    item["date"] = rep_date
-            combined.append(item)
+                new_item = dict(item)
+                if not new_item.get("date") and rep_date:
+                    new_item["date"] = rep_date
+                combined.append(new_item)
 
     svc = get_service("month_comparative")
     
@@ -1005,7 +1025,10 @@ def compare_live(date1: str, date2: str):
     return {
         "data": dummy_report.get("processed", []),
         "date1": date1,
-        "date2": date2
+        "date2": date2,
+        "last_month_date_label": dummy_report.get("config", {}).get("last_month_date_label"),
+        "day_sales1": round(ds1_offtake, 2) if ds1_offtake is not None else "-",
+        "day_sales2": round(ds2_offtake, 2) if ds2_offtake is not None else "-",
     }
 
 
