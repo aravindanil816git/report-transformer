@@ -1,13 +1,16 @@
 import { useState } from "react";
-import { Modal, Table, Button, Upload, message, DatePicker, Tooltip } from "antd";
+import { Modal, Table, Button, Upload, message, DatePicker, Space } from "antd";
 import { uploadFile } from "../api";
 
 export default function ShopSalesCumulative({ report, onClose, reload }) {
-  const [uploads, setUploads] = useState(report.uploads);
+  const [uploads, setUploads] = useState(report.uploads || []);
+  const [uploadDate, setUploadDate] = useState(null);
 
   const handleUpload = async (file, date) => {
     try {
-      const res = await uploadFile(report.id, file, null, null, date);
+      const uploadKey = date || (uploadDate ? uploadDate.format("YYYY-MM-DD") : null);
+      const res = await uploadFile(report.id, file, uploadKey, null, uploadKey);
+      
       if (res.data.status !== "uploaded") {
         throw new Error(res.data.message || "Failed to upload");
       }
@@ -25,6 +28,10 @@ export default function ShopSalesCumulative({ report, onClose, reload }) {
       title: "Date",
       dataIndex: "date",
       key: "date",
+      render: (_, r) => {
+        if (r.from && r.to) return `${r.from} to ${r.to}`;
+        return r.date || "N/A";
+      }
     },
     {
       title: "Status",
@@ -59,7 +66,25 @@ export default function ShopSalesCumulative({ report, onClose, reload }) {
       footer={null}
       width={800}
     >
-      <Table dataSource={uploads} columns={columns} rowKey="date" />
+      <div style={{ marginBottom: 16 }}>
+        <Space>
+          <DatePicker value={uploadDate} onChange={setUploadDate} placeholder="Select Date" />
+          <Upload
+            beforeUpload={(file) => {
+              if (!uploadDate) {
+                message.warning("Please select a date first");
+                return Upload.LIST_IGNORE;
+              }
+              return true;
+            }}
+            customRequest={({ file }) => handleUpload(file, null)}
+            showUploadList={false}
+          >
+            <Button type="primary">Upload New File</Button>
+          </Upload>
+        </Space>
+      </div>
+      <Table dataSource={uploads} columns={columns} rowKey={(r) => r.date || r.from || Math.random()} />
     </Modal>
   );
 }

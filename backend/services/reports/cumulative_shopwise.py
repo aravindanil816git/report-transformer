@@ -3,10 +3,14 @@ import pandas as pd
 import re
 import os
 import json
+import time
 from datetime import datetime, timedelta
 from .base import BaseReportService
 from core.utils import normalize, clean_df, read_excel_robust
 from core.mapping_utils import get_shop_lookup_and_warehouse_to_bond
+
+import functools
+print = functools.partial(print, flush=True)
 
 class CumulativeShopwiseReportService(BaseReportService):
     type_name = "cumulative_shopwise"
@@ -34,30 +38,46 @@ class CumulativeShopwiseReportService(BaseReportService):
                 if u.get("date") == date:
                     u["file"] = file_name
                     u["status"] = "uploaded"
-                    u["data"] = df.to_dict("records")
+                    u["path"] = path
+                    u.pop("data", None)
                     break
             else:
                 # No existing entry for this date – create a new one
                 report["uploads"].append({
                     "date": date,
                     "file": file_name,
+                    "path": path,
                     "status": "uploaded",
-                    "data": df.to_dict("records"),
                 })
         # If a date range is provided, treat it as a bulk upload.
         elif from_date and to_date:
             report["uploads"].append({
                 "file": file_name,
+                "path": path,
                 "from": from_date,
                 "to": to_date,
                 "status": "uploaded",
-                "data": df.to_dict("records"),
             })
 
 
     def _compute(self, df):
+        # start_time = time.time()
+        # print(f"[_compute] Starting computation for DataFrame with {len(df)} rows.")
+
         # 🔍 Detect columns
         shop_col = next((c for c in df.columns if "shop" in c and "code" in c), None)
+        
+        if not shop_col:
+            # Try fallback to just 'code' or 'license'
+            for c in df.columns:
+                if c == "code" or "license" in c:
+                    shop_col = c
+                    break
+                    
+        if not shop_col:
+            print("[ERROR] [_compute] Could not find a suitable shop code column. Aborting.")
+            return pd.DataFrame()
+
         bpc_col = next((c for c in df.columns if "bottle" in c and "case" in c), None)
 
         open_case_col = next((c for c in df.columns if "opening" in c and "case" in c), None)
@@ -69,25 +89,41 @@ class CumulativeShopwiseReportService(BaseReportService):
         out_case_col = next((c for c in df.columns if "out" in c and "case" in c), None)
         out_bottle_col = next((c for c in df.columns if "out" in c and "bottle" in c), None)
 
-        if not all([shop_col, bpc_col, open_case_col, open_bottle_col]):
-            return pd.DataFrame()
-
         # ✅ Normalize
         df[shop_col] = df[shop_col].astype(str).str.strip()
-        df[bpc_col] = pd.to_numeric(df[bpc_col], errors="coerce").fillna(1)
+        
+        if bpc_col:
+            df[bpc_col] = pd.to_numeric(df[bpc_col], errors="coerce").fillna(1)
+        else:
+            bpc_col = "_bpc_temp"
+            df[bpc_col] = 1
 
-        for col in [
-            open_case_col, open_bottle_col,
-            in_case_col, in_bottle_col,
-            out_case_col, out_bottle_col
+        for col_name, col_var in [
+            ("open_case", open_case_col), ("open_bottle", open_bottle_col),
+            ("in_case", in_case_col), ("in_bottle", in_bottle_col),
+            ("out_case", out_case_col), ("out_bottle", out_bottle_col)
         ]:
-            if col:
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            if col_var and col_var in df.columns:
+                df[col_var] = pd.to_numeric(df[col_var], errors="coerce").fillna(0)
 
         # ✅ Calculations
-        df["opening"] = ((df[open_case_col] * df[bpc_col]) + df[open_bottle_col]) / df[bpc_col]
-        df["receipt"] = ((df[in_case_col] * df[bpc_col]) + df[in_bottle_col]) / df[bpc_col] if in_case_col and in_bottle_col else 0
-        df["sales"] = ((df[out_case_col] * df[bpc_col]) + df[out_bottle_col]) / df[bpc_col] if out_case_col and out_bottle_col else 0
+        df["opening"] = 0
+        if open_case_col or open_bottle_col:
+            oc = df[open_case_col] if open_case_col else 0
+            ob = df[open_bottle_col] if open_bottle_col else 0
+            df["opening"] = ((oc * df[bpc_col]) + ob) / df[bpc_col]
+            
+        df["receipt"] = 0
+        if in_case_col or in_bottle_col:
+            ic = df[in_case_col] if in_case_col else 0
+            ib = df[in_bottle_col] if in_bottle_col else 0
+            df["receipt"] = ((ic * df[bpc_col]) + ib) / df[bpc_col]
+            
+        df["sales"] = 0
+        if out_case_col or out_bottle_col:
+            sc = df[out_case_col] if out_case_col else 0
+            sb = df[out_bottle_col] if out_bottle_col else 0
+            df["sales"] = ((sc * df[bpc_col]) + sb) / df[bpc_col]
 
         # ✅ MAP USING SHOP CODE (KEY FIX)
         df["shop_code"] = df[shop_col]
@@ -122,10 +158,13 @@ class CumulativeShopwiseReportService(BaseReportService):
         if not unknown_bonds.empty:
             unique_unknowns = unknown_bonds[["shop_code", "warehouse", "shop_name"]].drop_duplicates()
             for _, row in unique_unknowns.iterrows():
-                print(f"[DEBUG] cumulative_shopwise _compute: UNKNOWN bond for shop_code: '{row['shop_code']}', name: '{row.get('shop_name')}', raw_warehouse: '{row.get('warehouse')}'")
+                print(f"[DEBUG] [_compute] UNKNOWN bond for shop_code: '{row['shop_code']}', name: '{row.get('shop_name')}', raw_warehouse: '{row.get('warehouse')}'")
 
         # ❗ Remove unmapped rows
         df = df[(df["warehouse"] != "UNKNOWN") | (df["bond"] != "UNKNOWN")]
+
+        # end_time = time.time()
+        # print(f"[_compute] Finished computation in {end_time - start_time:.2f} seconds. Returning DataFrame with {len(df)} rows.")
 
         return df[[
             "warehouse", "warehouse_code",
@@ -134,6 +173,9 @@ class CumulativeShopwiseReportService(BaseReportService):
         ]]
 
     def process(self, report):
+        process_start_time = time.time()
+        print(f"[INFO] [process] Starting processing for report ID {report.get('id')}.")
+
         uploads = report.get("uploads", [])
         config = report.get("config", {})
 
@@ -145,6 +187,7 @@ class CumulativeShopwiseReportService(BaseReportService):
             start_date_str = config.get("start_date")
             if not start_date_str:
                 report["processed"] = {"daywise": {}, "cumulative": [], "labels": []}
+                print(f"[WARN] [process] Report {report.get('id')} has no start_date in config. Aborting.")
                 return
             num_days = int(config.get("num_days", 1))
             end_date = datetime.strptime(start_date_str, "%Y-%m-%d") + timedelta(days=num_days - 1)
@@ -152,6 +195,13 @@ class CumulativeShopwiseReportService(BaseReportService):
         
         start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
         end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+
+        # 🔥 OOM SAFETY LIMIT: Prevent processing more than 35 days at once
+        if (end_date - start_date).days > 35:
+            end_date = start_date + timedelta(days=35)
+            end_date_str = end_date.strftime("%Y-%m-%d")
+            config["date2"] = end_date_str
+            print(f"[WARN] [process] Report date range exceeds 35 days. Truncating to {end_date_str}.")
 
         # Filter uploads to only include those within the date range
         relevant_uploads = []
@@ -166,6 +216,8 @@ class CumulativeShopwiseReportService(BaseReportService):
         # Sort by date to ensure correct order
         relevant_uploads.sort(key=lambda x: x["date"])
         
+        print(f"[INFO] [process] Processing {len(relevant_uploads)} relevant uploads from {start_date_str} to {end_date_str}.")
+        
         num_days = (end_date - start_date).days + 1
         labels = self._generate_labels(start_date_str, num_days)
 
@@ -176,18 +228,44 @@ class CumulativeShopwiseReportService(BaseReportService):
 
         uploads_by_date = {u["date"]: u for u in relevant_uploads}
 
+        total_raw_rows = 0
+        total_shrunk_rows = 0
+
         for i in range(num_days):
+            day_start_time = time.time()
             current_date = start_date + timedelta(days=i)
             current_date_str = current_date.strftime("%Y-%m-%d")
             label = labels[i]
 
             u = uploads_by_date.get(current_date_str)
             if not u:
+                # This is normal if a day has no upload, so no need to log as warning
+                continue
+            
+            print(f"[INFO] [process] Day {i+1}/{num_days}: Processing date {current_date_str}")
+
+            data = u.get("data")
+            df = None
+            if data and len(data) > 0:
+                print(f"[INFO] [process] Loading data from 'data' key with {len(data)} records for {current_date_str}.")
+                df = pd.DataFrame(data)
+            else:
+                path = u.get("path")
+                if path and os.path.exists(path):
+                    print(f"[INFO] [process] Reading data from file: {path} for {current_date_str}")
+                    df = read_excel_robust(path)
+                else:
+                    print(f"[WARN] [process] No data or valid path found for date {current_date_str}.")
+                    continue
+
+            if df.empty:
+                print(f"[WARN] [process] DataFrame is empty for date {current_date_str}.")
                 continue
 
-            df = pd.DataFrame(u.get("data", []))
-            if df.empty:
-                continue
+            raw_rows = len(df)
+            total_raw_rows += raw_rows
+
+            print(f"[INFO] [process] DataFrame for {current_date_str} has {raw_rows} rows before _compute.")
 
             # Map possible raw column names to the internal ones expected by _compute
             column_map = {
@@ -208,7 +286,10 @@ class CumulativeShopwiseReportService(BaseReportService):
             df_calc = self._compute(df)
 
             if df_calc.empty:
+                print(f"[WARN] [process] DataFrame is empty after _compute for date {current_date_str}.")
                 continue
+
+            print(f"[INFO] [process] DataFrame for {current_date_str} has {len(df_calc)} rows after _compute.")
 
             # ✅ GROUP BY MAPPED WAREHOUSE, BOND, AND SHOP
             grouped = (
@@ -216,6 +297,9 @@ class CumulativeShopwiseReportService(BaseReportService):
                 .sum()
                 .reset_index()
             )
+            
+            shrunk_rows = len(grouped)
+            total_shrunk_rows += shrunk_rows
 
             for _, row in grouped.iterrows():
                 wh = row["warehouse"]
@@ -244,6 +328,12 @@ class CumulativeShopwiseReportService(BaseReportService):
                 cumulative_map[group_key]["opening"] += opening
                 cumulative_map[group_key]["receipt"] += receipt
                 cumulative_map[group_key]["sales"] += sales
+            
+            day_end_time = time.time()
+            print(f"[INFO] [process] Progress: Day {i+1}/{num_days} ({current_date_str}). "
+                        f"Aggregated {raw_rows} -> {shrunk_rows} rows. "
+                        f"Cumulative unique output rows: {len(cumulative_map)}. "
+                        f"Total raw rows processed so far: {total_raw_rows}. Time: {day_end_time - day_start_time:.2f}s.")
 
         # fill missing labels
         for store in [daywise_opening, daywise_sales, daywise_receipt]:
@@ -291,6 +381,12 @@ class CumulativeShopwiseReportService(BaseReportService):
             "cumulative": cumulative_data,
             "labels": labels
         }
+        
+        process_end_time = time.time()
+        print(f"[INFO] [process] SUCCESS! Report ID {report.get('id')} finished. "
+                    f"Processed {total_raw_rows} total raw rows across {num_days} days. "
+                    f"Final payload contains {len(cumulative_map)} aggregated rows. "
+                    f"Total processing time: {process_end_time - process_start_time:.2f} seconds.")
 
     def get_report(
         self,
@@ -302,6 +398,10 @@ class CumulativeShopwiseReportService(BaseReportService):
         mode="warehouse",
         **kwargs
     ):
+        get_report_start = time.time()
+        print(f"[INFO] [get_report] ===================================================")
+        print(f"[INFO] [get_report] Started get_report. Mode: '{mode}', View: '{view}'")
+        
         processed = report.get("processed") or {}
         labels = processed.get("labels", [])
         data = processed.get(view, [])
@@ -326,8 +426,13 @@ class CumulativeShopwiseReportService(BaseReportService):
             idxs = list(range(len(labels)))
             selected_labels = labels
 
+        print(f"[INFO] [get_report] Extracted {len(data)} rows from processed data. Selected {len(selected_labels)} labels out of {len(labels)}.")
+
         result = []
 
+        transform_start = time.time()
+        print(f"[INFO] [get_report] Starting base transformation loop...")
+        
         for row in data:
             new_row = {
                 "warehouse": row["warehouse"], 
@@ -346,10 +451,14 @@ class CumulativeShopwiseReportService(BaseReportService):
             new_row["total"] = round(float(total), 2)
             result.append(new_row)
 
+        print(f"[INFO] [get_report] Base transformation finished in {time.time() - transform_start:.2f}s")
+
         _, warehouse_to_bond = get_shop_lookup_and_warehouse_to_bond()
 
         # 🔥 AGGREGATE DAYWISE
+        agg_start = time.time()
         if mode == "bond":
+            print(f"[INFO] [get_report] Starting Daywise Aggregation for BOND mode...")
             bond_map = {}
             if not bond and not warehouse:
                 from core.mapping_utils import get_bond_mapping_data
@@ -365,6 +474,7 @@ class CumulativeShopwiseReportService(BaseReportService):
 
                 if bnd == "UNKNOWN" or not bnd:
                     print(f"[DEBUG] cumulative_shopwise (daywise bond mode): UNKNOWN bond. row: {row}")
+                    print(f"[WARN] [get_report] (daywise bond mode) UNKNOWN bond for row: {row}")
 
                 if bnd not in bond_map:
                     bond_map[bnd] = {"warehouse": bnd, "bond": bnd, "total": 0}
@@ -382,7 +492,9 @@ class CumulativeShopwiseReportService(BaseReportService):
                         vals[k] = round(float(v), 2)
 
             result = list(bond_map.values())
+            print(f"[INFO] [get_report] Daywise BOND aggregation finished in {time.time() - agg_start:.2f}s. Result: {len(result)} rows.")
         elif mode == "shop":
+            print(f"[INFO] [get_report] Starting Daywise Aggregation for SHOP mode...")
             shop_map = {}
             for row in result:
                 sc = row.get("shop_code", "UNKNOWN")
@@ -408,8 +520,10 @@ class CumulativeShopwiseReportService(BaseReportService):
                         vals[k] = round(float(v), 2)
 
             result = list(shop_map.values())
+            print(f"[INFO] [get_report] Daywise SHOP aggregation finished in {time.time() - agg_start:.2f}s. Result: {len(result)} rows.")
         else:
             # 🔥 WAREHOUSE MODE
+            print(f"[INFO] [get_report] Starting Daywise Aggregation for WAREHOUSE mode...")
             wh_map = {}
             for row in result:
                 wh = row.get("warehouse", "UNKNOWN")
@@ -429,9 +543,12 @@ class CumulativeShopwiseReportService(BaseReportService):
                         vals[k] = round(float(v), 2)
 
             result = list(wh_map.values())
+            print(f"[INFO] [get_report] Daywise WAREHOUSE aggregation finished in {time.time() - agg_start:.2f}s. Result: {len(result)} rows.")
 
         # cumulative
         if view == "cumulative":
+            cum_start = time.time()
+            print(f"[INFO] [get_report] Starting CUMULATIVE view processing...")
             cumulative_data = processed.get("cumulative", [])
             if mode == "bond":
                 bond_map = {}
@@ -448,6 +565,7 @@ class CumulativeShopwiseReportService(BaseReportService):
 
                     if bnd == "UNKNOWN" or not bnd:
                         print(f"[DEBUG] cumulative_shopwise (cumulative bond mode): UNKNOWN bond. row: {row}")
+                        print(f"[WARN] [get_report] (cumulative bond mode) UNKNOWN bond for row: {row}")
 
                     if bnd not in bond_map:
                         bond_map[bnd] = {"warehouse": bnd, "bond": bnd, "opening": 0, "receipt": 0, "sales": 0, "closing": 0, "difference": 0, "avg_sales_per_day": 0, "closing_stock_at_sales_perc": 0, "perc": 0}
@@ -520,12 +638,18 @@ class CumulativeShopwiseReportService(BaseReportService):
                 
                 cumulative_data = list(wh_map.values())
                 
+            print(f"[INFO] [get_report] Cumulative processing finished in {time.time() - cum_start:.2f}s.")
+            print(f"[INFO] [get_report] Total execution time: {time.time() - get_report_start:.2f}s.")
+            print(f"[INFO] [get_report] ===================================================")
+            
             return {
                 "data": cumulative_data,
                 "labels": selected_labels,
                 "config": report.get("config", {})
             }
 
+        print(f"[INFO] [get_report] Total execution time: {time.time() - get_report_start:.2f}s.")
+        print(f"[INFO] [get_report] ===================================================")
         return {
             "data": result,
             "labels": selected_labels,

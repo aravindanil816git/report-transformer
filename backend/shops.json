@@ -419,9 +419,9 @@
     "shop_code": "413007",
     "category": "BAR"
   },
-  "nan": {
+  "413001": {
     "shop_name": "J K PARK RESIDENCY PUTHIYATHERU",
-    "shop_code": "nan",
+    "shop_code": "413001",
     "category": "BAR"
   },
   "113016": {
@@ -1888,6 +1888,21 @@
     "shop_name": "7020-Poothotta",
     "shop_code": "107020",
     "category": "KSBC"
+  },
+    "1": {
+    "shop_name": "KINGS REGENCY LLP",
+    "shop_code": "1",
+    "category": "BAR"
+  },
+    "2": {
+    "shop_name": "MOSA & SONS",
+    "shop_code": "2",
+    "category": "BAR"
+  },
+    "3": {
+    "shop_name": "SONA BENETT",
+    "shop_code": "3",
+    "category": "BAR"
   },
   "11014": {
     "category": "KSBC",

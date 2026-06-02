@@ -15,7 +15,7 @@ export default function ItemIssueConsolidation() {
 
   useEffect(() => {
     listReports().then((res) => {
-      setReports(res.data || []);
+      setReports(res.data?.items || res.data || []);
     });
     // Get master list of warehouses
     getAllWarehouses().then(res => {
@@ -271,4 +271,3 @@ export default function ItemIssueConsolidation() {
     </div>
   );
 }
-

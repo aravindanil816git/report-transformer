@@ -38,8 +38,7 @@ export default function DailySecondaryUploadModal({
     }
   };
 
-  const handleBulkUpload = async (info) => {
-    const { fileList } = info;
+  const handleBulkUpload = async (fileList) => {
     if (fileList.length === 0) return;
 
     setUploading(true);
@@ -48,7 +47,7 @@ export default function DailySecondaryUploadModal({
     let successCount = 0;
     let failCount = 0;
     for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i].originFileObj;
+      const file = fileList[i];
       try {
         const res = await uploadFile(report.id, file, null, null, "auto");
         if (res.data?.status === "error") {
@@ -185,8 +184,12 @@ export default function DailySecondaryUploadModal({
         <Dragger
           multiple
           showUploadList={false}
-          beforeUpload={() => false}
-          onChange={handleBulkUpload}
+          beforeUpload={(file, fileList) => {
+            if (fileList.indexOf(file) === fileList.length - 1) {
+              handleBulkUpload(fileList);
+            }
+            return false;
+          }}
           disabled={uploading}
         >
           <p className="ant-upload-drag-icon">

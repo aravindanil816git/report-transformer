@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
-import { Table, Button, Select, DatePicker, Space } from "antd";
+import { Table, Button, Select, DatePicker, Space, message } from "antd";
 import { useParams, useSearchParams } from "react-router-dom";
-import { getReport } from "../../api";
+import { getReport, processReport } from "../../api";
 import dayjs from "dayjs";
 import { exportToExcel } from "../../utils/exportUtils";
 
@@ -12,6 +12,7 @@ export default function CumulativeWarehouseReport() {
   const [searchParams] = useSearchParams();
 
   const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [labels, setLabels] = useState([]);
   const [allLabels, setAllLabels] = useState([]);
   const [config, setConfig] = useState({});
@@ -35,28 +36,42 @@ export default function CumulativeWarehouseReport() {
   }, [config?.type]);
 
   // 🔹 load data from backend
-  const load = async (startIdx = null, endIdx = null, selectedWarehouse = null, selectedBond = null, selectedMode = mode) => {
-    const res = await getReport(id, null, selectedWarehouse ? "shopwise" : view, {
-      start_idx: startIdx,
-      end_idx: endIdx,
-      mode: selectedMode,
-      warehouse: selectedWarehouse,
-      bond: selectedBond
-    });
-    const cleaned = (res.data.data || []).filter(d => d.warehouse || d.shop_code || d.bond);
-
-    setData(cleaned);
-    setLabels(res.data.labels || []);
-    setConfig(res.data.config || {});
-
-    if (allLabels.length === 0) {
-      setAllLabels(res.data.labels || []);
+  const load = async (startIdx = null, endIdx = null, selectedWarehouse = warehouseFilter, selectedBond = null, selectedMode = mode, d1 = null, d2 = null) => {
+    setLoading(true);
+    try {
+      const params = {
+        start_idx: startIdx,
+        end_idx: endIdx,
+        mode: selectedMode,
+        warehouse: selectedWarehouse,
+        bond: selectedBond
+      };
+      if (d1 && d2) {
+        params.start_date = d1;
+        params.end_date = d2;
+      }
+      const res = await getReport(id, null, selectedWarehouse ? "shopwise" : view, params);
+      const cleaned = (res.data.data || []).filter(d => d.warehouse || d.shop_code || d.bond);
+  
+      setData(cleaned);
+      setLabels(res.data.labels || []);
+      setConfig(res.data.config || {});
+  
+      if (res.data.config?.date1 && res.data.config?.date2 && dateRange.length === 0) {
+        setDateRange([dayjs(res.data.config.date1), dayjs(res.data.config.date2)]);
+      }
+  
+      if (allLabels.length === 0) {
+        setAllLabels(res.data.labels || []);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  // 🔥 Reload when view or date range changes
+  // 🔥 Reload when view or data parameters change
   useEffect(() => {
-    applyFilters();
+    fetchCurrentView();
   }, [view, drilledWarehouse, drilledBond, mode]);
 
   // 🔹 convert label → date (robust manual parse)
@@ -79,32 +94,70 @@ export default function CumulativeWarehouseReport() {
     return idx === -1 ? null : idx;
   };
 
-  // 🔥 APPLY FILTERS (Reload data from backend for date range)
-  const applyFilters = () => {
-    let startIdx = null;
-    let endIdx = null;
-
-    if (dateRange.length === 2) {
-      startIdx = getIndexFromDate(dateRange[0]);
-      endIdx = getIndexFromDate(dateRange[1]);
+  const fetchCurrentView = async () => {
+    // 🔥 STRICT BLOCK: Do not initiate any network calls if dates are not completely selected.
+    if (!dateRange || !Array.isArray(dateRange) || dateRange.length !== 2 || !dateRange[0] || !dateRange[1]) {
+      return;
     }
 
     let currentMode = mode;
     if (drilledWarehouse) currentMode = "shop";
     else if (drilledBond) currentMode = "shop";
+    
+    await load(null, null, drilledWarehouse || warehouseFilter, drilledBond, currentMode);
+  };
 
-    load(startIdx, endIdx, drilledWarehouse, drilledBond, currentMode);
+  // 🔥 APPLY FILTERS (Reload data from backend for date range)
+  const handleApplyDateRange = async () => {
+    if (!dateRange || !Array.isArray(dateRange) || dateRange.length !== 2 || !dateRange[0] || !dateRange[1]) {
+      message.warning("Please select a complete start and end date");
+      return;
+    }
+    
+    let currentMode = mode;
+    if (drilledWarehouse) currentMode = "shop";
+    else if (drilledBond) currentMode = "shop";
+
+    const d1 = dateRange[0].format("YYYY-MM-DD");
+    const d2 = dateRange[1].format("YYYY-MM-DD");
+    
+    try {
+      await load(null, null, drilledWarehouse || warehouseFilter, drilledBond, currentMode, d1, d2);
+      message.success("Report date range applied successfully");
+    } catch (e) {
+      message.error("Failed to process date range");
+    }
   };
 
   // 🔥 RESET FILTERS
-  const resetFilters = () => {
+  const resetFilters = async () => {
     setBondFilter(null);
     setWarehouseFilter(null);
     setDateRange([]);
     setDrilledWarehouse(null);
     setDrilledBond(null);
     setMode("warehouse");
-    load(null, null, null, null, "warehouse");
+    
+    try {
+      await load(null, null, null, null, "warehouse", "RESET", "RESET");
+    } catch (e) {
+      message.error("Failed to reset filters");
+    }
+  };
+
+  const handleRefresh = async () => {
+    try {
+      setLoading(true);
+      await processReport(id);
+      message.success("Report refreshed successfully!");
+      let currentMode = mode;
+      if (drilledWarehouse) currentMode = "shop";
+      else if (drilledBond) currentMode = "shop";
+      await load(null, null, drilledWarehouse, drilledBond, currentMode);
+    } catch (error) {
+      message.error("Failed to refresh report");
+      setLoading(false);
+    }
   };
 
   // 🔹 Aggregation and Filtering Logic
@@ -231,7 +284,10 @@ export default function CumulativeWarehouseReport() {
     <div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2>{isDailyWiseType ? "Daily Secondary Sales" : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "Consolidated Secondary Sales (Legacy)")}</h2>
-        <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
+        <Space>
+          <Button onClick={handleRefresh}>Refresh Data</Button>
+          <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
+        </Space>
       </div>
 
       <div style={{ marginBottom: 16 }}>
@@ -330,7 +386,7 @@ export default function CumulativeWarehouseReport() {
           disabledDate={disabledDate}
         />
 
-        <Button type="primary" onClick={applyFilters}>
+        <Button type="primary" onClick={handleApplyDateRange}>
           Apply Date Range
         </Button>
 
@@ -361,6 +417,7 @@ export default function CumulativeWarehouseReport() {
 
       {/* 🔥 TABLE */}
       <Table
+        loading={loading}
         bordered
         columns={view === "cumulative" ? cumulativeColumns : daywiseColumns}
         dataSource={processedData}

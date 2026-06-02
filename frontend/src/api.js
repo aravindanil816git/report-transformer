@@ -11,7 +11,7 @@ const api = axios.create({
 
 // ================= REPORTS =================
 
-export const listReports = () => api.get("/reports");
+export const listReports = (params = {}) => api.get("/reports", { params });
 
 export const deleteReport = (id) => api.delete(`/reports/${id}`);
 

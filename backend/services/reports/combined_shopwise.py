@@ -25,6 +25,13 @@ class CombinedShopwiseReportService(BaseReportService):
             if r.get("type") == "shop_sales_cumulative":
                 source_report = r
                 break
+                
+        # Fallback to Supabase if the server restarted and memory is wiped
+        if not source_report:
+            from services.db import supabase
+            res = supabase.table("reports").select("id, type, data, uploads, config").eq("type", "shop_sales_cumulative").execute()
+            if res.data:
+                source_report = res.data[0]
 
         # Debug: output the cumulative source report data to inspect when multiple uploads are present
         # Write the raw data to an Excel file for easier examination
@@ -142,6 +149,13 @@ class CombinedShopwiseReportService(BaseReportService):
             if r.get("type") == "shop_sales_cumulative":
                 source_report = r
                 break
+                
+        # Fallback to Supabase if the server restarted and memory is wiped
+        if not source_report:
+            from services.db import supabase
+            res = supabase.table("reports").select("id, type, data").eq("type", "shop_sales_cumulative").execute()
+            if res.data:
+                source_report = res.data[0]
 
         # Override warehouses with data from the source report
         if source_report and source_report.get("data"):

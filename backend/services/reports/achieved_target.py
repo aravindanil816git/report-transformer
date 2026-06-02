@@ -23,6 +23,15 @@ class AchievedTargetReportService(BaseReportService):
         from services.store import reports as all_reports_store
         from services.registry import get_service
 
+        reports_list = list(all_reports_store.values())
+        
+        # Fallback to Supabase if the server restarted and memory is wiped
+        if not reports_list:
+            from services.db import supabase
+            res = supabase.table("reports").select("id, type, config, uploads, processed, data").execute()
+            if res.data:
+                reports_list = res.data
+
         month = report.get("config", {}).get("month", "")
         if not month:
             return {"data": [], "config": report.get("config", {})}
@@ -59,7 +68,7 @@ class AchievedTargetReportService(BaseReportService):
         achieved_map = {}
 
         # Dynamic Aggregation across all loaded reports
-        for r in all_reports_store.values():
+        for r in reports_list:
             r_type = r.get("type")
             
             if r_type == "daily_secondary_sales":
@@ -125,7 +134,7 @@ class AchievedTargetReportService(BaseReportService):
             import pandas as pd
             from core.utils import find_column, normalize
             
-            for r in all_reports_store.values():
+            for r in reports_list:
                 if r.get("type") in ["combined_shopwise", "combined_shopwise_multi", "shop_sales_cumulative"]:
                     for u in r.get("uploads", []):
                         if u.get("data"):

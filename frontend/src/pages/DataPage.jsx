@@ -37,6 +37,7 @@ const RAW_DATA_TYPES = [
   "daily_warehouse",
   "daily_warehouse_offtake",
   "daily_secondary_sales",
+  "warehouse_stock",
 ];
 
 export default function DataPage() {
@@ -57,27 +58,54 @@ export default function DataPage() {
   const typeFilter = params.get("type");
 
   const navigate = useNavigate();
+  
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
 
-  const load = () =>
-    listReports().then((r) => {
-      const reports = r.data || [];
+  const load = () => {
+    let currentTypeFilter = typeFilter;
+    if (typeFilter === 'new_cumulative_report') {
+      currentTypeFilter = 'cumulative_shopwise';
+    }
+    
+    const queryParams = { skip: (currentPage - 1) * pageSize, limit: pageSize };
+    if (currentTypeFilter) {
+      queryParams.type = currentTypeFilter;
+    } else {
+      queryParams.exclude_raw = true;
+    }
+    
+    listReports(queryParams).then((r) => {
+      const reports = r.data?.items || r.data || [];
       setData(reports);
+      setTotal(r.data?.total || reports.length);
       setCurrent((prev) => {
         if (!prev) return null;
         return reports.find((x) => x.id === prev.id) || prev;
       });
     });
+  };
 
   useEffect(() => {
     load();
-  }, []);
+  }, [typeFilter, currentPage, pageSize]);
+  
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [typeFilter]);
 
   useEffect(() => {
-    if (['cumulative_shopwise', 'combined_shopwise'].includes(type) && date1 && date2) {
+    if (['cumulative_shopwise', 'combined_shopwise', 'shop_sales_cumulative', 'new_cumulative_report', 'month_comparative', 'dailywise_secondary_sales_cum', 'brandwise_cum_secondary_sales'].includes(type) && date1 && date2) {
       setName(`${date1.format('MMM D')} to ${date2.format('MMM D')}`);
     } else if (['achieved_target', 'monthly_stock_sales'].includes(type) && reportDate) {
       const label = REPORT_REGISTRY[type]?.label || (type === 'achieved_target' ? 'Achieved / Target' : type);
       setName(`${label} - ${reportDate.format('MMMM YYYY')}`);
+    } else if (reportDate) {
+      const label = REPORT_REGISTRY[type]?.label || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      setName(`${label} - ${reportDate.format('DD MMM YYYY')}`);
+    } else {
+      setName("");
     }
   }, [date1, date2, reportDate, type]);
 
@@ -128,18 +156,7 @@ export default function DataPage() {
       status: "Ready",
       isLive: true
     }] : []),
-    ...data.filter((d) => {
-      let currentTypeFilter = typeFilter;
-      if (typeFilter === 'new_cumulative_report') {
-        currentTypeFilter = 'cumulative_shopwise';
-      }
-
-      if (currentTypeFilter) {
-        return d.type === currentTypeFilter;
-      }
-
-      return !RAW_DATA_TYPES.includes(d.type) && d.type !== "month_comparative";
-    })
+    ...data
   ];
 
   const columns = [
@@ -150,7 +167,7 @@ export default function DataPage() {
       title: "Date",
       render: (_, r) => {
         if (r.isLive) return "Live Comparison";
-        if (["daily_secondary_sales", "shopwise", "daily_warehouse", "daily_warehouse_offtake", "shop_sales_cumulative"].includes(r.type)) {
+        if (["daily_secondary_sales", "shopwise", "daily_warehouse", "daily_warehouse_offtake", "shop_sales_cumulative", "warehouse_stock"].includes(r.type)) {
           return r.config?.date
             ? dayjs(r.config.date).format("DD MMM YYYY")
             : "-";
@@ -179,7 +196,10 @@ export default function DataPage() {
           );
         }
         const config = REPORT_REGISTRY[r.type];
-        const isProcessed = r.status === "Processed";
+        
+        // Allow users to open lazy-processed report containers regardless of processed status
+        const isLazyType = ["cumulative_shopwise", "new_cumulative_report", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"].includes(r.type);
+        const isProcessed = r.status === "Processed" || isLazyType;
 
         return (
           <Space direction="horizontal">
@@ -222,6 +242,8 @@ export default function DataPage() {
                     onClick={() => {
                       if (typeFilter === 'new_cumulative_report') {
                         navigate(REPORT_REGISTRY.new_cumulative_report.route.replace(":id", r.id));
+                      } else if (!config?.route && RAW_DATA_TYPES.includes(r.type)) {
+                          navigate(`/report/${r.type}/${r.id}`);
                       } else {
                         navigate(config?.route?.replace(":id", r.id) || `/achieved-target/${r.id}`);
                       }
@@ -290,7 +312,7 @@ export default function DataPage() {
     },
   ];
 
-  const isUploadType = ["shopwise", "daily_warehouse", "daily_warehouse_offtake", "daily_secondary_sales", "shop_sales_cumulative"].includes(typeFilter);
+  const isUploadType = ["shopwise", "daily_warehouse", "daily_warehouse_offtake", "daily_secondary_sales", "shop_sales_cumulative", "warehouse_stock"].includes(typeFilter);
 
   const renderHelpNote = () => {
     if (!typeFilter) return null;
@@ -324,6 +346,12 @@ export default function DataPage() {
           { type: "daily_warehouse", label: "Physical Stock report" }
         ]
       },
+      warehouse_stock: {
+        text: "Data uploaded here is used in:",
+        links: [
+          { type: "monthly_stock_sales", label: "Monthly Stock Sales (Inward)" }
+        ]
+      },
       daily_secondary_sales: {
         text: "Data uploaded here is used in:",
         links: [
@@ -333,6 +361,7 @@ export default function DataPage() {
       daily_warehouse_offtake: {
         text: "Data uploaded here is used in:",
         links: [
+          { type: "cumulative_warehouse", label: "Cumulative Warehouse" },
           { type: "dailywise_secondary_sales_cum", label: "DailyWise Secondary Sales" },
           { type: "brandwise_cum_secondary_sales", label: "Brandwise Cum Secondary Sales" }
         ]
@@ -377,6 +406,15 @@ export default function DataPage() {
         columns={columns}
         dataSource={filteredData}
         rowKey="id"
+        pagination={{
+          current: currentPage,
+          pageSize: pageSize,
+          total: total,
+          onChange: (page, size) => {
+            setCurrentPage(page);
+            setPageSize(size);
+          }
+        }}
         style={{ marginTop: 20 }}
       />
 
@@ -387,7 +425,7 @@ export default function DataPage() {
           disabled: 
             (["monthly_stock_sales", "achieved_target"].includes(type) && !reportDate) ||
             (["month_comparative", "cumulative_shopwise", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "shop_sales_cumulative", "new_cumulative_report"].includes(type) && (!date1 || !date2)) ||
-            (["daily_secondary_sales", "shopwise", "daily_warehouse_offtake", "daily_warehouse"].includes(type) && (!name || !reportDate))
+            (["daily_secondary_sales", "shopwise", "daily_warehouse_offtake", "daily_warehouse", "warehouse_stock"].includes(type) && (!name || !reportDate))
         }}
         onOk={async () => {
           let finalType = type;
@@ -404,9 +442,11 @@ export default function DataPage() {
                const label = REPORT_REGISTRY[type]?.label || (type === 'achieved_target' ? 'Achieved / Target' : type);
                finalName = `${label} - ${reportDate.format('MMMM YYYY')}`;
              } else if (reportDate) {
-               finalName = `${REPORT_REGISTRY[type]?.label || type} - ${reportDate.format('DD MMM YYYY')}`;
+               const label = REPORT_REGISTRY[type]?.label || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+               finalName = `${label} - ${reportDate.format('DD MMM YYYY')}`;
              } else {
-               finalName = `${REPORT_REGISTRY[type]?.label || type} Report`;
+               const label = REPORT_REGISTRY[type]?.label || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+               finalName = `${label} Report`;
              }
           }
 
@@ -429,7 +469,10 @@ export default function DataPage() {
               date1: date1?.format("YYYY-MM-DD"),
               date2: date2?.format("YYYY-MM-DD"),
             });
-            await processReport(res.data.id);
+            // Only auto-process raw data containers; lazy-view types process on-demand inside the view
+            if (type === "shop_sales_cumulative") {
+              await processReport(res.data.id);
+            }
           }
           else {
             await createReport(finalName, finalType, {
@@ -446,10 +489,9 @@ export default function DataPage() {
         <Form layout="vertical" style={{ marginTop: 20 }}>
           <Form.Item label="Name">
             <Input
-              placeholder="Enter name"
+              placeholder="Auto-generated on date selection"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={['cumulative_shopwise', 'combined_shopwise', 'achieved_target', 'monthly_stock_sales'].includes(type)}
+              disabled
             />
           </Form.Item>
 
@@ -471,7 +513,7 @@ export default function DataPage() {
           </Form.Item>
 
           {/* 🔥 DAILY */}
-          {["daily_secondary_sales", "shopwise", "daily_warehouse_offtake"].includes(type) && (
+          {["daily_secondary_sales", "shopwise", "daily_warehouse_offtake", "warehouse_stock"].includes(type) && (
             <Form.Item label="Date">
               <DatePicker style={{ width: '100%' }} onChange={setReportDate} />
             </Form.Item>
@@ -530,7 +572,7 @@ export default function DataPage() {
 
       {/* 🔥 UPLOAD MODAL */}
       {uploadOpen &&
-        ["daily_secondary_sales", "daily_warehouse"].includes(
+        ["daily_secondary_sales", "daily_warehouse", "warehouse_stock"].includes(
           current?.type
         ) && (
           <DailySecondaryUploadModal
