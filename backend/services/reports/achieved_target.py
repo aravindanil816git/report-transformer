@@ -76,7 +76,7 @@ class AchievedTargetReportService(BaseReportService):
                 if str(r_date)[:7] != month: continue
                 if start_date and end_date and not (start_date <= str(r_date) <= end_date): continue
                 
-                for row in r.get("processed", []):
+                for row in (r.get("processed") or []):
                     shop_code = str(row.get("shop_code", row.get("shop", "")))
                     if shop_type_lookup.get(shop_code, "") in ["bar", "cfd"]:
                         brand = self._clean_brand(row.get("brand", "Unknown"))
@@ -91,7 +91,7 @@ class AchievedTargetReportService(BaseReportService):
                 if str(r_date)[:7] != month: continue
                 if start_date and end_date and not (start_date <= str(r_date) <= end_date): continue
                 
-                for row in r.get("processed", []):
+                for row in (r.get("processed") or []):
                     shop_code = str(row.get("shop_code", ""))
                     if shop_type_lookup.get(shop_code, "") in ["bar", "cfd"]:
                         brand = self._clean_brand(row.get("brand", "Unknown"))
@@ -136,7 +136,7 @@ class AchievedTargetReportService(BaseReportService):
             
             for r in reports_list:
                 if r.get("type") in ["combined_shopwise", "combined_shopwise_multi", "shop_sales_cumulative"]:
-                    for u in r.get("uploads", []):
+                    for u in (r.get("uploads") or []):
                         if u.get("data"):
                             try:
                                 df = pd.DataFrame(u["data"])
@@ -148,7 +148,7 @@ class AchievedTargetReportService(BaseReportService):
                                         if b_str != "UNKNOWN": all_brands.add(b_str)
                             except Exception: pass
                 elif r.get("type") == "daily_warehouse_offtake" and r.get("processed"):
-                    for row in r.get("processed", []):
+                    for row in (r.get("processed") or []):
                         b = row.get("brand") or row.get("item")
                         if b:
                             b_str = self._clean_brand(b)
