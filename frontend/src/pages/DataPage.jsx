@@ -97,13 +97,13 @@ export default function DataPage() {
 
   useEffect(() => {
     if (['cumulative_shopwise', 'combined_shopwise', 'shop_sales_cumulative', 'new_cumulative_report', 'month_comparative', 'dailywise_secondary_sales_cum', 'brandwise_cum_secondary_sales'].includes(type) && date1 && date2) {
-      setName(`${date1.format('MMM D')} to ${date2.format('MMM D')}`);
+      setName(`${date1.format('DD-MM-YYYY')} to ${date2.format('DD-MM-YYYY')}`);
     } else if (['achieved_target', 'monthly_stock_sales'].includes(type) && reportDate) {
       const label = REPORT_REGISTRY[type]?.label || (type === 'achieved_target' ? 'Achieved / Target' : type);
-      setName(`${label} - ${reportDate.format('MMMM YYYY')}`);
+      setName(`${label} - ${reportDate.format('MM-YYYY')}`);
     } else if (reportDate) {
       const label = REPORT_REGISTRY[type]?.label || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-      setName(`${label} - ${reportDate.format('DD MMM YYYY')}`);
+      setName(`${label} - ${reportDate.format('DD-MM-YYYY')}`);
     } else {
       setName("");
     }
@@ -169,14 +169,14 @@ export default function DataPage() {
         if (r.isLive) return "Live Comparison";
         if (["daily_secondary_sales", "shopwise", "daily_warehouse", "daily_warehouse_offtake", "shop_sales_cumulative", "warehouse_stock"].includes(r.type)) {
           return r.config?.date
-            ? dayjs(r.config.date).format("DD MMM YYYY")
+            ? dayjs(r.config.date).format("DD-MM-YYYY")
             : "-";
         }
 
         if (r.type === "month_comparative") {
-          return `${dayjs(r.config?.date1).format("DD MMM")} → ${dayjs(
+          return `${dayjs(r.config?.date1).format("DD-MM-YYYY")} → ${dayjs(
             r.config?.date2
-          ).format("DD MMM")}`;
+          ).format("DD-MM-YYYY")}`;
         }
 
         return "-";
@@ -437,13 +437,13 @@ export default function DataPage() {
           let finalName = name;
           if (!finalName) {
              if (['cumulative_shopwise', 'combined_shopwise', 'shop_sales_cumulative', 'new_cumulative_report', 'month_comparative', 'dailywise_secondary_sales_cum', 'brandwise_cum_secondary_sales'].includes(type) && date1 && date2) {
-               finalName = `${date1.format('MMM D')} to ${date2.format('MMM D')}`;
+               finalName = `${date1.format('DD-MM-YYYY')} to ${date2.format('DD-MM-YYYY')}`;
              } else if (['achieved_target', 'monthly_stock_sales'].includes(type) && reportDate) {
                const label = REPORT_REGISTRY[type]?.label || (type === 'achieved_target' ? 'Achieved / Target' : type);
-               finalName = `${label} - ${reportDate.format('MMMM YYYY')}`;
+               finalName = `${label} - ${reportDate.format('MM-YYYY')}`;
              } else if (reportDate) {
                const label = REPORT_REGISTRY[type]?.label || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-               finalName = `${label} - ${reportDate.format('DD MMM YYYY')}`;
+               finalName = `${label} - ${reportDate.format('DD-MM-YYYY')}`;
              } else {
                const label = REPORT_REGISTRY[type]?.label || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                finalName = `${label} Report`;

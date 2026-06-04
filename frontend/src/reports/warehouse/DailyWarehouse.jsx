@@ -3,6 +3,7 @@ import { Table, Select, Button, Space, Row, Col } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport } from "../../api";
 import { exportToExcel } from "../../utils/exportUtils";
+import dayjs from "dayjs";
 
 export default function CleanupReport() {
   const { id } = useParams();
@@ -20,11 +21,11 @@ export default function CleanupReport() {
     const tos = uploads.map(u => u.to).filter(Boolean);
     
     if (froms.length && tos.length) {
-      return `As on : ${froms[0]}`;
+      return `As on : ${dayjs(froms[0]).format("DD-MM-YYYY")}`;
     }
     
     if (config.date) {
-      return `As On : ${config.date}`;
+      return `As On : ${dayjs(config.date).format("DD-MM-YYYY")}`;
     }
     
     return "";
@@ -32,8 +33,8 @@ export default function CleanupReport() {
 
   const uploadDateLabel = useMemo(() => {
     const dates = uploads.map(u => u.from).filter(Boolean);
-    if (dates.length) return `UPLOAD DATE : ${dates[0]}`;
-    if (config.date) return `UPLOAD DATE : ${config.date}`;
+    if (dates.length) return `UPLOAD DATE : ${dayjs(dates[0]).format("DD-MM-YYYY")}`;
+    if (config.date) return `UPLOAD DATE : ${dayjs(config.date).format("DD-MM-YYYY")}`;
     return "";
   }, [uploads, config]);
 

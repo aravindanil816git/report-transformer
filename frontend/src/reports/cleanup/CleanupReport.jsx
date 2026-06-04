@@ -3,6 +3,7 @@ import { Table, Select, Row, Col, Button, Space } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport, getWarehouses, getShops } from "../../api";
 import { exportToExcel } from "../../utils/exportUtils";
+import dayjs from "dayjs";
 
 export default function CleanupReport() {
   const { id } = useParams();
@@ -86,6 +87,7 @@ export default function CleanupReport() {
   ];
 
   const reportDate = config.date || config.start_date || new Date().toISOString().split("T")[0];
+  const displayReportDate = dayjs(reportDate).format("DD-MM-YYYY");
 
   // ===== DOWNLOAD =====
   const downloadExcel = () => {
@@ -119,7 +121,7 @@ export default function CleanupReport() {
 
     const customHeaders = [
       ["Physical Stock report"],
-      [`Warehouse: ${warehouse || "All"} , Report Period: ${reportDate}`]
+      [`Warehouse: ${warehouse || "All"} , Report Period: ${displayReportDate}`]
     ];
 
     exportToExcel(
@@ -153,7 +155,7 @@ export default function CleanupReport() {
 
       <div style={{ marginBottom: 0, padding: "8px 12px", backgroundColor: "#ADC9E6", border: "1px solid #999", borderBottom: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>Warehouse Physical Stock report</span>
-        <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>Warehouse: {warehouse || "All"} , Report Period: {reportDate}</span>
+        <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>Warehouse: {warehouse || "All"} , Report Period: {displayReportDate}</span>
       </div>
 
       <Table

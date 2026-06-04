@@ -97,8 +97,8 @@ export default function ItemIssueConsolidation() {
     return name;
   };
 
-  const d1Label = date1 ? date1.format("DD MMM") : "Date 1";
-  const d2Label = date2 ? date2.format("DD MMM") : "Date 2";
+  const d1Label = date1 ? date1.format("DD-MM-YYYY") : "Date 1";
+  const d2Label = date2 ? date2.format("DD-MM-YYYY") : "Date 2";
   const lmLabel = lastMonthLabel ? `Last Month (${lastMonthLabel})` : "Last Month";
 
   const columns = [
@@ -198,8 +198,8 @@ export default function ItemIssueConsolidation() {
     exportToExcel(
       exportData,
       {
-        "First Date": date1.format("YYYY-MM-DD"),
-        "Second Date": date2.format("YYYY-MM-DD"),
+        "First Date": date1.format("DD-MM-YYYY"),
+        "Second Date": date2.format("DD-MM-YYYY"),
         "Warehouse Filter": selectedWarehouse || "All"
       },
       "item_issue_consolidation.xlsx",
@@ -217,7 +217,7 @@ export default function ItemIssueConsolidation() {
               value={date1} 
               onChange={setDate1} 
               disabledDate={disabledDate}
-              format="DD MMM YYYY"
+              format="DD-MM-YYYY"
             />
           </div>
           <div>
@@ -226,7 +226,7 @@ export default function ItemIssueConsolidation() {
               value={date2} 
               onChange={setDate2} 
               disabledDate={disabledDate}
-              format="DD MMM YYYY"
+              format="DD-MM-YYYY"
             />
           </div>
           <Button type="primary" onClick={handleFetch} loading={loading}>

@@ -3,6 +3,7 @@ import { Table, Button, Space } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport } from "../../api";
 import { exportToExcel } from "../../utils/exportUtils";
+import dayjs from "dayjs";
 
 export default function DailyWarehouseOfftakeReport() {
   const { id } = useParams();
@@ -26,11 +27,11 @@ export default function DailyWarehouseOfftakeReport() {
     const tos = uploads.map(u => u.to).filter(Boolean);
     
     if (froms.length && tos.length) {
-      return `PERIOD : ${froms[0]} - ${tos[0]}`;
+      return `PERIOD : ${dayjs(froms[0]).format("DD-MM-YYYY")} - ${dayjs(tos[0]).format("DD-MM-YYYY")}`;
     }
     
     if (config.date) {
-      return `PERIOD : ${config.date} - ${config.date}`;
+      return `PERIOD : ${dayjs(config.date).format("DD-MM-YYYY")} - ${dayjs(config.date).format("DD-MM-YYYY")}`;
     }
     
     return "";
@@ -38,8 +39,8 @@ export default function DailyWarehouseOfftakeReport() {
 
   const uploadDateLabel = useMemo(() => {
     const dates = uploads.map(u => u.from).filter(Boolean);
-    if (dates.length) return `UPLOAD DATE : ${dates[0]}`;
-    if (config.date) return `UPLOAD DATE : ${config.date}`;
+    if (dates.length) return `UPLOAD DATE : ${dayjs(dates[0]).format("DD-MM-YYYY")}`;
+    if (config.date) return `UPLOAD DATE : ${dayjs(config.date).format("DD-MM-YYYY")}`;
     return "";
   }, [uploads, config]);
 

@@ -155,16 +155,16 @@ export default function CombinedShopwiseReport() {
     if (!dates.length) return "";
     
     if (dateRange && dateRange.length === 2) {
-        return `COMBINED PERIOD : ${dateRange[0].format("YYYY-MM-DD")} - ${dateRange[1].format("YYYY-MM-DD")}`;
+        return `COMBINED PERIOD : ${dateRange[0].format("DD-MM-YYYY")} - ${dateRange[1].format("DD-MM-YYYY")}`;
     }
 
-    return `COMBINED PERIOD : ${dates[0]} - ${dates[dates.length - 1]}`;
+    return `COMBINED PERIOD : ${dayjs(dates[0]).format("DD-MM-YYYY")} - ${dayjs(dates[dates.length - 1]).format("DD-MM-YYYY")}`;
   }, [uploads, dateRange]);
 
   const uploadDateLabel = useMemo(() => {
     const dates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
-    if (dates.length) return `UPLOAD DATE : ${dates[dates.length - 1]}`;
-    if (config.date) return `UPLOAD DATE : ${config.date}`;
+    if (dates.length) return `UPLOAD DATE : ${dayjs(dates[dates.length - 1]).format("DD-MM-YYYY")}`;
+    if (config.date) return `UPLOAD DATE : ${dayjs(config.date).format("DD-MM-YYYY")}`;
     return "";
   }, [uploads, config]);
 

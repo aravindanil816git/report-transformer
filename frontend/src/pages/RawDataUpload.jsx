@@ -71,7 +71,7 @@ function RawDataView({ type, onOpenCreate }) {
         return;
       }
       
-      exportToExcel(reportData, { "Report Name": report.name, "Type": REPORT_REGISTRY[report.type]?.label || report.type.replace(/_/g, ' '), "Date": dayjs().format("DD MMM YYYY") }, `${report.name || report.type}.xlsx`);
+      exportToExcel(reportData, { "Report Name": report.name, "Type": REPORT_REGISTRY[report.type]?.label || report.type.replace(/_/g, ' '), "Date": dayjs().format("DD-MM-YYYY") }, `${report.name || report.type}.xlsx`);
     } catch (error) {
       message.error("Failed to download report");
     }
@@ -83,9 +83,9 @@ function RawDataView({ type, onOpenCreate }) {
       title: "Date",
       render: (_, r) => {
         if (r.type === "shop_sales_cumulative") {
-          return `${dayjs(r.config?.date1).format("DD MMM")} → ${dayjs(r.config?.date2).format("DD MMM")}`;
+          return `${dayjs(r.config?.date1).format("DD-MM-YYYY")} → ${dayjs(r.config?.date2).format("DD-MM-YYYY")}`;
         }
-        return r.config?.date ? dayjs(r.config.date).format("DD MMM YYYY") : "-";
+        return r.config?.date ? dayjs(r.config.date).format("DD-MM-YYYY") : "-";
       },
     },
     { title: "Status", dataIndex: "status" },
@@ -192,14 +192,14 @@ export default function RawDataUpload() {
     let dateStr = "";
     if (createType === "shop_sales_cumulative") {
       if (date1 && date2) {
-        dateStr = `${date1.format("DD MMM")} to ${date2.format("DD MMM")}`;
+        dateStr = `${date1.format("DD-MM-YYYY")} to ${date2.format("DD-MM-YYYY")}`;
       }
     } else if (createType === "achieved_target" || createType === "monthly_stock_sales") {
       if (reportDate) {
-        dateStr = reportDate.format("MMMM YYYY");
+        dateStr = reportDate.format("MM-YYYY");
       }
     } else if (reportDate) {
-      dateStr = reportDate.format("DD MMM YYYY");
+      dateStr = reportDate.format("DD-MM-YYYY");
     }
     
     if (dateStr) {

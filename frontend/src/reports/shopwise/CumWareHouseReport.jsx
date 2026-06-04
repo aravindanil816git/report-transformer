@@ -284,8 +284,8 @@ export default function CumulativeWarehouseReport() {
         View: view,
         Bond: bondFilter,
         Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
-        "Date Range": dateRange.length === 2 ? `${dateRange[0].format("YYYY-MM-DD")} to ${dateRange[1].format("YYYY-MM-DD")}` : "All",
-        "Start Date": config.start_date,
+        "Date Range": dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
+        "Start Date": config.start_date ? dayjs(config.start_date).format("DD-MM-YYYY") : null,
         "Total Days": config.num_days
       },
       `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}.xlsx`,

@@ -15,7 +15,7 @@ export const REPORT_REGISTRY = {
   shopwise: {
     component: ShopwiseReport,
     route: "/report/shopwise/:id",
-    label: "Shop Sales Daily",
+    label: "Shop sales - Daily",
   },
   shop_sales_cumulative: {
     component: ShopwiseReport,
@@ -25,7 +25,7 @@ export const REPORT_REGISTRY = {
   combined_shopwise: {
     component: CombinedShopwiseReport,
     route: "/report/combined_shopwise/:id",
-    label: "Cumulative Shopwise",
+    label: "Shop sales - Cumulative",
   },
   new_cumulative_report: {
     component: NewCumulativeReport,

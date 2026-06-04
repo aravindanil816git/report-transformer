@@ -28,10 +28,10 @@ export default function Sidebar() {
           label: "Shop Sales",
           children: [
             { key: "report-cumulative_shopwise", label: REPORT_REGISTRY.cumulative_shopwise.label },
+            { key: "report-combined_shopwise", label: REPORT_REGISTRY.combined_shopwise.label },
             { key: "report-new_cumulative_report", label: "Shop Sales Comparitive" },
           ],
         },
-        { key: "report-combined_shopwise", label: REPORT_REGISTRY.combined_shopwise.label },
         { key: "item-issue-consolidation", label: "Item Issue Consolidation" },
                 {
           key: "parent-secSales-Daily",
@@ -42,7 +42,7 @@ export default function Sidebar() {
           ],
         },
         { key: "report-monthly_stock_sales", label: REPORT_REGISTRY.monthly_stock_sales.label },
-        { key: "report-achieved_target", label: REPORT_REGISTRY.achieved_target?.label || "Achieved / Target" },
+        { key: "report-achieved_target", label: REPORT_REGISTRY.achieved_target?.label || "Target v/s Achieved" },
       ],
     },
     {

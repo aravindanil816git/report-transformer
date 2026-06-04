@@ -1,10 +1,22 @@
 import { useEffect, useState } from "react";
-import { Table, InputNumber, Button, message, Space, DatePicker } from "antd";
+import { Table, InputNumber, Button, message, Space, DatePicker, Popover, Checkbox } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport, processReport } from "../api";
 import axios from "axios";
+import { FilterOutlined } from "@ant-design/icons";
+import dayjs from "dayjs";
 
 const { RangePicker } = DatePicker;
+
+const DEFAULT_VISIBLE_BRANDS = [
+  "BCB NO.1 CLASSIC BRANDY",
+  "BLENDERS CHOICE NO.1 BRANDY",
+  "CHAIRMANS CHOICE XO BRANDY",
+  "K.S 99 LIFE TIME MATURED XXX RUM",
+  "MAGIC BLEND RESERVED XXX RUM",
+  "MORNING WALKERS XO BRANDY",
+  "OLD PEARL NO.1 MATURED XXX RUM"
+];
 
 export default function AchievedTargetReport() {
   const { id } = useParams();
@@ -13,6 +25,8 @@ export default function AchievedTargetReport() {
   const [config, setConfig] = useState({});
   const [loading, setLoading] = useState(false);
   const [dateRange, setDateRange] = useState([]);
+  const [isEditingTargets, setIsEditingTargets] = useState(false);
+  const [visibleBrands, setVisibleBrands] = useState(DEFAULT_VISIBLE_BRANDS);
 
   useEffect(() => {
     // 🛑 Intentionally leaving this blank so data doesn't auto-fetch on open.
@@ -72,24 +86,10 @@ export default function AchievedTargetReport() {
       const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
       await axios.put(`${API_BASE}/reports/${id}/config`, { targets: targetsMap });
       message.success("Targets saved successfully!");
+      setIsEditingTargets(false);
       loadData(); // refresh to ensure data alignment
     } catch (e) {
       message.error("Failed to save targets");
-    }
-  };
-
-  const handleAddBrand = () => {
-    const brandName = window.prompt("Enter exact brand name (e.g. CHAIRMANS CHOICE):")?.toUpperCase().trim();
-    if (brandName && !brands.includes(brandName)) {
-      setBrands([...brands, brandName].sort());
-      const newData = data.map(row => {
-        if (!row.brands) row.brands = {};
-        if (!row.brands[brandName]) {
-          row.brands[brandName] = { achieved: 0, target: 0 };
-        }
-        return row;
-      });
-      setData(newData);
     }
   };
 
@@ -126,7 +126,26 @@ export default function AchievedTargetReport() {
       }
     },
     {
-      title: "Type",
+      title: (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          Type
+          <Popover
+            content={
+              <Checkbox.Group
+                options={brands.map(b => ({ label: b, value: b }))}
+                value={visibleBrands}
+                onChange={setVisibleBrands}
+                style={{ display: "flex", flexDirection: "column", maxHeight: "300px", overflowY: "auto", overflowX: "hidden", minWidth: "200px" }}
+              />
+            }
+            title="Select Brands"
+            trigger="click"
+            placement="bottom"
+          >
+            <FilterOutlined style={{ cursor: "pointer", color: visibleBrands.length !== brands.length && visibleBrands.length > 0 ? "#1890ff" : undefined }} />
+          </Popover>
+        </div>
+      ),
       dataIndex: "type",
       key: "type",
       fixed: "left",
@@ -139,7 +158,9 @@ export default function AchievedTargetReport() {
     }
   ];
 
-  brands.forEach((brand) => {
+  const displayedBrands = brands.filter(b => visibleBrands.includes(b));
+
+  displayedBrands.forEach((brand) => {
     columns.push({
       title: brand,
       key: brand,
@@ -149,6 +170,7 @@ export default function AchievedTargetReport() {
           const val = record.brands?.[brand]?.target || 0;
           return (
             <InputNumber
+              disabled={!isEditingTargets}
               value={val}
               min={0}
               onChange={(newVal) => handleTargetChange(record.bond, brand, newVal)}
@@ -156,8 +178,8 @@ export default function AchievedTargetReport() {
             />
           );
         } else {
-          const val = record.brands?.[brand]?.achieved || 0;
-          return Number(val).toFixed(2);
+          const val = Math.round(record.brands?.[brand]?.achieved || 0);
+          return val;
         }
       }
     });
@@ -170,11 +192,14 @@ export default function AchievedTargetReport() {
     render: (_, record) => {
       let total = 0;
       if (record.brands) {
-        Object.values(record.brands).forEach((b) => {
-          total += record.type === "Target" ? (b.target || 0) : (b.achieved || 0);
+        displayedBrands.forEach((b) => {
+          const bData = record.brands[b];
+          if (bData) {
+            total += record.type === "Target" ? (bData.target || 0) : (bData.achieved || 0);
+          }
         });
       }
-      return <b>{Number(total).toFixed(2)}</b>;
+      return <b>{Math.round(total)}</b>;
     },
   });
 
@@ -187,9 +212,12 @@ export default function AchievedTargetReport() {
       let targetTotal = 0;
       let achievedTotal = 0;
       if (record.brands) {
-        Object.values(record.brands).forEach((b) => {
-          targetTotal += b.target || 0;
-          achievedTotal += b.achieved || 0;
+        displayedBrands.forEach((b) => {
+          const bData = record.brands[b];
+          if (bData) {
+            targetTotal += bData.target || 0;
+            achievedTotal += bData.achieved || 0;
+          }
         });
       }
       
@@ -207,16 +235,22 @@ export default function AchievedTargetReport() {
   return (
     <div style={{ background: "#fff", padding: 20, minHeight: "100%" }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-        <h2>Achieved / Target Report {config.month ? `- ${config.month}` : ""}</h2>
-        <Space>
+        <h2>Target v/s Achieved Report {config.month ? `- ${dayjs(config.month).format("MM-YYYY")}` : ""}</h2>
+        <Space wrap>
           <RangePicker 
             value={dateRange} 
             onChange={setDateRange} 
           />
           <Button type="primary" onClick={loadData}>Apply Filter</Button>
           <Button onClick={handleRefresh}>Refresh Data</Button>
-          <Button onClick={handleAddBrand}>Add Brand</Button>
-          <Button type="primary" onClick={saveTargets}>Save Targets</Button>
+          {!isEditingTargets ? (
+            <Button onClick={() => setIsEditingTargets(true)}>Edit Targets</Button>
+          ) : (
+            <>
+              <Button onClick={() => { setIsEditingTargets(false); loadData(); }}>Cancel</Button>
+              <Button type="primary" onClick={saveTargets}>Save Targets</Button>
+            </>
+          )}
         </Space>
       </div>
       <Table 
@@ -233,24 +267,24 @@ export default function AchievedTargetReport() {
           let grandTotalTarget = 0;
           let grandTotalAchieved = 0;
 
-          brands.forEach(b => { 
+          displayedBrands.forEach(b => { 
             totalTarget[b] = 0; 
             totalAchieved[b] = 0; 
           });
 
           pageData.forEach(row => {
             if (row.type === "Target") {
-              brands.forEach(b => {
+              displayedBrands.forEach(b => {
                  totalTarget[b] += row.brands?.[b]?.target || 0;
               });
             } else {
-              brands.forEach(b => {
+              displayedBrands.forEach(b => {
                  totalAchieved[b] += row.brands?.[b]?.achieved || 0;
               });
             }
           });
           
-          brands.forEach(b => {
+          displayedBrands.forEach(b => {
             grandTotalTarget += totalTarget[b];
             grandTotalAchieved += totalAchieved[b];
           });
@@ -260,16 +294,16 @@ export default function AchievedTargetReport() {
               <Table.Summary.Row style={{ background: "#fafafa", fontWeight: "bold", borderTop: "2px solid #d9d9d9" }}>
                 <Table.Summary.Cell index={0}>Grand Total</Table.Summary.Cell>
                 <Table.Summary.Cell index={1}><span style={{ color: "#1890ff" }}>Target</span></Table.Summary.Cell>
-                {brands.map((b, i) => <Table.Summary.Cell key={`target-${b}`} index={i + 2}>{totalTarget[b]}</Table.Summary.Cell>)}
-                <Table.Summary.Cell index={brands.length + 2}>{grandTotalTarget.toFixed(2)}</Table.Summary.Cell>
-                <Table.Summary.Cell index={brands.length + 3}></Table.Summary.Cell>
+                {displayedBrands.map((b, i) => <Table.Summary.Cell key={`target-${b}`} index={i + 2}>{Math.round(totalTarget[b])}</Table.Summary.Cell>)}
+                <Table.Summary.Cell index={displayedBrands.length + 2}>{Math.round(grandTotalTarget)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={displayedBrands.length + 3}></Table.Summary.Cell>
               </Table.Summary.Row>
               <Table.Summary.Row style={{ background: "#fafafa", fontWeight: "bold" }}>
                 <Table.Summary.Cell index={0}></Table.Summary.Cell>
                 <Table.Summary.Cell index={1}><span style={{ color: "#52c41a" }}>Achieved</span></Table.Summary.Cell>
-                {brands.map((b, i) => <Table.Summary.Cell key={`achieved-${b}`} index={i + 2}>{totalAchieved[b].toFixed(2)}</Table.Summary.Cell>)}
-                <Table.Summary.Cell index={brands.length + 2}>{grandTotalAchieved.toFixed(2)}</Table.Summary.Cell>
-                <Table.Summary.Cell index={brands.length + 3}>
+                {displayedBrands.map((b, i) => <Table.Summary.Cell key={`achieved-${b}`} index={i + 2}>{Math.round(totalAchieved[b])}</Table.Summary.Cell>)}
+                <Table.Summary.Cell index={displayedBrands.length + 2}>{Math.round(grandTotalAchieved)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={displayedBrands.length + 3}>
                   {(() => {
                     if (grandTotalTarget === 0) {
                       return <span style={{ color: grandTotalAchieved > 0 ? "#52c41a" : "#000" }}>{grandTotalAchieved > 0 ? "100.00%" : "-"}</span>;
