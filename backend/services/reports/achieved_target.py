@@ -23,21 +23,41 @@ class AchievedTargetReportService(BaseReportService):
         from services.store import reports as all_reports_store
         from services.registry import get_service
 
-        reports_list = list(all_reports_store.values())
-        
-        # Fallback to Supabase if the server restarted and memory is wiped
-        if not reports_list:
-            from services.db import supabase
-            res = supabase.table("reports").select("id, type, config, uploads, processed, data").execute()
-            if res.data:
-                reports_list = res.data
-
         month = report.get("config", {}).get("month", "")
         if not month:
             return {"data": [], "config": report.get("config", {})}
             
         start_date = kwargs.get("start_date")
         end_date = kwargs.get("end_date")
+        
+        reports_list = []
+        if all_reports_store:
+            for r in all_reports_store.values():
+                r_type = r.get("type")
+                if r_type == "daily_warehouse_offtake":
+                    if str(r.get("config", {}).get("date", ""))[:7] == month:
+                        reports_list.append(r)
+                elif r_type == "shop_sales_cumulative":
+                    if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", "")))[:7] == month:
+                        reports_list.append(r)
+        
+        # Fallback to Supabase if the server restarted and memory is wiped
+        if not reports_list:
+            from services.db import supabase
+            # Fetch minimal data dynamically to prevent > 2GB OOM Crash
+            res_offtake = supabase.table("reports").select("id, type, config").eq("type", "daily_warehouse_offtake").execute()
+            if res_offtake.data:
+                target_ids = [r["id"] for r in res_offtake.data if str(r.get("config", {}).get("date", ""))[:7] == month]
+                if target_ids:
+                    res_full = supabase.table("reports").select("id, type, config, processed").in_("id", target_ids).execute()
+                    if res_full.data: reports_list.extend(res_full.data)
+            
+            res_cum = supabase.table("reports").select("id, type, config").eq("type", "shop_sales_cumulative").execute()
+            if res_cum.data:
+                target_ids = [r["id"] for r in res_cum.data if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", "")))[:7] == month]
+                if target_ids:
+                    res_full = supabase.table("reports").select("id, type, config, uploads").in_("id", target_ids).execute()
+                    if res_full.data: reports_list.extend(res_full.data)
         
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         shop_to_bond = {}

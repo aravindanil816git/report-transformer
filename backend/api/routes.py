@@ -406,13 +406,20 @@ def create_report(
     sync_cumulative_report(report)
 
     # 🔥 AUTO PROCESS FOR MONTHLY REPORT
-    if type in ["monthly_stock_sales", "achieved_target"]:
+    if type == "monthly_stock_sales":
         svc = get_service(type)
 
         report["all_reports"] = [
-            r for r in get_all_reports(columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data, processed") if r["id"] != rid
+            r for r in get_all_reports(types=["daily_warehouse", "warehouse_stock", "daily_secondary_sales", "daily_warehouse_offtake"], columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data, processed") if r["id"] != rid
         ]
 
+        svc.process(report)
+
+        report["status"] = "Processed"
+        report.pop("all_reports", None)
+        save_report(report)
+    elif type == "achieved_target":
+        svc = get_service(type)
         svc.process(report)
 
         report["status"] = "Processed"
@@ -885,8 +892,6 @@ def process(rid: str):
 
     if report["type"] == "monthly_stock_sales":
         report["all_reports"] = get_all_reports(types=["daily_warehouse", "warehouse_stock", "daily_secondary_sales", "daily_warehouse_offtake"], columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data, processed")
-    elif report["type"] == "achieved_target":
-        report["all_reports"] = get_all_reports(types=["daily_secondary_sales", "daily_warehouse_offtake", "combined_shopwise", "combined_shopwise_multi", "shop_sales_cumulative"], columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data, processed")
 
     if report["type"] == "month_comparative":
         all_reports = get_all_reports(types=["item_issue_consolidation", "daily_secondary_sales"], columns="id, type, status, config, processed")
