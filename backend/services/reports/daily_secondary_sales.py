@@ -15,36 +15,53 @@ class DailySecondarySalesService(BaseReportService):
 
     # ================= GRAND TOTAL EXTRACTION =================
     def _find_grand_total(self, df):
-        print("[DEBUG] daily_secondary_sales: Starting _find_grand_total")
+        print(f"[DEBUG] daily_secondary_sales: Starting _find_grand_total. DataFrame shape: {df.shape}")
         df = df.copy()
 
         df = df.dropna(how="all").reset_index(drop=True)
 
-        # 🔥 find TOTAL row
+        # 🔥 find ALL rows containing 'TOTAL' to see what we are dealing with
         total_idx = None
+        total_rows_found = []
         for i, row in df.iterrows():
-            if row.astype(str).str.contains("TOTAL", case=False).any():
-                total_idx = i
-                print(f"[DEBUG] daily_secondary_sales: Found 'TOTAL' row at index {i}")
-                break
+            row_str = row.astype(str)
+            if row_str.str.contains("TOTAL", case=False).any():
+                total_rows_found.append(i)
+                print(f"[DEBUG] daily_secondary_sales: Found 'TOTAL' at index {i}. Raw row data: {row.tolist()}")
 
-        if total_idx is None:
+        if not total_rows_found:
             print("[WARN] daily_secondary_sales: 'TOTAL' row not found in document.")
+            print(f"[DEBUG] daily_secondary_sales: Last 3 rows of file for inspection: {df.tail(3).values.tolist()}")
             return None
+
+        # 🔥 Prioritize 'GRAND TOTAL' if it exists, otherwise take the LAST 'TOTAL' row found
+        for i in total_rows_found:
+            if df.iloc[i].astype(str).str.contains("GRAND TOTAL", case=False).any():
+                total_idx = i
+                print(f"[DEBUG] daily_secondary_sales: Selecting 'GRAND TOTAL' row at index {i}")
+                break
+        
+        if total_idx is None:
+            total_idx = total_rows_found[-1]
+            print(f"[DEBUG] daily_secondary_sales: Selecting last 'TOTAL' row found at index {total_idx}")
 
         row = df.iloc[total_idx]
 
-        # 🔥 convert to numeric
-        numeric = pd.to_numeric(row, errors="coerce")
+        # 🔥 Clean the row before numeric conversion (remove commas and extra spaces)
+        cleaned_row = row.astype(str).str.replace(",", "", regex=False).str.replace(" ", "", regex=False)
+        numeric = pd.to_numeric(cleaned_row, errors="coerce")
 
+        print(f"[DEBUG] daily_secondary_sales: Cleaned row data: {cleaned_row.tolist()}")
+        print(f"[DEBUG] daily_secondary_sales: Parsed numeric row: {numeric.tolist()}")
+        
         values = numeric.dropna().tolist()
 
         # 🔥 IMPORTANT: pick only "Cases" columns
         # pattern: [cases, bottles, cases, bottles, ...]
         cases_only = values[::2]
 
-        print(f"[DEBUG] daily_secondary_sales: ALL NUMERIC VALUES: {values}")
-        print(f"[DEBUG] daily_secondary_sales: CASES ONLY: {cases_only}")
+        print(f"[DEBUG] daily_secondary_sales: ALL NUMERIC VALUES extracted: {values}")
+        print(f"[DEBUG] daily_secondary_sales: CASES ONLY (every alternate value): {cases_only}")
 
         # 🔥 now map correctly (based on your sheet)
         # order is: FTN, STN, GTN, INTER, CFED, OTHER, TOTAL
@@ -98,6 +115,8 @@ class DailySecondarySalesService(BaseReportService):
             if df is None or df.empty:
                 print(f"[WARN] daily_secondary_sales: DataFrame is empty for warehouse '{warehouse}'. Skipping.")
                 continue
+            else:
+                print(f"[DEBUG] daily_secondary_sales: DataFrame loaded successfully. Shape: {df.shape}")
 
             totals = self._find_grand_total(df)
 

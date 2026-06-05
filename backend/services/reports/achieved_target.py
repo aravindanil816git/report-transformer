@@ -23,15 +23,6 @@ class AchievedTargetReportService(BaseReportService):
         from services.store import reports as all_reports_store
         from services.registry import get_service
 
-        reports_list = list(all_reports_store.values())
-        
-        # Fallback to Supabase if the server restarted and memory is wiped
-        if not reports_list:
-            from services.db import supabase
-            res = supabase.table("reports").select("id, type, config, uploads, processed, data").execute()
-            if res.data:
-                reports_list = res.data
-
         month = report.get("config", {}).get("month", "")
         if not month:
             return {"data": [], "config": report.get("config", {})}
@@ -39,19 +30,52 @@ class AchievedTargetReportService(BaseReportService):
         start_date = kwargs.get("start_date")
         end_date = kwargs.get("end_date")
         
+        reports_list = []
+        if all_reports_store:
+            for r in all_reports_store.values():
+                r_type = r.get("type")
+                if r_type == "daily_warehouse_offtake":
+                    if str(r.get("config", {}).get("date", ""))[:7] == month:
+                        reports_list.append(r)
+                elif r_type == "shop_sales_cumulative":
+                    if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", "")))[:7] == month:
+                        reports_list.append(r)
+        
+        # Fallback to Supabase if the server restarted and memory is wiped
+        if not reports_list:
+            from services.db import supabase
+            # Fetch minimal data dynamically to prevent > 2GB OOM Crash
+            res_offtake = supabase.table("reports").select("id, type, config").eq("type", "daily_warehouse_offtake").execute()
+            if res_offtake.data:
+                target_ids = [r["id"] for r in res_offtake.data if str(r.get("config", {}).get("date", ""))[:7] == month]
+                if target_ids:
+                    res_full = supabase.table("reports").select("id, type, config, processed").in_("id", target_ids).execute()
+                    if res_full.data: reports_list.extend(res_full.data)
+            
+            res_cum = supabase.table("reports").select("id, type, config").eq("type", "shop_sales_cumulative").execute()
+            if res_cum.data:
+                target_ids = [r["id"] for r in res_cum.data if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", "")))[:7] == month]
+                if target_ids:
+                    res_full = supabase.table("reports").select("id, type, config, uploads").in_("id", target_ids).execute()
+                    if res_full.data: reports_list.extend(res_full.data)
+        
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         shop_to_bond = {}
         shop_type_lookup = {}
         bond_staffs = {}
 
-        # 1. Load Shops Master for Category (CFD / BAR)
+        # 1. Load Shops Master for Category (CFD / BAR / KSBC)
         try:
-            with open(os.path.join(base_dir, "shops.json"), "r", encoding="utf-8") as f:
-                shops_master = json.load(f)
-                for code, data in shops_master.items():
-                    shop_type_lookup[str(code)] = str(data.get("category", "")).strip().lower()
+            with open(os.path.join(base_dir, "shopcode_mapping.json"), "r", encoding="utf-8") as f:
+                shopcode_mapping = json.load(f)
+                for region, shops in shopcode_mapping.items():
+                    for shop in shops:
+                        code = str(shop.get("shop_code", "")).replace(".0", "").strip()
+                        cat = str(shop.get("category", "")).strip().lower()
+                        if code:
+                            shop_type_lookup[code] = cat
         except Exception as e:
-            print(f"Error loading shops.json: {e}")
+            print(f"Error loading shopcode_mapping.json: {e}")
 
         # 2. Load Bond Mapping for relations
         try:
@@ -61,6 +85,7 @@ class AchievedTargetReportService(BaseReportService):
                     bond_staffs[bnd] = data.get("staffs", "")
                     for s in data.get("shops", []):
                         scode = str(s.get("shop_code", s)) if isinstance(s, dict) else str(s)
+                        scode = scode.replace(".0", "").strip()
                         shop_to_bond[scode] = bnd
         except Exception as e:
             print(f"Error loading bond_mapping.json: {e}")
@@ -68,60 +93,91 @@ class AchievedTargetReportService(BaseReportService):
         achieved_map = {}
 
         # Dynamic Aggregation across all loaded reports
+        print(f"[DEBUG] achieved_target: Starting aggregation for month '{month}'. Start Date: '{start_date}', End Date: '{end_date}'")
+        print(f"[DEBUG] achieved_target: Evaluating {len(reports_list)} reports from database/memory.")
+        
+        type_counts = {}
+        for r in reports_list:
+            type_counts[r.get("type", "unknown")] = type_counts.get(r.get("type", "unknown"), 0) + 1
+        print(f"[DEBUG] achieved_target: Breakdown of evaluated reports: {type_counts}")
+
+        # Deduplicate reports to prevent double/triple counting
+        valid_reports = []
+        offtake_by_date = {}
+        shop_sales_by_month = {}
+        
         for r in reports_list:
             r_type = r.get("type")
-            
-            if r_type == "daily_secondary_sales":
+            if r_type == "daily_warehouse_offtake":
                 r_date = r.get("config", {}).get("date", "")
-                if str(r_date)[:7] != month: continue
-                if start_date and end_date and not (start_date <= str(r_date) <= end_date): continue
-                
-                for row in r.get("processed", []):
-                    shop_code = str(row.get("shop_code", row.get("shop", "")))
-                    if shop_type_lookup.get(shop_code, "") in ["bar", "cfd"]:
-                        brand = self._clean_brand(row.get("brand", "Unknown"))
-                        cases = float(row.get("cases") or row.get("sales") or row.get("outward") or 0)
-                        bond = shop_to_bond.get(shop_code, "UNKNOWN")
-                        if bond not in achieved_map: achieved_map[bond] = {}
-                        if brand not in achieved_map[bond]: achieved_map[bond][brand] = 0
-                        achieved_map[bond][brand] += cases
+                if str(r_date)[:7] == month:
+                    if start_date and end_date and not (start_date <= str(r_date) <= end_date): continue
+                    if r.get("processed"):
+                        offtake_by_date[r_date] = r
+            elif r_type == "shop_sales_cumulative":
+                r_start = r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))
+                r_end = r.get("config", {}).get("date2", "")
+                if str(r_start)[:7] == month:
+                    if start_date and end_date and r_start and r_end:
+                        if not (start_date <= r_start and r_end <= end_date): continue
+                    
+                    range_key = f"{r_start}_{r_end}"
+                    existing = shop_sales_by_month.get(range_key)
+                    if not existing or len(r.get("uploads", [])) > len(existing.get("uploads", [])):
+                        shop_sales_by_month[range_key] = r
 
-            elif r_type == "daily_warehouse_offtake":
+        valid_reports.extend(offtake_by_date.values())
+        valid_reports.extend(shop_sales_by_month.values())
+        
+        print(f"[DEBUG] achieved_target: Deduplicated to {len(offtake_by_date)} offtake reports and {len(shop_sales_by_month)} shop_sales reports.")
+
+        for r in valid_reports:
+            r_type = r.get("type")
+            
+            if r_type == "daily_warehouse_offtake":
                 r_date = r.get("config", {}).get("date", "")
-                if str(r_date)[:7] != month: continue
-                if start_date and end_date and not (start_date <= str(r_date) <= end_date): continue
                 
-                for row in r.get("processed", []):
-                    shop_code = str(row.get("shop_code", ""))
-                    if shop_type_lookup.get(shop_code, "") in ["bar", "cfd"]:
+                rows_processed = 0
+                rows_skipped = 0
+                for row in (r.get("processed") or []):
+                    shop_code = str(row.get("shop_code", "")).replace(".0", "").strip()
+                    cat = shop_type_lookup.get(shop_code, "ksbc").strip().lower()
+                    if cat in ["bar", "cfd"]:
                         brand = self._clean_brand(row.get("brand", "Unknown"))
                         issues = float(row.get("issues", 0))
-                        bond = shop_to_bond.get(shop_code, "UNKNOWN")
+                        bond = row.get("bond")
+                        if not bond or bond in ["UNKNOWN", "UNMAPPED"]:
+                            bond = shop_to_bond.get(shop_code, "UNKNOWN")
                         if bond not in achieved_map: achieved_map[bond] = {}
                         if brand not in achieved_map[bond]: achieved_map[bond][brand] = 0
                         achieved_map[bond][brand] += issues
+                        rows_processed += 1
+                    else:
+                        rows_skipped += 1
+                print(f"[DEBUG] achieved_target: Parsed {rows_processed} matching rows, skipped {rows_skipped} (non BAR/CFD) from daily_warehouse_offtake (date: {r_date})")
                         
-            elif r_type in ["combined_shopwise", "combined_shopwise_multi", "shop_sales_cumulative"]:
+            elif r_type == "shop_sales_cumulative":
                 r_start = r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))
                 r_end = r.get("config", {}).get("date2", "")
-                if str(r_start)[:7] != month: continue
                 
-                # Skip cumulative reports if they contain data outside the selected filter boundary
-                if start_date and end_date and r_start and r_end:
-                    if not (start_date <= r_start and r_end <= end_date):
-                        continue
-                
-                svc = get_service("combined_shopwise")
+                svc = get_service("combined_shopwise_multi")
                 res = svc.get_report(r, view="case")
+                rows_processed = 0
+                rows_skipped = 0
                 for row in res.get("data", []):
-                    shop_code = str(row.get("shop_code", ""))
-                    if shop_type_lookup.get(shop_code, "") in ["bar", "cfd"]:
+                    shop_code = str(row.get("shop_code", "")).replace(".0", "").strip()
+                    cat = shop_type_lookup.get(shop_code, "ksbc").strip().lower()
+                    if cat not in ["bar", "cfd"]:
                         brand = self._clean_brand(row.get("brand", "Unknown"))
                         outward = float(row.get("outward") or 0)
                         bond = shop_to_bond.get(shop_code, "UNKNOWN")
                         if bond not in achieved_map: achieved_map[bond] = {}
                         if brand not in achieved_map[bond]: achieved_map[bond][brand] = 0
                         achieved_map[bond][brand] += outward
+                        rows_processed += 1
+                    else:
+                        rows_skipped += 1
+                print(f"[DEBUG] achieved_target: Parsed {rows_processed} matching rows, skipped {rows_skipped} (non KSBC) from {r_type} (dates: {r_start} to {r_end})")
 
         targets_map = report.get("config", {}).get("targets", {})
         all_bonds = set(bond_staffs.keys()).union(set(achieved_map.keys())).union(set(targets_map.keys()))
@@ -134,9 +190,9 @@ class AchievedTargetReportService(BaseReportService):
             import pandas as pd
             from core.utils import find_column, normalize
             
-            for r in reports_list:
-                if r.get("type") in ["combined_shopwise", "combined_shopwise_multi", "shop_sales_cumulative"]:
-                    for u in r.get("uploads", []):
+            for r in valid_reports:
+                if r.get("type") == "shop_sales_cumulative":
+                    for u in (r.get("uploads") or []):
                         if u.get("data"):
                             try:
                                 df = pd.DataFrame(u["data"])
@@ -148,7 +204,7 @@ class AchievedTargetReportService(BaseReportService):
                                         if b_str != "UNKNOWN": all_brands.add(b_str)
                             except Exception: pass
                 elif r.get("type") == "daily_warehouse_offtake" and r.get("processed"):
-                    for row in r.get("processed", []):
+                    for row in (r.get("processed") or []):
                         b = row.get("brand") or row.get("item")
                         if b:
                             b_str = self._clean_brand(b)

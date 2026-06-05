@@ -280,7 +280,7 @@ export default function StatusCalendar() {
         <Calendar dateCellRender={dateCellRender} disabledDate={disabledDate} onSelect={onSelect} />
       </Card>
       <Modal
-        title={<Space><span style={{ fontSize: '18px' }}>Detailed Status:</span><Text type="secondary">{selectedDate?.format('DD MMMM YYYY')}</Text></Space>}
+        title={<Space><span style={{ fontSize: '18px' }}>Detailed Status:</span><Text type="secondary">{selectedDate?.format('DD-MM-YYYY')}</Text></Space>}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         footer={null}

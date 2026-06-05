@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Modal, Table, Button, Upload, message, DatePicker, Space } from "antd";
 import { uploadFile } from "../api";
+import dayjs from "dayjs";
 
 export default function ShopSalesCumulative({ report, onClose, reload }) {
   const [uploads, setUploads] = useState(report.uploads || []);
@@ -68,7 +69,12 @@ export default function ShopSalesCumulative({ report, onClose, reload }) {
     >
       <div style={{ marginBottom: 16 }}>
         <Space>
-          <DatePicker value={uploadDate} onChange={setUploadDate} placeholder="Select Date" />
+          <DatePicker 
+            value={uploadDate} 
+            onChange={setUploadDate} 
+            placeholder="Select Date" 
+            disabledDate={(current) => current && current > dayjs().endOf('day')}
+          />
           <Upload
             beforeUpload={(file) => {
               if (!uploadDate) {

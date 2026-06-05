@@ -200,7 +200,7 @@ class ShopwiseReportService(BaseReportService):
         df = df.astype(object).where(pd.notna(df), None)
         report["data"] = df.to_dict("records")
 
-    def _aggregate(self, df, shop_code=None, warehouse=None, bond=None, view="case"):
+    def _aggregate(self, df, shop_code=None, warehouse=None, bond=None, view="case", start_date=None, end_date=None):
         brand_col = find_column(df, ["brand"])
         pack_col = find_column(df, ["pack"])
         

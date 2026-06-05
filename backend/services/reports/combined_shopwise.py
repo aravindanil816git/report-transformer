@@ -33,23 +33,18 @@ class CombinedShopwiseReportService(BaseReportService):
             if res.data:
                 source_report = res.data[0]
 
-        # Debug: output the cumulative source report data to inspect when multiple uploads are present
-        # Write the raw data to an Excel file for easier examination
-        if source_report and source_report.get("data"):
-            try:
-                debug_df = pd.DataFrame(source_report["data"])
-                debug_path = "temp/debug_cumulative_report.xlsx"
-                debug_df.to_excel(debug_path, index=False)
-                print(f"[DEBUG] Cumulative report data written to {debug_path}")
-            except Exception as e:
-                print(f"[DEBUG] Failed to write debug Excel: {e}")
-        else:
-            print("[DEBUG] source_report data: None")
+        source_data = source_report.get("data") if source_report else None
+        if not source_data and source_report:
+            # Check uploads for data (combined_shopwise_multi format)
+            source_data = []
+            for u in source_report.get("uploads", []):
+                if u.get("data"):
+                    source_data.extend(u["data"])
 
-        if not source_report or not source_report.get("data"):
-            return {"data": [], "uploads": [], "config": report.get("config", {})}
+        if not source_data:
+            return {"data": [], "uploads": source_report.get("uploads", []) if source_report else [], "config": report.get("config", {})}
 
-        full_df = pd.DataFrame(source_report["data"])
+        full_df = pd.DataFrame(source_data)
 
         brand_col = find_column(full_df, ["brand"]) or find_column(full_df, ["item"])
         pack_col = find_column(full_df, ["pack"]) or find_column(full_df, ["size"])
@@ -158,11 +153,19 @@ class CombinedShopwiseReportService(BaseReportService):
                 source_report = res.data[0]
 
         # Override warehouses with data from the source report
-        if source_report and source_report.get("data"):
-            full_df = pd.DataFrame(source_report["data"])
-            wh_col = find_column(full_df, ["warehouse"])
-            if wh_col:
-                warehouses = sorted(full_df[wh_col].dropna().unique().tolist())
-                filters["warehouses"] = warehouses
+        if source_report:
+            source_data = source_report.get("data")
+            if not source_data:
+                source_data = []
+                for u in source_report.get("uploads", []):
+                    if u.get("data"):
+                        source_data.extend(u["data"])
+            
+            if source_data:
+                full_df = pd.DataFrame(source_data)
+                wh_col = find_column(full_df, ["warehouse"])
+                if wh_col:
+                    warehouses = sorted(full_df[wh_col].dropna().unique().tolist())
+                    filters["warehouses"] = warehouses
                 
         return filters
