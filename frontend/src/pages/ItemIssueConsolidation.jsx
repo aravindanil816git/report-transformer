@@ -1,10 +1,13 @@
 import { useEffect, useState, useMemo } from "react";
 import { Table, Button, DatePicker, Space, Card, message, Select } from "antd";
+import { useNavigate } from "react-router-dom";
 import { listReports, compareLive, getAllWarehouses } from "../api";
 import dayjs from "dayjs";
 import { exportToExcel } from "../utils/exportUtils";
+import { disabledFutureMonthDates } from "../utils/dateUtils";
 
 export default function ItemIssueConsolidation() {
+  const navigate = useNavigate();
   const [reports, setReports] = useState([]);
   const [date1, setDate1] = useState(null);
   const [date2, setDate2] = useState(null);
@@ -35,6 +38,7 @@ export default function ItemIssueConsolidation() {
 
   const disabledDate = (current) => {
     if (!current) return false;
+    if (disabledFutureMonthDates(current)) return true;
     const s = current.format("YYYY-MM-DD");
     return !availableDates.includes(s);
   };
@@ -97,8 +101,8 @@ export default function ItemIssueConsolidation() {
     return name;
   };
 
-  const d1Label = date1 ? date1.format("DD-MM-YYYY") : "Date 1";
-  const d2Label = date2 ? date2.format("DD-MM-YYYY") : "Date 2";
+  const d1Label = date1 ? date1.format("MMM YYYY") : "Date 1";
+  const d2Label = date2 ? date2.format("MMM YYYY") : "Date 2";
   const lmLabel = lastMonthLabel ? `Last Month (${lastMonthLabel})` : "Last Month";
 
   const columns = [
@@ -198,8 +202,8 @@ export default function ItemIssueConsolidation() {
     exportToExcel(
       exportData,
       {
-        "First Date": date1.format("DD-MM-YYYY"),
-        "Second Date": date2.format("DD-MM-YYYY"),
+        "First Date": date1.format("MMM YYYY"),
+        "Second Date": date2.format("MMM YYYY"),
         "Warehouse Filter": selectedWarehouse || "All"
       },
       "item_issue_consolidation.xlsx",
@@ -208,7 +212,15 @@ export default function ItemIssueConsolidation() {
   };
 
   return (
-    <div>
+    <div style={{ padding: 20 }}>
+      <div style={{ marginBottom: 16 }}>
+        <Button type="link" onClick={() => navigate(-1)} style={{ padding: 0, fontSize: "16px" }}>
+          &larr; Back
+        </Button>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h2>Item Issue Consolidation</h2>
+      </div>
       <Card style={{ marginBottom: 20 }}>
         <Space size="large" align="end" wrap>
           <div>
@@ -217,7 +229,7 @@ export default function ItemIssueConsolidation() {
               value={date1} 
               onChange={setDate1} 
               disabledDate={disabledDate}
-              format="DD-MM-YYYY"
+              format="DD MMM YYYY"
             />
           </div>
           <div>
@@ -226,7 +238,7 @@ export default function ItemIssueConsolidation() {
               value={date2} 
               onChange={setDate2} 
               disabledDate={disabledDate}
-              format="DD-MM-YYYY"
+              format="DD MMM YYYY"
             />
           </div>
           <Button type="primary" onClick={handleFetch} loading={loading}>

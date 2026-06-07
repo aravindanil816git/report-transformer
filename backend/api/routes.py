@@ -331,7 +331,7 @@ def create_report(
         config = {"date1": date1, "date2": date2}
 
     # 🔥 MONTHLY STOCK SALES & ACHIEVED TARGET
-    elif type in ["monthly_stock_sales", "achieved_target"]:
+    elif type in ["monthly_stock_sales", "achieved_target", "monthly_summary"]:
         config = {"month": str(date)[:7] if date else None}
 
     # 🔥 WAREHOUSE STOCK
@@ -406,11 +406,11 @@ def create_report(
     sync_cumulative_report(report)
 
     # 🔥 AUTO PROCESS FOR MONTHLY REPORT
-    if type == "monthly_stock_sales":
+    if type in ["monthly_stock_sales", "monthly_summary"]:
         svc = get_service(type)
 
         report["all_reports"] = [
-            r for r in get_all_reports(types=["daily_warehouse", "warehouse_stock", "daily_secondary_sales", "daily_warehouse_offtake"], columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data, processed") if r["id"] != rid
+            r for r in get_all_reports(types=["daily_warehouse", "warehouse_stock", "daily_secondary_sales", "daily_warehouse_offtake", "combined_shopwise"], columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data, processed") if r["id"] != rid
         ]
 
         svc.process(report)
@@ -439,6 +439,8 @@ ALLOWED_JSON_FILES = {
     "bonds": os.path.join(BASE_DIR, "backend", "bonds.json"),
     "shops": os.path.join(BASE_DIR, "backend", "shops.json"),
     "warehouses": os.path.join(BASE_DIR, "backend", "warehouses.json"),
+    "clusters": os.path.join(BASE_DIR, "backend", "clusters.json"),
+    "leaves": os.path.join(BASE_DIR, "backend", "leaves.json"),
 }
 
 def _load_json(name: str):
@@ -465,6 +467,7 @@ def get_json(name: str = Path(..., description="One of the allowed JSON identifi
     return _load_json(name)
 
 @router.post("/json/{name}")
+@router.put("/json/{name}")
 def replace_json(name: str, payload: dict = Body(...)):
     """Replace the entire JSON file with the provided payload."""
     _save_json(name, payload)
@@ -564,7 +567,8 @@ def ensure_defaults_exist():
             
     monthly_defaults = [
         "achieved_target",
-        "monthly_stock_sales"
+        "monthly_stock_sales",
+        "monthly_summary"
     ]
     for dtype in monthly_defaults:
         name = f"Default - {month_name}"
@@ -890,8 +894,8 @@ def process(rid: str):
             futures = [executor.submit(ensure_local_file, sp, lp) for sp, lp in missing_files]
             concurrent.futures.wait(futures)
 
-    if report["type"] == "monthly_stock_sales":
-        report["all_reports"] = get_all_reports(types=["daily_warehouse", "warehouse_stock", "daily_secondary_sales", "daily_warehouse_offtake"], columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data, processed")
+    if report["type"] in ["monthly_stock_sales", "monthly_summary"]:
+        report["all_reports"] = get_all_reports(types=["daily_warehouse", "warehouse_stock", "daily_secondary_sales", "daily_warehouse_offtake", "combined_shopwise"], columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data, processed")
 
     if report["type"] == "month_comparative":
         all_reports = get_all_reports(types=["item_issue_consolidation", "daily_secondary_sales"], columns="id, type, status, config, processed")

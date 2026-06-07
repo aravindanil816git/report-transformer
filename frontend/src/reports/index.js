@@ -10,6 +10,7 @@ import MonthlyStockSales from "./warehouse/MonthlyStockSale";
 import CombinedShopwiseReport from "./shopwise/CombinedShopwiseReport";
 import NewCumulativeReport from "./shopwise/NewCumulativeReport";
 import WarehouseStock from "../pages/WarehouseStock";
+import MonthlySummaryReport from "../pages/MonthlySummaryReport";
 
 export const REPORT_REGISTRY = {
   shopwise: {
@@ -82,4 +83,9 @@ export const REPORT_REGISTRY = {
     component: WarehouseStock,
     route: "/report/warehouse_stock/:id",
   },
+  monthly_summary: {
+    label: "Monthly Summary Report",
+    component: MonthlySummaryReport,
+    route: "/report/monthly_summary/:id"
+  }
 };

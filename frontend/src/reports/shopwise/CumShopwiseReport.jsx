@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Table, Button, Select, DatePicker, Space, Typography, message } from "antd";
 
 const { Text } = Typography;
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { getReport, processReport } from "../../api";
 import dayjs from "dayjs";
 import { exportToExcel } from "../../utils/exportUtils";
@@ -11,6 +11,7 @@ const { RangePicker } = DatePicker;
 
 export default function CumulativeShopwiseReport() {
   const { id } = useParams();
+  const navigate = useNavigate();
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -180,7 +181,7 @@ export default function CumulativeShopwiseReport() {
     if (mode === "bond" && !drilledBond) {
       return <a onClick={() => setDrilledBond(record.warehouse)}>{displayText}</a>;
     }
-    return <span>{record.shop_code ? `${record.shop_code} - ` : ""}{displayText}</span>;
+    return <span>{record.shop_code ? `${displayText} (${record.shop_code})` : displayText}</span>;
   };
 
   // 🔹 daywise + total
@@ -211,7 +212,7 @@ export default function CumulativeShopwiseReport() {
     let exportData = [];
     if (view === "cumulative") {
       exportData = filteredData.map(d => ({
-        [getTitle()]: d.shop_code ? `${d.shop_code} - ${d.shop_name}` : formatName(d.warehouse),
+        [getTitle()]: d.shop_code ? `${d.shop_name} (${d.shop_code})` : formatName(d.warehouse),
         Opening: d.opening,
         Receipt: d.receipt,
         Sales: d.sales,
@@ -221,7 +222,7 @@ export default function CumulativeShopwiseReport() {
       }));
     } else {
       exportData = filteredData.map(row => {
-        const obj = { [getTitle()]: row.shop_code ? `${row.shop_code} - ${row.shop_name}` : formatName(row.warehouse) };
+        const obj = { [getTitle()]: row.shop_code ? `${row.shop_name} (${row.shop_code})` : formatName(row.warehouse) };
         let total = 0;
         labels.forEach(l => {
           obj[l] = row[l] || 0;
@@ -249,6 +250,11 @@ export default function CumulativeShopwiseReport() {
 
   return (
     <div style={{ padding: 20 }}>
+      <div style={{ marginBottom: 16 }}>
+        <Button type="link" onClick={() => navigate(-1)} style={{ padding: 0, fontSize: "16px" }}>
+          &larr; Back
+        </Button>
+      </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2>Shop Sales Daily</h2>
         <Space>
