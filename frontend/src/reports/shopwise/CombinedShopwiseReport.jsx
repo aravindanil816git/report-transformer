@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Table, Select, Segmented, Row, Col, Button, Checkbox, DatePicker, message } from "antd";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { PlusSquareOutlined, MinusSquareOutlined } from "@ant-design/icons";
 import { getReport, getFilters } from "../../api";
 import { exportToExcel } from "../../utils/exportUtils";
@@ -10,6 +10,7 @@ const { RangePicker } = DatePicker;
 
 export default function CombinedShopwiseReport() {
   const { id } = useParams();
+  const navigate = useNavigate();
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -44,7 +45,8 @@ export default function CombinedShopwiseReport() {
       
       const formattedShops = (shops || []).map(s => ({ 
         value: s.shop_code, 
-        label: `${s.shop_code} - ${s.shop_name}` 
+        label: `${s.shop_code} - ${s.shop_name}`,
+        shopName: s.shop_name
       }));
       setAllShops(formattedShops);
       setShopOptions(formattedShops);
@@ -161,12 +163,12 @@ export default function CombinedShopwiseReport() {
     return `COMBINED PERIOD : ${dayjs(dates[0]).format("DD-MM-YYYY")} - ${dayjs(dates[dates.length - 1]).format("DD-MM-YYYY")}`;
   }, [uploads, dateRange]);
 
-  const uploadDateLabel = useMemo(() => {
-    const dates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
-    if (dates.length) return `UPLOAD DATE : ${dayjs(dates[dates.length - 1]).format("DD-MM-YYYY")}`;
-    if (config.date) return `UPLOAD DATE : ${dayjs(config.date).format("DD-MM-YYYY")}`;
-    return "";
-  }, [uploads, config]);
+  // const uploadDateLabel = useMemo(() => {
+  //   const dates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
+  //   if (dates.length) return `UPLOAD DATE : ${dayjs(dates[dates.length - 1]).format("DD-MM-YYYY")}`;
+  //   if (config.date) return `UPLOAD DATE : ${dayjs(config.date).format("DD-MM-YYYY")}`;
+  //   return "";
+  // }, [uploads, config]);
 
   const toggleShop = (shopCode) => {
     setCollapsedShops(prev => ({
@@ -179,7 +181,7 @@ export default function CombinedShopwiseReport() {
     if (val === undefined || val === null) return "";
     const num = Number(val);
     if (useWholeNumbers) {
-      return Math.floor(num);
+      return Math.round(num);
     }
     return num.toFixed(2);
   };
@@ -207,6 +209,8 @@ export default function CombinedShopwiseReport() {
 
     Object.entries(shopGrouped).forEach(([shopCode, brands]) => {
       const isCollapsed = collapsedShops[shopCode];
+      const shopInfo = allShops.find(s => s.value === shopCode);
+      const displayLabel = shopInfo?.shopName ? `${shopInfo.shopName} (${shopCode})` : shopCode;
 
       let shopOpening = 0, shopInward = 0, shopOutward = 0, shopClosing = 0;
       Object.values(brands).flat().forEach(item => {
@@ -218,7 +222,7 @@ export default function CombinedShopwiseReport() {
 
       rows.push({
         key: `shop_${shopCode}`,
-        label: shopCode,
+        label: displayLabel,
         shopCode: shopCode,
         isShopHeader: true,
         isCollapsed,
@@ -265,7 +269,7 @@ export default function CombinedShopwiseReport() {
 
         const shopTotal = {
           key: `shop_total_${shopCode}`,
-          label: `Shop ${shopCode} Total`,
+          label: `${displayLabel} Total`,
           opening: shopOpening,
           inward: shopInward,
           outward: shopOutward,
@@ -288,7 +292,7 @@ export default function CombinedShopwiseReport() {
     }
 
     return rows;
-  }, [data, collapsedShops]);
+  }, [data, collapsedShops, allShops]);
 
   const columns = [
     {
@@ -312,10 +316,10 @@ export default function CombinedShopwiseReport() {
         return <span style={{ paddingLeft: 24 }}>{text}</span>;
       },
     },
-    { title: "Sum of Shop Opening Cases", dataIndex: "opening", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
-    { title: "Sum of Shop In Cases", dataIndex: "inward", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
-    { title: "Sum of Shop Out Cases", dataIndex: "outward", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
-    { title: "Sum of Shop Closing Cases", dataIndex: "closing", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
+    { title: "Opening Cases", dataIndex: "opening", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
+    { title: "Receipt", dataIndex: "inward", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
+    { title: "Sales", dataIndex: "outward", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
+    { title: "Closing", dataIndex: "closing", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
   ];
 
   const downloadExcel = () => {
@@ -330,62 +334,73 @@ export default function CombinedShopwiseReport() {
     });
 
     Object.entries(shopGrouped).forEach(([shopCode, brands]) => {
+      const shopInfo = allShops.find(s => s.value === shopCode);
+      const displayLabel = shopInfo?.shopName ? `${shopInfo.shopName} (${shopCode})` : `Shop - ${shopCode}`;
+
       let sOpening = 0, sIn = 0, sOut = 0, sClosing = 0;
       Object.values(brands).flat().forEach(item => {
-        sOpening += useWholeNumbers ? Math.floor(item.opening) : item.opening;
-        sIn += useWholeNumbers ? Math.floor(item.inward) : item.inward;
-        sOut += useWholeNumbers ? Math.floor(item.outward) : item.outward;
-        sClosing += useWholeNumbers ? Math.floor(item.closing) : item.closing;
+        sOpening += useWholeNumbers ? Math.round(item.opening) : item.opening;
+        sIn += useWholeNumbers ? Math.round(item.inward) : item.inward;
+        sOut += useWholeNumbers ? Math.round(item.outward) : item.outward;
+        sClosing += useWholeNumbers ? Math.round(item.closing) : item.closing;
       });
       exportData.push({
-        "Row Labels": "Shop - " + shopCode,
-        "Sum of Shop Opening Cases": sOpening,
-        "Sum of Shop In Cases": sIn,
-        "Sum of Shop Out Cases": sOut,
-        "Sum of Shop Closing Cases": sClosing
+        "Row Labels": displayLabel,
+        "Opening": sOpening,
+        "Receipt": sIn,
+        "Sales": sOut,
+        "Closing": sClosing
       });
       Object.entries(brands).forEach(([brand, items]) => {
         exportData.push({ "Row Labels": brand });
         let bOpening = 0, bIn = 0, bOut = 0, bClosing = 0;
         items.forEach(item => {
-          const op = useWholeNumbers ? Math.floor(item.opening) : item.opening;
-          const i = useWholeNumbers ? Math.floor(item.inward) : item.inward;
-          const o = useWholeNumbers ? Math.floor(item.outward) : item.outward;
-          const c = useWholeNumbers ? Math.floor(item.closing) : item.closing;
+          const op = useWholeNumbers ? Math.round(item.opening) : item.opening;
+          const i = useWholeNumbers ? Math.round(item.inward) : item.inward;
+          const o = useWholeNumbers ? Math.round(item.outward) : item.outward;
+          const c = useWholeNumbers ? Math.round(item.closing) : item.closing;
           
           exportData.push({
             "Row Labels": "  " + item.pack,
-            "Sum of Shop Opening Cases": op,
-            "Sum of Shop In Cases": i,
-            "Sum of Shop Out Cases": o,
-            "Sum of Shop Closing Cases": c
+            "Opening": op,
+            "Receipt": i,
+            "Sales": o,
+            "Closing": c
           });
           bOpening += op; bIn += i; bOut += o; bClosing += c;
         });
         exportData.push({
           "Row Labels": brand + " Total",
-          "Sum of Shop Opening Cases": bOpening,
-          "Sum of Shop In Cases": bIn,
-          "Sum of Shop Out Cases": bOut,
-          "Sum of Shop Closing Cases": bClosing
+          "Opening": bOpening,
+          "Receipt": bIn,
+          "Sales": bOut,
+          "Closing": bClosing
         });
       });
 
       exportData.push({
-        "Row Labels": `Shop ${shopCode} Total`,
-        "Sum of Shop Opening Cases": sOpening,
-        "Sum of Shop In Cases": sIn,
-        "Sum of Shop Out Cases": sOut,
-        "Sum of Shop Closing Cases": sClosing
+        "Row Labels": `${displayLabel} Total`,
+        "Opening": sOpening,
+        "Receipt": sIn,
+        "Sales": sOut,
+        "Closing": sClosing
       });
       exportData.push({});
     });
 
-    exportToExcel(exportData, { Period: periodLabel, Bond: bond, Warehouse: warehouse, Shop: shop, View: view, WholeNumbers: useWholeNumbers ? "Yes" : "No" }, "combined_shopwise_report.xlsx", "Combined Shopwise");
+    exportToExcel(exportData, { Period: periodLabel, Bond: bond, Warehouse: warehouse, Shop: shop, View: view, "Round off": useWholeNumbers ? "Yes" : "No" }, "combined_shopwise_report.xlsx", "Combined Shopwise");
   };
 
   return (
     <>
+      <div style={{ marginBottom: 16 }}>
+        <Button type="link" onClick={() => navigate(-1)} style={{ padding: 0, fontSize: "16px" }}>
+          &larr; Back
+        </Button>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h2>Combined Shopwise Report</h2>
+      </div>
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }} align="middle">
         <Col>
           <RangePicker value={dateRange} onChange={setDateRange} style={{ width: 250 }} />
@@ -460,7 +475,7 @@ export default function CombinedShopwiseReport() {
 
         <Col>
           <Checkbox checked={useWholeNumbers} onChange={e => setUseWholeNumbers(e.target.checked)}>
-            Whole Numbers
+            Round off
           </Checkbox>
         </Col>
 
@@ -475,7 +490,7 @@ export default function CombinedShopwiseReport() {
 
       <div style={{ marginBottom: 0, padding: "8px 12px", backgroundColor: "#ADC9E6", border: "1px solid #999", borderBottom: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{periodLabel}</span>
-        <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{uploadDateLabel}</span>
+        {/* <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{uploadDateLabel}</span> */}
       </div>
       <Table
         loading={loading}
@@ -500,7 +515,7 @@ export default function CombinedShopwiseReport() {
         .shop-header-row td { background-color: #fff !important; border: 1px solid #999 !important; }
         .brand-header-row td { background-color: #fff !important; border: 1px solid #999 !important; }
         .data-row td { border: 1px solid #ccc !important; }
-        .val-col { text-align: right !important; width: 150px; }
+        .val-col { text-align: center !important; width: 150px; }
         .ant-table-thead > tr > th { background-color: #fff !important; border: 1px solid #999 !important; text-align: center !important; font-weight: bold !important; }
         .ant-table-small .ant-table-thead > tr > th { padding: 8px !important; }
       `}</style>

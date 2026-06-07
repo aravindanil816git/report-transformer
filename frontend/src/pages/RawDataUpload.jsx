@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { Card, Row, Col, Button, Table, Space, Tooltip, Popconfirm, message, Modal, Form, Input, DatePicker } from "antd";
+import { Card, Row, Col, Button, Table, Space, Tooltip, Popconfirm, message, Modal, Form, Input, DatePicker, Calendar } from "antd";
 import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import { DeleteOutlined, EyeOutlined, DownloadOutlined } from "@ant-design/icons";
 import { REPORT_REGISTRY } from "../reports";
-import { listReports, createReport, deleteReport, processReport, getReport } from "../api";
+import { listReports, createReport, deleteReport, processReport, getReport, getJson, replaceJson } from "../api";
 import MultiWarehouseFileUpload from "./DailySecondaryUploadModal";
 import SingleFileUploadModal from "./SingleFileUploadModal";
 import { exportToExcel } from "../utils/exportUtils";
@@ -185,6 +185,61 @@ export default function RawDataUpload() {
   const [date1, setDate1] = useState(null);
   const [date2, setDate2] = useState(null);
 
+  // Leaves State
+  const [leavesData, setLeavesData] = useState({ warehouse: [], shop: [] });
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
+  const [leaveType, setLeaveType] = useState("warehouse");
+
+  useEffect(() => {
+    getJson("leaves").then(res => {
+      setLeavesData({
+        warehouse: res.data?.warehouse || [],
+        shop: res.data?.shop || []
+      });
+    }).catch(() => {});
+  }, []);
+
+  const handleOpenLeaves = (type) => {
+    setLeaveType(type);
+    setLeaveModalOpen(true);
+  };
+
+  const toggleLeaveDate = (date, info) => {
+    if (info && info.source && info.source !== 'date') return;
+    const dateStr = date.format("YYYY-MM-DD");
+    setLeavesData(prev => {
+      const currentList = prev[leaveType] || [];
+      const exists = currentList.includes(dateStr);
+      const newList = exists 
+        ? currentList.filter(d => d !== dateStr) 
+        : [...currentList, dateStr];
+      return { ...prev, [leaveType]: newList };
+    });
+  };
+
+  const saveLeaves = async () => {
+    try {
+      await replaceJson("leaves", leavesData);
+      message.success("Leaves updated successfully");
+      setLeaveModalOpen(false);
+    } catch (e) {
+      message.error("Failed to update leaves");
+    }
+  };
+
+  const dateCellRender = (date) => {
+    const dateStr = date.format("YYYY-MM-DD");
+    const isLeave = (leavesData[leaveType] || []).includes(dateStr);
+    if (isLeave) {
+      return (
+        <div style={{ backgroundColor: "#ffccc7", padding: "4px", borderRadius: "4px", textAlign: "center", marginTop: 4 }}>
+          <span style={{ color: "#cf1322", fontWeight: "bold", fontSize: "12px" }}>Leave</span>
+        </div>
+      );
+    }
+    return null;
+  };
+
   // Auto-generate name
   useEffect(() => {
     if (!createType) return;
@@ -194,7 +249,7 @@ export default function RawDataUpload() {
       if (date1 && date2) {
         dateStr = `${date1.format("DD-MM-YYYY")} to ${date2.format("DD-MM-YYYY")}`;
       }
-    } else if (createType === "achieved_target" || createType === "monthly_stock_sales") {
+    } else if (createType === "achieved_target" || createType === "monthly_stock_sales" || createType === "monthly_summary") {
       if (reportDate) {
         dateStr = reportDate.format("MM-YYYY");
       }
@@ -282,7 +337,7 @@ export default function RawDataUpload() {
                 />
               </Space>
             </Form.Item>
-      ) : createType === "achieved_target" || createType === "monthly_stock_sales" ? (
+      ) : createType === "achieved_target" || createType === "monthly_stock_sales" || createType === "monthly_summary" ? (
         <Form.Item label="Month">
           <DatePicker 
             picker="month"
@@ -358,6 +413,42 @@ export default function RawDataUpload() {
           </Col>
         ))}
       </Row>
+
+      <h2 style={{ marginTop: 32 }}>Manage Leaves</h2>
+      <p>Set warehouse and shop leaves. These automatically affect the working days count in summary reports.</p>
+      <Row gutter={[16, 16]}>
+        <Col span={8}>
+          <Card>
+            <Card.Meta title="Warehouse Leaves" description={`Total marked: ${(leavesData.warehouse || []).length} days`} />
+            <Space style={{ marginTop: 16 }}>
+              <Button type="primary" onClick={() => handleOpenLeaves("warehouse")}>Manage</Button>
+            </Space>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card>
+            <Card.Meta title="Shop Leaves" description={`Total marked: ${(leavesData.shop || []).length} days`} />
+            <Space style={{ marginTop: 16 }}>
+              <Button type="primary" onClick={() => handleOpenLeaves("shop")}>Manage</Button>
+            </Space>
+          </Card>
+        </Col>
+      </Row>
+
+      <Modal
+        title={`Manage ${leaveType === "warehouse" ? "Warehouse" : "Shop"} Leaves`}
+        open={leaveModalOpen}
+        onCancel={() => setLeaveModalOpen(false)}
+        onOk={saveLeaves}
+        width={800}
+      >
+        <p>Click on a date in the calendar to toggle its leave status.</p>
+        <Calendar 
+          onSelect={toggleLeaveDate} 
+          dateCellRender={dateCellRender}
+        />
+      </Modal>
+
       <CreateModal />
       {renderUploadModals()}
     </div>

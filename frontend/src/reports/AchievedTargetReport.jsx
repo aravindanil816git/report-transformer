@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Table, InputNumber, Button, message, Space, DatePicker, Popover, Checkbox } from "antd";
-import { useParams } from "react-router-dom";
-import { getReport, processReport } from "../api";
+import { useParams, useNavigate } from "react-router-dom";
+import { getReport, getJson } from "../api";
 import axios from "axios";
 import { FilterOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -15,12 +15,12 @@ const DEFAULT_VISIBLE_BRANDS = [
   "K.S 99 LIFE TIME MATURED XXX RUM",
   "MAGIC BLEND RESERVED XXX RUM",
   "MORNING WALKERS XO BRANDY",
-  "OLD PEARL NO.1 MATURED XXX RUM",
-  "ROYAL OLD FORT NO.1 XXX RUM"
+  "OLD PEARL NO.1 MATURED XXX RUM"
 ];
 
 export default function AchievedTargetReport() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState([]);
   const [brands, setBrands] = useState([]);
   const [config, setConfig] = useState({});
@@ -28,11 +28,16 @@ export default function AchievedTargetReport() {
   const [dateRange, setDateRange] = useState([]);
   const [isEditingTargets, setIsEditingTargets] = useState(false);
   const [visibleBrands, setVisibleBrands] = useState(DEFAULT_VISIBLE_BRANDS);
+  const [clusters, setClusters] = useState({});
 
   useEffect(() => {
     // 🛑 Intentionally leaving this blank so data doesn't auto-fetch on open.
     // The user must explicitly choose dates and click "Apply Filter".
   }, [id]);
+
+  useEffect(() => {
+    getJson("clusters").then(res => setClusters(res.data)).catch(() => {});
+  }, []);
 
   const loadData = (isManual = false) => {
     if (!dateRange || !Array.isArray(dateRange) || dateRange.length !== 2) {
@@ -94,23 +99,56 @@ export default function AchievedTargetReport() {
     }
   };
 
-  const handleRefresh = async () => {
-    try {
-      const hide = message.loading("Refreshing report data...", 0);
-      await processReport(id);
-      hide();
-      message.success("Report refreshed successfully!");
-      loadData(); 
-    } catch (error) {
-      message.error("Failed to refresh report");
-    }
-  };
+  // Group and Pivot the data by Cluster, and calculate Cluster Totals
+  const tableData = [];
+  const bondsProcessed = new Set();
 
-  // Pivot the data: Generate a Target row and an Achieved row for each Bond
-  const tableData = data.flatMap((row) => [
-    { ...row, key: `${row.bond}_target`, type: "Target" },
-    { ...row, key: `${row.bond}_achieved`, type: "Achieved" },
-  ]);
+  Object.keys(clusters).forEach((clusterName) => {
+    const clusterBonds = clusters[clusterName] || [];
+    const clusterRows = data.filter((r) => clusterBonds.includes(r.bond));
+
+    if (clusterRows.length === 0) return;
+
+    const clusterTarget = { bond: `${clusterName} TOTAL`, isClusterTotal: true, type: "Target", brands: {} };
+    const clusterAchieved = { bond: `${clusterName} TOTAL`, isClusterTotal: true, type: "Achieved", brands: {} };
+
+    brands.forEach((b) => {
+      clusterTarget.brands[b] = { target: 0, achieved: 0 };
+      clusterAchieved.brands[b] = { target: 0, achieved: 0 };
+    });
+
+    clusterRows.forEach((row) => {
+      bondsProcessed.add(row.bond);
+      tableData.push({ ...row, key: `${row.bond}_target`, type: "Target" });
+      tableData.push({ ...row, key: `${row.bond}_achieved`, type: "Achieved" });
+
+      Object.keys(row.brands || {}).forEach((brand) => {
+        if (clusterTarget.brands[brand]) clusterTarget.brands[brand].target += row.brands[brand].target || 0;
+        if (clusterAchieved.brands[brand]) clusterAchieved.brands[brand].achieved += row.brands[brand].achieved || 0;
+      });
+    });
+
+    tableData.push({ ...clusterTarget, key: `${clusterName}_total_target` });
+    tableData.push({ ...clusterAchieved, key: `${clusterName}_total_achieved` });
+  });
+
+  const otherRows = data.filter((r) => !bondsProcessed.has(r.bond));
+  if (otherRows.length > 0) {
+    const otherTarget = { bond: `OTHER TOTAL`, isClusterTotal: true, type: "Target", brands: {} };
+    const otherAchieved = { bond: `OTHER TOTAL`, isClusterTotal: true, type: "Achieved", brands: {} };
+    brands.forEach((b) => { otherTarget.brands[b] = { target: 0, achieved: 0 }; otherAchieved.brands[b] = { target: 0, achieved: 0 }; });
+
+    otherRows.forEach((row) => {
+      tableData.push({ ...row, key: `${row.bond}_target`, type: "Target" });
+      tableData.push({ ...row, key: `${row.bond}_achieved`, type: "Achieved" });
+      Object.keys(row.brands || {}).forEach((brand) => {
+        if (otherTarget.brands[brand]) otherTarget.brands[brand].target += row.brands[brand].target || 0;
+        if (otherAchieved.brands[brand]) otherAchieved.brands[brand].achieved += row.brands[brand].achieved || 0;
+      });
+    });
+    tableData.push({ ...otherTarget, key: `OTHER_total_target` });
+    tableData.push({ ...otherAchieved, key: `OTHER_total_achieved` });
+  }
 
   const columns = [
     { 
@@ -120,7 +158,7 @@ export default function AchievedTargetReport() {
       fixed: "left", 
       width: 150,
       render: (value, record, index) => {
-        const obj = { children: <b>{value}</b>, props: {} };
+        const obj = { children: <b style={{ color: record.isClusterTotal ? '#1890ff' : 'inherit' }}>{value}</b>, props: {} };
         if (index % 2 === 0) obj.props.rowSpan = 2; // Span across the two Target/Achieved rows
         else obj.props.rowSpan = 0;
         return obj;
@@ -169,9 +207,11 @@ export default function AchievedTargetReport() {
       render: (_, record) => {
         if (record.type === "Target") {
           const val = record.brands?.[brand]?.target || 0;
+          if (record.isClusterTotal || !isEditingTargets) {
+            return <span>{Math.round(val)}</span>;
+          }
           return (
             <InputNumber
-              disabled={!isEditingTargets}
               value={val}
               min={0}
               onChange={(newVal) => handleTargetChange(record.bond, brand, newVal)}
@@ -235,6 +275,17 @@ export default function AchievedTargetReport() {
 
   return (
     <div style={{ background: "#fff", padding: 20, minHeight: "100%" }}>
+      <style>{`
+        .cluster-total-row > td {
+          background-color: #f0f5ff !important;
+          font-weight: bold;
+        }
+      `}</style>
+      <div style={{ marginBottom: 16 }}>
+        <Button type="link" onClick={() => navigate(-1)} style={{ padding: 0, fontSize: "16px" }}>
+          &larr; Back
+        </Button>
+      </div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
         <h2>Target v/s Achieved Report {config.month ? `- ${dayjs(config.month).format("MM-YYYY")}` : ""}</h2>
         <Space wrap>
@@ -243,7 +294,6 @@ export default function AchievedTargetReport() {
             onChange={setDateRange} 
           />
           <Button type="primary" onClick={loadData}>Apply Filter</Button>
-          <Button onClick={handleRefresh}>Refresh Data</Button>
           {!isEditingTargets ? (
             <Button onClick={() => setIsEditingTargets(true)}>Edit Targets</Button>
           ) : (
@@ -260,6 +310,8 @@ export default function AchievedTargetReport() {
         dataSource={tableData} 
         rowKey="key" 
         bordered 
+        rowClassName={(record) => record.isClusterTotal ? "cluster-total-row" : ""}
+        sticky
         scroll={{ x: "max-content" }} 
         pagination={false} 
         summary={(pageData) => {
@@ -274,6 +326,7 @@ export default function AchievedTargetReport() {
           });
 
           pageData.forEach(row => {
+            if (row.isClusterTotal) return; // Prevent double-counting the cluster totals
             if (row.type === "Target") {
               displayedBrands.forEach(b => {
                  totalTarget[b] += row.brands?.[b]?.target || 0;

@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Table, Select, Segmented, Row, Col, Button, Checkbox } from "antd";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { PlusSquareOutlined, MinusSquareOutlined } from "@ant-design/icons";
 import { getReport, getFilters } from "../../api";
 import { exportToExcel } from "../../utils/exportUtils";
@@ -8,6 +8,7 @@ import dayjs from "dayjs";
 
 export default function ShopwiseReport() {
   const { id } = useParams();
+  const navigate = useNavigate();
 
   const [data, setData] = useState([]);
   const [warehouse, setWarehouse] = useState();
@@ -45,7 +46,8 @@ export default function ShopwiseReport() {
       
       const formattedShops = (shops || []).map(s => ({ 
         value: s.shop_code, 
-        label: `${s.shop_code} - ${s.shop_name}` 
+        label: `${s.shop_code} - ${s.shop_name}`,
+        shopName: s.shop_name
       }));
       setAllShops(formattedShops);
       setShopOptions(formattedShops);
@@ -174,11 +176,13 @@ export default function ShopwiseReport() {
 
     Object.entries(shopGrouped).forEach(([shopCode, brands]) => {
       const isCollapsed = collapsedShops[shopCode];
+      const shopInfo = allShops.find(s => s.value === shopCode);
+      const displayLabel = shopInfo?.shopName ? `${shopInfo.shopName} (${shopCode})` : shopCode;
 
       // Shop Header Row
       rows.push({
         key: `shop_${shopCode}`,
-        label: shopCode,
+        label: displayLabel,
         shopCode: shopCode,
         isShopHeader: true,
         isCollapsed
@@ -224,7 +228,7 @@ export default function ShopwiseReport() {
       // Shop Total Row
       const shopTotal = {
         key: `shop_total_${shopCode}`,
-        label: `Shop ${shopCode} Total`,
+        label: `${displayLabel} Total`,
         opening: 0,
         inward: 0,
         outward: 0,
@@ -263,7 +267,7 @@ export default function ShopwiseReport() {
     }
 
     return rows;
-  }, [data, collapsedShops]);
+  }, [data, collapsedShops, allShops]);
 
   const columns = [
     {
@@ -288,27 +292,31 @@ export default function ShopwiseReport() {
       },
     },
     {
-      title: "Sum of Shop Opening Cases",
+      title: "Opening",
       dataIndex: "opening",
       className: "val-col",
+      align: "center",
       render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
     },
     {
-      title: "Sum of Shop In Cases",
+      title: "Receipt",
       dataIndex: "inward",
       className: "val-col",
+      align: "center",
       render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
     },
     {
-      title: "Sum of Shop Out Cases",
+      title: "Sales",
       dataIndex: "outward",
       className: "val-col",
+      align: "center",
       render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
     },
     {
-      title: "Sum of Shop Closing Cases",
+      title: "Closing",
       dataIndex: "closing",
       className: "val-col",
+      align: "right",
       render: (v, record) => record.isSpacer || record.isShopHeader || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal ? <b>{formatVal(v)}</b> : formatVal(v)),
     },
   ];
@@ -325,7 +333,10 @@ export default function ShopwiseReport() {
     });
 
     Object.entries(shopGrouped).forEach(([shopCode, brands]) => {
-      exportData.push({ "Row Labels": "Shop - " + shopCode });
+      const shopInfo = allShops.find(s => s.value === shopCode);
+      const displayLabel = shopInfo?.shopName ? `${shopInfo.shopName} (${shopCode})` : `Shop - ${shopCode}`;
+
+      exportData.push({ "Row Labels": displayLabel });
       Object.entries(brands).forEach(([brand, items]) => {
         exportData.push({ "Row Labels": brand });
         let bOpening = 0, bIn = 0, bOut = 0, bClosing = 0;
@@ -337,19 +348,19 @@ export default function ShopwiseReport() {
           
           exportData.push({
             "Row Labels": "  " + item.pack,
-            "Sum of Shop Opening Cases": op,
-            "Sum of Shop In Cases": i,
-            "Sum of Shop Out Cases": o,
-            "Sum of Shop Closing Cases": c
+            "Opening": op,
+            "Receipt": i,
+            "Sales": o,
+            "Closing": c
           });
           bOpening += op; bIn += i; bOut += o; bClosing += c;
         });
         exportData.push({
           "Row Labels": brand + " Total",
-          "Sum of Shop Opening Cases": bOpening,
-          "Sum of Shop In Cases": bIn,
-          "Sum of Shop Out Cases": bOut,
-          "Sum of Shop Closing Cases": bClosing
+          "Opening": bOpening,
+          "Receipt": bIn,
+          "Sales": bOut,
+          "Closing": bClosing
         });
       });
 
@@ -362,11 +373,11 @@ export default function ShopwiseReport() {
         sClosing += useWholeNumbers ? Math.floor(item.closing) : item.closing;
       });
       exportData.push({
-        "Row Labels": `Shop ${shopCode} Total`,
-        "Sum of Shop Opening Cases": sOpening,
-        "Sum of Shop In Cases": sIn,
-        "Sum of Shop Out Cases": sOut,
-        "Sum of Shop Closing Cases": sClosing
+        "Row Labels": `${displayLabel} Total`,
+        "Opening": sOpening,
+        "Receipt": sIn,
+        "Sales": sOut,
+        "Closing": sClosing
       });
       exportData.push({}); // Spacer row
     });
@@ -389,6 +400,14 @@ export default function ShopwiseReport() {
 
   return (
     <>
+      <div style={{ marginBottom: 16 }}>
+        <Button type="link" onClick={() => navigate(-1)} style={{ padding: 0, fontSize: "16px" }}>
+          &larr; Back
+        </Button>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h2>Shop Sales Daily</h2>
+      </div>
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }} align="middle">
         <Col>
           <Select
@@ -509,7 +528,6 @@ export default function ShopwiseReport() {
           border: 1px solid #ccc !important;
         }
         .val-col {
-          text-align: right !important;
           width: 150px;
         }
         .ant-table-thead > tr > th {

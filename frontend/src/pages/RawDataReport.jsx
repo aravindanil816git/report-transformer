@@ -62,9 +62,13 @@ export default function RawDataReport() {
 
   return (
     <div style={{ padding: 20 }}>
+      <div style={{ marginBottom: 16 }}>
+        <Button type="link" onClick={() => navigate(-1)} style={{ padding: 0, fontSize: "16px" }}>
+          &larr; Back
+        </Button>
+      </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <h2>{reportName}</h2>
-        <Button onClick={() => navigate(-1)}>Back</Button>
       </div>
       
       <Card>

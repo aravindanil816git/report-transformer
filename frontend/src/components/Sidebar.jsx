@@ -42,6 +42,7 @@ export default function Sidebar() {
           ],
         },
         { key: "report-monthly_stock_sales", label: REPORT_REGISTRY.monthly_stock_sales.label },
+        { key: "report-monthly_summary", label: REPORT_REGISTRY.monthly_summary?.label || "Monthly Summary" },
         { key: "report-achieved_target", label: REPORT_REGISTRY.achieved_target?.label || "Target v/s Achieved" },
       ],
     },

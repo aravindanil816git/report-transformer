@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Table, Button, Select, DatePicker, Space, Typography, message } from "antd";
 
 const { Text } = Typography;
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { getReport, processReport } from "../../api";
 import dayjs from "dayjs";
 import { exportToExcel } from "../../utils/exportUtils";
@@ -11,6 +11,7 @@ const { RangePicker } = DatePicker;
 
 export default function CumulativeShopwiseReport() {
   const { id } = useParams();
+  const navigate = useNavigate();
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -180,13 +181,13 @@ export default function CumulativeShopwiseReport() {
     if (mode === "bond" && !drilledBond) {
       return <a onClick={() => setDrilledBond(record.warehouse)}>{displayText}</a>;
     }
-    return <span>{record.shop_code ? `${record.shop_code} - ` : ""}{displayText}</span>;
+    return <span>{record.shop_code ? `${displayText} (${record.shop_code})` : displayText}</span>;
   };
 
   // 🔹 daywise + total
   const daywiseColumns = [
     { title: getTitle(), dataIndex: getDataIndex(), fixed: "left", width: 220, render: renderFirstCol },
-    ...labels.map(l => ({ title: l, dataIndex: l, width: 180, align: "right" })),
+    ...labels.map(l => ({ title: l, dataIndex: l, width: 180, align: "center" })),
     {
       title: "Total",
       dataIndex: "total",
@@ -198,13 +199,13 @@ export default function CumulativeShopwiseReport() {
 
   const cumulativeColumns = [
     { title: getTitle(), dataIndex: getDataIndex(), width: 220, render: renderFirstCol },
-    { title: "Opening", dataIndex: "opening", width: 200, align: "right" },
-    { title: "Receipt", dataIndex: "receipt", width: 200, align: "right" },
-    { title: "Sales", dataIndex: "sales", width: 200, align: "right" },
-    { title: "Closing", dataIndex: "closing", width: 200, align: "right" },
-    { title: "Difference", dataIndex: "difference", width: 200, align: "right" },
-    { title: "ClosingStock@Sales%", dataIndex: "closing_stock_at_sales_perc", width: 220, align: "right" },
-    { title: "Avg Sales / Day", dataIndex: "avg_sales_per_day", width: 220, align: "right" },
+    { title: "Opening", dataIndex: "opening", width: 200, align: "center" },
+    { title: "Receipt", dataIndex: "receipt", width: 200, align: "center" },
+    { title: "Sales", dataIndex: "sales", width: 200, align: "center" },
+    { title: "Closing", dataIndex: "closing", width: 200, align: "center" },
+    { title: "Difference", dataIndex: "difference", width: 200, align: "center" },
+    { title: "ClosingStock@Sales%", dataIndex: "closing_stock_at_sales_perc", width: 220, align: "center" },
+    { title: "Avg Sales / Day", dataIndex: "avg_sales_per_day", width: 220, align: "center" },
     { title: "Perc(%)", dataIndex: "perc", width: 220, align: "right" }
   ];
 
@@ -213,7 +214,7 @@ export default function CumulativeShopwiseReport() {
     let exportData = [];
     if (view === "cumulative") {
       exportData = filteredData.map(d => ({
-        [getTitle()]: d.shop_code ? `${d.shop_code} - ${d.shop_name}` : formatName(d.warehouse),
+        [getTitle()]: d.shop_code ? `${d.shop_name} (${d.shop_code})` : formatName(d.warehouse),
         Opening: d.opening,
         Receipt: d.receipt,
         Sales: d.sales,
@@ -225,7 +226,7 @@ export default function CumulativeShopwiseReport() {
       }));
     } else {
       exportData = filteredData.map(row => {
-        const obj = { [getTitle()]: row.shop_code ? `${row.shop_code} - ${row.shop_name}` : formatName(row.warehouse) };
+        const obj = { [getTitle()]: row.shop_code ? `${row.shop_name} (${row.shop_code})` : formatName(row.warehouse) };
         let total = 0;
         labels.forEach(l => {
           obj[l] = row[l] || 0;
@@ -253,6 +254,11 @@ export default function CumulativeShopwiseReport() {
 
   return (
     <div style={{ padding: 20 }}>
+      <div style={{ marginBottom: 16 }}>
+        <Button type="link" onClick={() => navigate(-1)} style={{ padding: 0, fontSize: "16px" }}>
+          &larr; Back
+        </Button>
+      </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2>Comparitive Shopsales</h2>
         <Space>
@@ -376,12 +382,12 @@ export default function CumulativeShopwiseReport() {
               <Table.Summary fixed="bottom">
                 <Table.Summary.Row style={{ background: "#f0f2f5", fontWeight: "bold", borderTop: "2px solid #d9d9d9" }}>
                   <Table.Summary.Cell index={0} style={{ padding: "12px 8px" }}>Total</Table.Summary.Cell>
-                  <Table.Summary.Cell index={1} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalOpening.toFixed(2)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={2} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalReceipt.toFixed(2)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={3} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalSales.toFixed(2)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={4} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalClosing.toFixed(2)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={5} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalDiff.toFixed(2)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={6} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalClosingStockAtSalesPerc.toFixed(2)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={1} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalOpening.toFixed(2)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={2} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalReceipt.toFixed(2)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={3} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalSales.toFixed(2)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={4} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalClosing.toFixed(2)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={5} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalDiff.toFixed(2)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={6} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalClosingStockAtSalesPerc.toFixed(2)}</Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={7} style={{ padding: "12px 8px" }} />
                   <Table.Summary.Cell index={8} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalPerc.toFixed(2)}</Text></Table.Summary.Cell>
                 </Table.Summary.Row>
@@ -406,7 +412,7 @@ export default function CumulativeShopwiseReport() {
                 <Table.Summary.Row style={{ background: "#f0f2f5", fontWeight: "bold", borderTop: "2px solid #d9d9d9" }}>
                   <Table.Summary.Cell index={0} style={{ padding: "12px 8px" }}>Total</Table.Summary.Cell>
                   {labels.map((l, index) => (
-                    <Table.Summary.Cell key={l} index={index + 1} align="right" style={{ padding: "12px 8px" }}>
+                    <Table.Summary.Cell key={l} index={index + 1} align="center" style={{ padding: "12px 8px" }}>
                       <Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{colTotals[l].toFixed(2)}</Text>
                     </Table.Summary.Cell>
                   ))}

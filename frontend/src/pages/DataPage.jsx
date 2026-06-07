@@ -22,7 +22,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import dayjs from "dayjs";
-import { DeleteOutlined, UploadOutlined, FileTextOutlined } from "@ant-design/icons";
+import { DeleteOutlined, UploadOutlined, FileTextOutlined, ReloadOutlined } from "@ant-design/icons";
 import { message, Popconfirm } from "antd";
 
 import DailySecondaryUploadModal from "./DailySecondaryUploadModal";
@@ -98,6 +98,10 @@ export default function DataPage() {
   useEffect(() => {
     if (['cumulative_shopwise', 'combined_shopwise', 'shop_sales_cumulative', 'new_cumulative_report', 'month_comparative', 'dailywise_secondary_sales_cum', 'brandwise_cum_secondary_sales'].includes(type) && date1 && date2) {
       setName(`${date1.format('DD-MM-YYYY')} to ${date2.format('DD-MM-YYYY')}`);
+    } else if (type === 'monthly_summary' && reportDate) {
+      const curr = reportDate.format('MMMM YYYY');
+      const prev = reportDate.subtract(1, 'month').format('MMMM YYYY');
+      setName(`${curr} v/s ${prev} summary`);
     } else if (['achieved_target', 'monthly_stock_sales'].includes(type) && reportDate) {
       const label = REPORT_REGISTRY[type]?.label || (type === 'achieved_target' ? 'Achieved / Target' : type);
       setName(`${label} - ${reportDate.format('MM-YYYY')}`);
@@ -242,6 +246,8 @@ export default function DataPage() {
                     onClick={() => {
                       if (typeFilter === 'new_cumulative_report') {
                         navigate(REPORT_REGISTRY.new_cumulative_report.route.replace(":id", r.id));
+                    } else if (r.type === 'monthly_summary') {
+                      navigate(`/report/monthly_summary/${r.id}`);
                       } else if (!config?.route && RAW_DATA_TYPES.includes(r.type)) {
                           navigate(`/report/${r.type}/${r.id}`);
                       } else {
@@ -286,6 +292,24 @@ export default function DataPage() {
                   }}
                 />
               </Tooltip>
+            ) : ["month_comparative", "monthly_stock_sales", "achieved_target", "monthly_summary"].includes(r.type) ? (
+              <Tooltip title="Reprocess Report">
+                <Button
+                  type="default"
+                  icon={<ReloadOutlined />}
+                  onClick={async () => {
+                    const hide = message.loading("Processing report...", 0);
+                    try {
+                      await handleProcess(r.id);
+                      hide();
+                      message.success("Report processed successfully");
+                    } catch (e) {
+                      hide();
+                      message.error("Failed to process report");
+                    }
+                  }}
+                />
+              </Tooltip>
             ) : (
               <Button
                 onClick={() => {
@@ -293,7 +317,7 @@ export default function DataPage() {
                   setUploadOpen(true);
                 }}
               >
-                {["month_comparative", "monthly_stock_sales", "achieved_target"].includes(r.type) ? "Manage" : "Upload"}
+                Upload
               </Button>
             )}
 
@@ -423,7 +447,7 @@ export default function DataPage() {
         open={open}
         okButtonProps={{
           disabled: 
-            (["monthly_stock_sales", "achieved_target"].includes(type) && !reportDate) ||
+            (["monthly_stock_sales", "achieved_target", "monthly_summary"].includes(type) && !reportDate) ||
             (["month_comparative", "cumulative_shopwise", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "shop_sales_cumulative", "new_cumulative_report"].includes(type) && (!date1 || !date2)) ||
             (["daily_secondary_sales", "shopwise", "daily_warehouse_offtake", "daily_warehouse", "warehouse_stock"].includes(type) && (!name || !reportDate))
         }}
@@ -438,6 +462,10 @@ export default function DataPage() {
           if (!finalName) {
              if (['cumulative_shopwise', 'combined_shopwise', 'shop_sales_cumulative', 'new_cumulative_report', 'month_comparative', 'dailywise_secondary_sales_cum', 'brandwise_cum_secondary_sales'].includes(type) && date1 && date2) {
                finalName = `${date1.format('DD-MM-YYYY')} to ${date2.format('DD-MM-YYYY')}`;
+             } else if (type === 'monthly_summary' && reportDate) {
+               const curr = reportDate.format('MMMM YYYY');
+               const prev = reportDate.subtract(1, 'month').format('MMMM YYYY');
+               finalName = `${curr} v/s ${prev} summary`;
              } else if (['achieved_target', 'monthly_stock_sales'].includes(type) && reportDate) {
                const label = REPORT_REGISTRY[type]?.label || (type === 'achieved_target' ? 'Achieved / Target' : type);
                finalName = `${label} - ${reportDate.format('MM-YYYY')}`;
@@ -459,7 +487,7 @@ export default function DataPage() {
             // 🔥 auto process
             await processReport(res.data.id);
           }
-          else if (["monthly_stock_sales", "achieved_target"].includes(type)) {
+          else if (["monthly_stock_sales", "achieved_target", "monthly_summary"].includes(type)) {
             await createReport(finalName, finalType, {
               date: reportDate?.format("YYYY-MM"),
             });
@@ -526,7 +554,7 @@ export default function DataPage() {
             </Form.Item>
           )}
 
-          {["monthly_stock_sales", "achieved_target"].includes(type) && (
+        {["monthly_stock_sales", "achieved_target", "monthly_summary"].includes(type) && (
             <Form.Item label="Month">
               <DatePicker picker="month" style={{ width: '100%' }} onChange={setReportDate} disabledDate={(current) => current && current > dayjs().endOf('day')} />
             </Form.Item>
@@ -585,7 +613,7 @@ export default function DataPage() {
         )}
 
       {/* 🔥 SINGLE FILE UPLOAD MODAL */}
-      {uploadOpen && ["shopwise", "daily_warehouse_offtake", "monthly_stock_sales", "month_comparative", "shop_sales_cumulative", "achieved_target"].includes(current?.type) && (
+      {uploadOpen && ["shopwise", "daily_warehouse_offtake", "monthly_stock_sales", "month_comparative", "shop_sales_cumulative", "achieved_target", "monthly_summary"].includes(current?.type) && (
         <SingleFileUploadModal
           report={current}
           onClose={() => setUploadOpen(false)}

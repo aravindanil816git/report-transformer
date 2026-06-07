@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Table, Button, Select, DatePicker, Space, message } from "antd";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { getReport, processReport } from "../../api";
 import dayjs from "dayjs";
 import { exportToExcel } from "../../utils/exportUtils";
@@ -10,6 +10,7 @@ const { RangePicker } = DatePicker;
 export default function CumulativeWarehouseReport() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -199,6 +200,7 @@ export default function CumulativeWarehouseReport() {
       title: b.replace("BRAND_", ""),
       dataIndex: b,
       width: 120,
+      align: "center",
       render: v => v || 0
     }));
   }, [data]);
@@ -239,7 +241,7 @@ export default function CumulativeWarehouseReport() {
     if (mode === "bond" && !drilledBond) {
       return <a onClick={() => setDrilledBond(record.warehouse)}>{displayText}</a>;
     }
-    return <span>{record.shop_code ? `${record.shop_code} - ` : ""}{displayText}</span>;
+    return <span>{record.shop_code ? `${displayText} (${record.shop_code})` : displayText}</span>;
   };
 
   // 🔹 columns
@@ -251,7 +253,7 @@ export default function CumulativeWarehouseReport() {
       width: 200,
       render: renderFirstCol
     },
-    ...labels.map(l => ({ title: l, dataIndex: l, width: 100 })),
+    ...labels.map(l => ({ title: l, dataIndex: l, width: 100, align: "center" })),
     { title: "Total", dataIndex: "total", width: 100, fixed: "right" }
   ];
 
@@ -270,7 +272,7 @@ export default function CumulativeWarehouseReport() {
   const downloadExcel = () => {
     const reportTitle = isDailyWiseType 
       ? "DailyWise Secondary Sales" 
-      : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "Consolidated Secondary Sales (Legacy)");
+      : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "");
 
     const exportData = processedData.map(d => ({
       ...d,
@@ -295,8 +297,13 @@ export default function CumulativeWarehouseReport() {
 
   return (
     <div style={{ padding: 20 }}>
+      <div style={{ marginBottom: 16 }}>
+        <Button type="link" onClick={() => navigate(-1)} style={{ padding: 0, fontSize: "16px" }}>
+          &larr; Back
+        </Button>
+      </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2>{isDailyWiseType ? "Daily Secondary Sales" : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "Consolidated Secondary Sales (Legacy)")}</h2>
+        <h2>{isDailyWiseType ? "Daily Secondary Sales" : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "")}</h2>
         <Space>
           <Button onClick={handleRefresh}>Refresh Data</Button>
           <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
@@ -409,7 +416,7 @@ export default function CumulativeWarehouseReport() {
       </Space>
 
       {/* 🔥 VIEW TOGGLE */}
-      {!isDailyWiseType && !isBrandwiseCumType && (
+      {/* {!isDailyWiseType && !isBrandwiseCumType && (
         <div style={{ marginBottom: 16 }}>
           <Button
             type={view === "daywise" ? "primary" : "default"}
@@ -426,7 +433,7 @@ export default function CumulativeWarehouseReport() {
             Cumulative
           </Button>
         </div>
-      )}
+      )} */}
 
       {/* 🔥 TABLE */}
       <Table
@@ -459,7 +466,7 @@ export default function CumulativeWarehouseReport() {
                 <Table.Summary.Row style={{ background: "#fafafa" }}>
                   <Table.Summary.Cell index={0} width={250}><b>Grand Total</b></Table.Summary.Cell>
                   {brandColumns.map((bc, idx) => (
-                    <Table.Summary.Cell index={idx + 1} key={bc.dataIndex} width={120}>
+                    <Table.Summary.Cell index={idx + 1} key={bc.dataIndex} width={120} align="center">
                       <b>{brandSums[bc.dataIndex]}</b>
                     </Table.Summary.Cell>
                   ))}
@@ -480,7 +487,7 @@ export default function CumulativeWarehouseReport() {
                 <Table.Summary.Row style={{ background: "#fafafa" }}>
                   <Table.Summary.Cell index={0} fixed="left" width={200}><b>Grand Total</b></Table.Summary.Cell>
                   {labels.map((l, idx) => (
-                    <Table.Summary.Cell index={idx + 1} key={l} width={100}>
+                    <Table.Summary.Cell index={idx + 1} key={l} width={100} align="center">
                       <b>{colSums[l]}</b>
                     </Table.Summary.Cell>
                   ))}
