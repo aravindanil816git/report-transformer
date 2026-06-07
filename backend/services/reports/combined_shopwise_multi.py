@@ -168,15 +168,15 @@ class CombinedShopwiseMultiReportService(BaseReportService):
             return {"data": [], "uploads": report.get("uploads", []), "config": report.get("config", {})}
 
         # Dynamic column lookups
-        opening_cases = find_dynamic(full_df, ["opening", "case"])
-        opening_bottles = find_dynamic(full_df, ["opening", "bottle"])
-        in_cases = find_dynamic(full_df, ["in", "case"]) or find_dynamic(full_df, ["receipt", "case"])
-        in_bottles = find_dynamic(full_df, ["in", "bottle"]) or find_dynamic(full_df, ["receipt", "bottle"])
-        out_cases = find_dynamic(full_df, ["out", "case"]) or find_dynamic(full_df, ["sales", "case"])
-        out_bottles = find_dynamic(full_df, ["out", "bottle"]) or find_dynamic(full_df, ["sales", "bottle"])
-        closing_cases = find_dynamic(full_df, ["closing", "case"])
-        closing_bottles = find_dynamic(full_df, ["closing", "bottle"])
-        bottles_per_case = find_dynamic(full_df, ["bottle", "case"])
+        opening_cases = find_dynamic(full_df, ["opening", "case"], exclude=["info"])
+        opening_bottles = find_dynamic(full_df, ["opening", "bottle"], exclude=["info"])
+        in_cases = find_dynamic(full_df, ["in", "case"], exclude=["info"]) or find_dynamic(full_df, ["receipt", "case"], exclude=["info"])
+        in_bottles = find_dynamic(full_df, ["in", "bottle"], exclude=["info"]) or find_dynamic(full_df, ["receipt", "bottle"], exclude=["info"])
+        out_cases = find_dynamic(full_df, ["out", "case"], exclude=["info"]) or find_dynamic(full_df, ["sales", "case"], exclude=["info"])
+        out_bottles = find_dynamic(full_df, ["out", "bottle"], exclude=["info"]) or find_dynamic(full_df, ["sales", "bottle"], exclude=["info"])
+        closing_cases = find_dynamic(full_df, ["closing", "case"], exclude=["info"])
+        closing_bottles = find_dynamic(full_df, ["closing", "bottle"], exclude=["info"])
+        bottles_per_case = find_dynamic(full_df, ["bottle", "per", "case"], exclude=["info"]) or find_dynamic(full_df, ["bottles_per_case"], exclude=["info"])
 
         full_df["_opening_cases"] = pd.to_numeric(full_df[opening_cases] if opening_cases else None, errors="coerce").fillna(0)
         full_df["_opening_bottles"] = pd.to_numeric(full_df[opening_bottles] if opening_bottles else None, errors="coerce").fillna(0)
@@ -190,7 +190,10 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         full_df["_closing_cases"] = pd.to_numeric(full_df[closing_cases] if closing_cases else None, errors="coerce").fillna(0)
         full_df["_closing_bottles"] = pd.to_numeric(full_df[closing_bottles] if closing_bottles else None, errors="coerce").fillna(0)
         
-        full_df["_bpc"] = pd.to_numeric(full_df[bottles_per_case] if bottles_per_case else None, errors="coerce").fillna(1)
+        if bottles_per_case:
+            full_df["_bpc"] = full_df[bottles_per_case].apply(safe_int)
+        else:
+            full_df["_bpc"] = 1
         full_df.loc[full_df["_bpc"] <= 0, "_bpc"] = 1
 
         full_df["_opening_total_bottles"] = (full_df["_opening_cases"] * full_df["_bpc"]) + full_df["_opening_bottles"]
@@ -205,21 +208,21 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         grouped = full_df.groupby([shop_col, brand_col, pack_col])
         
         for (s_code, brand, pack), g in grouped:
-            bpc = g["_bpc"].iloc[0]
+            bpc = float(g["_bpc"].iloc[0])
             
-            opening_bottles = g["_opening_total_bottles"].iloc[0]
-            inward_bottles = g["_in_total_bottles"].sum()
-            outward_bottles = g["_out_total_bottles"].sum()
-            closing_bottles = g["_closing_total_bottles"].iloc[-1]
+            opening_bottles = float(g["_opening_total_bottles"].iloc[0])
+            inward_bottles = float(g["_in_total_bottles"].sum())
+            outward_bottles = float(g["_out_total_bottles"].sum())
+            closing_bottles = float(g["_closing_total_bottles"].iloc[-1])
             
             if closing_bottles == 0 and (opening_bottles > 0 or inward_bottles > 0 or outward_bottles > 0):
                 closing_bottles = opening_bottles + inward_bottles - outward_bottles
                 
             if view == "case":
                 result.append({
-                    "shop_code": s_code,
-                    "brand": brand,
-                    "pack": pack,
+                    "shop_code": str(s_code),
+                    "brand": str(brand),
+                    "pack": str(pack),
                     "opening": round(opening_bottles / bpc, 4),
                     "inward": round(inward_bottles / bpc, 4),
                     "outward": round(outward_bottles / bpc, 4),
@@ -227,9 +230,9 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                 })
             else:
                 result.append({
-                    "shop_code": s_code,
-                    "brand": brand,
-                    "pack": pack,
+                    "shop_code": str(s_code),
+                    "brand": str(brand),
+                    "pack": str(pack),
                     "opening": opening_bottles,
                     "inward": inward_bottles,
                     "outward": outward_bottles,

@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Table, Button, Select, DatePicker, Space, Typography, message } from "antd";
 
 const { Text } = Typography;
 import { useParams, useNavigate } from "react-router-dom";
-import { getReport, processReport } from "../../api";
+import { getReport, processReport, getJson } from "../../api";
 import dayjs from "dayjs";
 import { exportToExcel } from "../../utils/exportUtils";
 
@@ -26,6 +26,14 @@ export default function CumulativeShopwiseReport() {
   const [mode, setMode] = useState("warehouse");
   const [drilledWarehouse, setDrilledWarehouse] = useState(null);
   const [drilledBond, setDrilledBond] = useState(null);
+
+  const [shopLeaves, setShopLeaves] = useState([]);
+
+  useEffect(() => {
+    getJson("leaves").then(res => {
+      setShopLeaves(res.data?.shop || []);
+    }).catch(() => {});
+  }, []);
 
   // 🔹 load
   const load = async (startIdx = null, endIdx = null, selectedWarehouse = warehouseFilter, selectedBond = null, selectedMode = mode, d1 = null, d2 = null) => {
@@ -146,6 +154,25 @@ export default function CumulativeShopwiseReport() {
 
   const uniqueWarehouses = [...new Set(data.map(d => d.warehouse))];
 
+  const activeStartStr = config.date1 || config.start_date;
+  const activeEndStr = config.date2 || config.end_date;
+
+  const netDays = useMemo(() => {
+    if (activeStartStr && activeEndStr) {
+      const s = dayjs(activeStartStr);
+      const e = dayjs(activeEndStr);
+      const diff = e.diff(s, 'day') + 1;
+      const totalDays = diff > 0 ? diff : 0;
+      let count = 0;
+      for (let i = 0; i < totalDays; i++) {
+        const dStr = s.add(i, 'day').format('YYYY-MM-DD');
+        if (!shopLeaves.includes(dStr)) count++;
+      }
+      return count;
+    }
+    return config.num_days || 0;
+  }, [activeStartStr, activeEndStr, shopLeaves, config.num_days]);
+
   // 🔒 strict date range
   const minDate = config.start_date ? dayjs(config.start_date) : null;
   const maxDate = minDate ? minDate.add(config.num_days - 1, "day") : null;
@@ -244,8 +271,9 @@ export default function CumulativeShopwiseReport() {
         View: view,
         Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
         "Date Range": dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
-        "Start Date": config.start_date ? dayjs(config.start_date).format("DD-MM-YYYY") : null,
-        "Total Days": config.num_days
+        "Start Date": activeStartStr ? dayjs(activeStartStr).format("DD-MM-YYYY") : null,
+        "End Date": activeEndStr ? dayjs(activeEndStr).format("DD-MM-YYYY") : null,
+        "Net Days": netDays
       },
       "cumulative_shopwise_report.xlsx",
       "Cumulative Shopwise"
@@ -304,8 +332,9 @@ export default function CumulativeShopwiseReport() {
 </div>
 
       <div style={{ marginBottom: 12 }}>
-        <b>Start Date:</b> {config.start_date ? dayjs(config.start_date).format("DD-MM-YYYY") : ""} &nbsp;&nbsp;
-        <b>Days:</b> {config.num_days}
+        <b>Start Date:</b> {activeStartStr ? dayjs(activeStartStr).format("DD-MM-YYYY") : "-"} &nbsp;&nbsp;
+        <b>End Date:</b> {activeEndStr ? dayjs(activeEndStr).format("DD-MM-YYYY") : "-"} &nbsp;&nbsp;
+        <b>Days (Excl. Leaves):</b> {netDays}
       </div>
 
       {/* 🔥 FILTERS */}

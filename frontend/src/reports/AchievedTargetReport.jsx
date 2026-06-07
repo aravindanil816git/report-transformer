@@ -5,6 +5,7 @@ import { getReport, getJson } from "../api";
 import axios from "axios";
 import { FilterOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
+import { disabledFutureMonthDates } from "../utils/dateUtils";
 
 const { RangePicker } = DatePicker;
 
@@ -287,11 +288,12 @@ export default function AchievedTargetReport() {
         </Button>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-        <h2>Target v/s Achieved Report {config.month ? `- ${dayjs(config.month).format("MM-YYYY")}` : ""}</h2>
+        <h2>Target v/s Achieved Report {config.month ? `- ${dayjs(config.month).format("MMM YYYY")}` : ""}</h2>
         <Space wrap>
           <RangePicker 
             value={dateRange} 
             onChange={setDateRange} 
+            disabledDate={disabledFutureMonthDates}
           />
           <Button type="primary" onClick={loadData}>Apply Filter</Button>
           {!isEditingTargets ? (

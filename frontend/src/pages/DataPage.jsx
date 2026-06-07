@@ -28,6 +28,7 @@ import { message, Popconfirm } from "antd";
 import DailySecondaryUploadModal from "./DailySecondaryUploadModal";
 import CumulativeUploadModal from "./CumShopUpload";
 import SingleFileUploadModal from "./SingleFileUploadModal";
+import { disabledFutureMonthDates } from "../utils/dateUtils";
 
 
 
@@ -543,20 +544,20 @@ export default function DataPage() {
           {/* 🔥 DAILY */}
           {["daily_secondary_sales", "shopwise", "daily_warehouse_offtake", "warehouse_stock"].includes(type) && (
             <Form.Item label="Date">
-              <DatePicker style={{ width: '100%' }} onChange={setReportDate} disabledDate={(current) => current && current > dayjs().endOf('day')} />
+              <DatePicker style={{ width: '100%' }} onChange={setReportDate} disabledDate={disabledFutureMonthDates} />
             </Form.Item>
           )}
 
           {/* 🔥 CLEANUP */}
           {type === "daily_warehouse" && (
             <Form.Item label="Date">
-              <DatePicker style={{ width: '100%' }} onChange={setReportDate} disabledDate={(current) => current && current > dayjs().endOf('day')} />
+              <DatePicker style={{ width: '100%' }} onChange={setReportDate} disabledDate={disabledFutureMonthDates} />
             </Form.Item>
           )}
 
         {["monthly_stock_sales", "achieved_target", "monthly_summary"].includes(type) && (
             <Form.Item label="Month">
-              <DatePicker picker="month" style={{ width: '100%' }} onChange={setReportDate} disabledDate={(current) => current && current > dayjs().endOf('day')} />
+              <DatePicker picker="month" style={{ width: '100%' }} onChange={setReportDate} disabledDate={disabledFutureMonthDates} />
             </Form.Item>
           )}
 
@@ -574,7 +575,7 @@ export default function DataPage() {
                     }
                   }}
                   disabledDate={(current) => {
-                    if (current && current > dayjs().endOf('day')) return true;
+                  if (disabledFutureMonthDates(current)) return true;
                     if (type === "month_comparative") {
                       return !isDateAvailable(current);
                     }
@@ -587,7 +588,7 @@ export default function DataPage() {
                   value={date2}
                   onChange={setDate2}
                   disabledDate={(current) => {
-                    if (current && current > dayjs().endOf('day')) return true;
+                    if (disabledFutureMonthDates(current)) return true;
                     if (type === "month_comparative") {
                       return !isDateAvailable(current);
                     }

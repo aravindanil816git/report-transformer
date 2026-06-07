@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { listReports, compareLive, getAllWarehouses } from "../api";
 import dayjs from "dayjs";
 import { exportToExcel } from "../utils/exportUtils";
+import { disabledFutureMonthDates } from "../utils/dateUtils";
 
 export default function ItemIssueConsolidation() {
   const navigate = useNavigate();
@@ -37,6 +38,7 @@ export default function ItemIssueConsolidation() {
 
   const disabledDate = (current) => {
     if (!current) return false;
+    if (disabledFutureMonthDates(current)) return true;
     const s = current.format("YYYY-MM-DD");
     return !availableDates.includes(s);
   };

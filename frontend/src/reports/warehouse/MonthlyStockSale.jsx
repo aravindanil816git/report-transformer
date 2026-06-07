@@ -3,20 +3,30 @@ import { Table, Button, Space, message } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport, processReport } from "../../api";
 import { exportToExcel } from "../../utils/exportUtils";
+import dayjs from "dayjs";
 
 export default function MonthlyStockSales() {
   const { id } = useParams();
   const [data, setData] = useState([]);
+  const [config, setConfig] = useState({});
 
   const loadData = () => {
     getReport(id).then((res) => {
       setData(res.data.data || []);
+      setConfig(res.data.config || {});
     });
   };
 
   useEffect(() => {
     loadData();
   }, [id]);
+
+  const formatName = (name) => {
+    if (name && typeof name === "string") {
+      return name.replace(/^WH-/i, "").trim();
+    }
+    return name;
+  };
 
   const totals = data.reduce(
     (acc, d) => {
@@ -31,7 +41,7 @@ export default function MonthlyStockSales() {
   );
 
   const columns = [
-    { title: "ITEM", dataIndex: "warehouse" },
+    { title: "ITEM", dataIndex: "warehouse", render: (text) => formatName(text) },
     { title: "OP STOCK", dataIndex: "op" },
     { title: "INWARD", dataIndex: "inward" },
     { title: "TOTAL", dataIndex: "total" },
@@ -42,7 +52,7 @@ export default function MonthlyStockSales() {
   // ✅ DOWNLOAD
   const downloadExcel = () => {
     const exportData = data.map(d => ({
-      ITEM: d.warehouse,
+      ITEM: formatName(d.warehouse),
       "OP STOCK": d.op,
       "INWARD": d.inward,
       "TOTAL": d.total,
@@ -60,11 +70,12 @@ export default function MonthlyStockSales() {
       "CL STOCK": totals.cl
     });
 
+    const monthStr = config.month ? dayjs(config.month).format("MMM YYYY") : "";
     exportToExcel(
       exportData,
-      {},
-      "monthly_stock_sales_report.xlsx",
-      "Monthly Stock Sales"
+      monthStr ? { "Month": monthStr } : {},
+      `monthly_stock_sales_${config.month || "report"}.xlsx`,
+      monthStr ? `Monthly Stock Sales - ${monthStr}` : "Monthly Stock Sales"
     );
   };
 
@@ -84,7 +95,7 @@ export default function MonthlyStockSales() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h2>Monthly Stock Sales Report</h2>
+        <h2>Monthly Stock Sales Report {config.month ? `- ${dayjs(config.month).format("MMM YYYY")}` : ""}</h2>
         <Space>
           <Button onClick={handleRefresh}>Refresh Data</Button>
           <Button type="primary" onClick={downloadExcel}>Download Excel</Button>

@@ -3,6 +3,7 @@ import { Calendar, Badge, Card, Tag, Space, Typography, Row, Col, Modal, List, D
 import dayjs from 'dayjs';
 import { listReports } from '../api';
 import { REPORT_REGISTRY } from '../reports';
+import { disabledFutureMonthDates } from '../utils/dateUtils';
 
 const { Title, Text } = Typography;
 
@@ -76,7 +77,7 @@ export default function StatusCalendar() {
   };
 
   const disabledDate = (current) => {
-    return current && current > dayjs().endOf('day');
+    return disabledFutureMonthDates(current);
   };
 
   const dateCellRender = (date) => {

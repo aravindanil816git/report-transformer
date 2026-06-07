@@ -8,6 +8,7 @@ import { listReports, createReport, deleteReport, processReport, getReport, getJ
 import MultiWarehouseFileUpload from "./DailySecondaryUploadModal";
 import SingleFileUploadModal from "./SingleFileUploadModal";
 import { exportToExcel } from "../utils/exportUtils";
+import { disabledFutureMonthDates } from "../utils/dateUtils";
 
 const RAW_DATA_TYPES = [
   "daily_warehouse",
@@ -323,7 +324,7 @@ export default function RawDataUpload() {
                   style={{ width: '100%' }}
                   value={date1}
                   onChange={setDate1}
-                  disabledDate={(current) => current && current > dayjs().endOf('day')}
+                  disabledDate={disabledFutureMonthDates}
                 />
                 <DatePicker
                   placeholder="End Date"
@@ -331,7 +332,7 @@ export default function RawDataUpload() {
                   value={date2}
                   onChange={setDate2}
                   disabledDate={(current) => {
-                    if (current && current > dayjs().endOf('day')) return true;
+                    if (disabledFutureMonthDates(current)) return true;
                     return date1 ? current && current.isBefore(date1, 'day') : false;
                   }}
                 />
@@ -344,7 +345,7 @@ export default function RawDataUpload() {
             style={{ width: '100%' }} 
             value={reportDate}
             onChange={setReportDate} 
-            disabledDate={(current) => current && current > dayjs().endOf('day')}
+            disabledDate={disabledFutureMonthDates}
           />
         </Form.Item>
           ) : (
@@ -353,7 +354,7 @@ export default function RawDataUpload() {
                 style={{ width: '100%' }} 
                 value={reportDate}
                 onChange={setReportDate} 
-                disabledDate={(current) => current && current > dayjs().endOf('day')}
+                disabledDate={disabledFutureMonthDates}
               />
             </Form.Item>
           )}

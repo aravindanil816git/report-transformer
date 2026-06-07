@@ -5,6 +5,7 @@ import { PlusSquareOutlined, MinusSquareOutlined } from "@ant-design/icons";
 import { getReport, getFilters } from "../../api";
 import { exportToExcel } from "../../utils/exportUtils";
 import dayjs from "dayjs";
+import { disabledFutureMonthDates } from "../../utils/dateUtils";
 
 const { RangePicker } = DatePicker;
 
@@ -141,11 +142,11 @@ export default function CombinedShopwiseReport() {
     // 🔥 Remove dateRange from dependencies so clearing/picking a date 
     // doesn't trigger an automatic unwanted API call.
     load();
-  }, [view, warehouse, bond, shop]);
+  }, []);
 
   const handleApply = () => {
-    if (!dateRange || !Array.isArray(dateRange) || dateRange.length !== 2 || !dateRange[0] || !dateRange[1]) {
-      message.warning("Please select a complete start and end date");
+    if (dateRange && dateRange.length > 0 && (!dateRange[0] || !dateRange[1])) {
+      message.warning("Please select a complete start and end date if applying a date range");
       return;
     }
     load();
@@ -316,10 +317,10 @@ export default function CombinedShopwiseReport() {
         return <span style={{ paddingLeft: 24 }}>{text}</span>;
       },
     },
-    { title: "Opening Cases", dataIndex: "opening", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
-    { title: "Receipt", dataIndex: "inward", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
-    { title: "Sales", dataIndex: "outward", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
-    { title: "Closing", dataIndex: "closing", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
+    { title: `Opening ${view === 'bottle' ? 'Bottles' : 'Cases'}`, dataIndex: "opening", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
+    { title: `Receipt ${view === 'bottle' ? 'Bottles' : 'Cases'}`, dataIndex: "inward", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
+    { title: `Sales ${view === 'bottle' ? 'Bottles' : 'Cases'}`, dataIndex: "outward", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
+    { title: `Closing ${view === 'bottle' ? 'Bottles' : 'Cases'}`, dataIndex: "closing", className: "val-col", render: (v, record) => record.isSpacer || record.isBrandHeader ? null : (record.isBrandTotal || record.isGrandTotal || record.isShopTotal || record.isShopHeader ? <b>{formatVal(v)}</b> : formatVal(v)), },
   ];
 
   const downloadExcel = () => {
@@ -401,95 +402,102 @@ export default function CombinedShopwiseReport() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <h2>Combined Shopwise Report</h2>
       </div>
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }} align="middle">
-        <Col>
-          <RangePicker value={dateRange} onChange={setDateRange} style={{ width: 250 }} />
-        </Col>
-
-        <Col>
-          <Segmented
-            options={[{ label: "Filter by Bond", value: "bond" }, { label: "Filter by Warehouse", value: "warehouse" }]}
-            value={filterMode}
-            onChange={(value) => {
-              setFilterMode(value);
-              setBond(undefined);
-              setWarehouse(undefined);
-              setShop(undefined);
-            }}
-          />
-        </Col>
-
-        {filterMode === 'bond' && (
+      <div style={{ marginBottom: 16 }}>
+        {/* Date Filter Row */}
+        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
           <Col>
-            <Select
-              placeholder="Bond"
-              allowClear
-              showSearch
-              style={{ width: 180 }}
-              options={bondOptions}
-              value={bond}
-              onChange={(v) => {
-                setBond(v);
-                setShop(undefined); // Reset shop when bond changes
+            Date :
+            <RangePicker value={dateRange} onChange={setDateRange} style={{ width: 250 }} disabledDate={disabledFutureMonthDates} />
+          </Col>
+        </Row>
+
+        {/* Main Filters Row */}
+        <Row gutter={[16, 16]} align="middle" style={{ marginBottom: 16 }}>
+          <Col>
+            <Segmented
+              options={[{ label: "Filter by Bond", value: "bond" }, { label: "Filter by Warehouse", value: "warehouse" }]}
+              value={filterMode}
+              onChange={(value) => {
+                setFilterMode(value);
+                setBond(undefined);
+                setWarehouse(undefined);
+                setShop(undefined);
               }}
             />
           </Col>
-        )}
 
-        {filterMode === 'warehouse' && (
+          {filterMode === 'bond' && (
+            <Col>
+              <Select
+                placeholder="Bond"
+                allowClear
+                showSearch
+                style={{ width: 180 }}
+                options={bondOptions}
+                value={bond}
+                onChange={(v) => {
+                  setBond(v);
+                  setShop(undefined); // Reset shop when bond changes
+                }}
+              />
+            </Col>
+          )}
+
+          {filterMode === 'warehouse' && (
+            <Col>
+              <Select
+                placeholder="Warehouse"
+                allowClear
+                showSearch
+                style={{ width: 220 }}
+                options={warehouseOptions}
+                value={warehouse}
+                onChange={(v) => {
+                  setWarehouse(v);
+                  setShop(undefined); // Reset shop when warehouse changes
+                }}
+              />
+            </Col>
+          )}
+
           <Col>
             <Select
-              placeholder="Warehouse"
+              placeholder="Shop"
               allowClear
               showSearch
-              style={{ width: 220 }}
-              options={warehouseOptions}
-              value={warehouse}
-              onChange={(v) => {
-                setWarehouse(v);
-                setShop(undefined); // Reset shop when warehouse changes
-              }}
+              style={{ width: 280 }}
+              value={shop}
+              options={shopOptions}
+              onChange={setShop}
             />
           </Col>
-        )}
 
-        <Col>
-          <Select
-            placeholder="Shop"
-            allowClear
-            showSearch
-            style={{ width: 280 }}
-            value={shop}
-            options={shopOptions}
-            onChange={setShop}
-          />
-        </Col>
+          <Col>
+            <Segmented
+              options={[{ label: "Case", value: "case" }, { label: "Bottle", value: "bottle" }]}
+              value={view}
+              onChange={setView}
+            />
+          </Col>
 
-        <Col>
-          <Segmented
-            options={[{ label: "Case", value: "case" }, { label: "Bottle", value: "bottle" }]}
-            value={view}
-            onChange={setView}
-          />
-        </Col>
+          <Col>
+            <Button type="primary" onClick={handleApply}>Apply Filter</Button>
+          </Col>
+        </Row>
 
-        <Col>
-          <Checkbox checked={useWholeNumbers} onChange={e => setUseWholeNumbers(e.target.checked)}>
-            Round off
-          </Checkbox>
-        </Col>
-
-        <Col>
-          <Button type="primary" onClick={handleApply}>Apply Date Range</Button>
-        </Col>
-
-        <Col>
-          <Button onClick={downloadExcel}>Download</Button>
-        </Col>
-      </Row>
+        {/* Download Button Row */}
+        <Row gutter={[16, 16]}>
+          <Col>
+            <Button onClick={downloadExcel}>Download</Button>
+          </Col>
+        </Row>
+      </div>
 
       <div style={{ marginBottom: 0, padding: "8px 12px", backgroundColor: "#ADC9E6", border: "1px solid #999", borderBottom: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{periodLabel}</span>
+         <Checkbox checked={useWholeNumbers} onChange={e => setUseWholeNumbers(e.target.checked)}>
+            Round off
+          </Checkbox>
         {/* <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{uploadDateLabel}</span> */}
       </div>
       <Table
