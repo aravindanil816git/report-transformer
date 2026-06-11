@@ -9,6 +9,7 @@ import ItemIssueConsolidation from "./pages/ItemIssueConsolidation";
 import JsonCrud from "./pages/JsonCrud";
 import { REPORT_REGISTRY } from "./reports";
 import AchievedTargetReport from "./reports/AchievedTargetReport";
+import RawDataReport from "./pages/RawDataReport";
 
 const { Content } = Layout;
 
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/item-issue-consolidation" element={<ItemIssueConsolidation />} />
           <Route path="/json-crud" element={<JsonCrud />} />
           <Route path="/achieved-target/:id" element={<AchievedTargetReport />} />
+          <Route path="/report/:type/:id" element={<RawDataReport />} />
           {Object.entries(REPORT_REGISTRY).map(([k, r]) => {
             const C = r.component;
             return <Route key={k} path={r.route} element={<C />} />;

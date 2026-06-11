@@ -5,8 +5,9 @@ import dayjs from "dayjs";
 import { DeleteOutlined, EyeOutlined, DownloadOutlined } from "@ant-design/icons";
 import { REPORT_REGISTRY } from "../reports";
 import { listReports, createReport, deleteReport, processReport, getReport, getJson, replaceJson } from "../api";
-import MultiWarehouseFileUpload from "./DailySecondaryUploadModal";
+import MultiWarehouseFileUpload from "./DailySecondaryUploadModal"; // This component is now warehouse-specific
 import SingleFileUploadModal from "./SingleFileUploadModal";
+import MultiShopUpload from "./MultiShopUpload";
 import { exportToExcel } from "../utils/exportUtils";
 import { disabledFutureMonthDates } from "../utils/dateUtils";
 
@@ -17,6 +18,7 @@ const RAW_DATA_TYPES = [
   "shop_sales_cumulative",
   "daily_warehouse_offtake",
   "daily_secondary_sales",
+  "pi_variance_raw",
 ];
 
 function RawDataView({ type, onOpenCreate }) {
@@ -166,6 +168,9 @@ function RawDataView({ type, onOpenCreate }) {
       {uploadOpen && ["daily_secondary_sales", "daily_warehouse", "warehouse_stock"].includes(current?.type) && (
         <MultiWarehouseFileUpload report={current} onClose={() => setUploadOpen(false)} reload={load} />
       )}
+      {uploadOpen && current?.type === "pi_variance_raw" && (
+        <MultiShopUpload report={current} onClose={() => setUploadOpen(false)} reload={load} />
+      )}
       {uploadOpen && ["shopwise", "daily_warehouse_offtake", "shop_sales_cumulative"].includes(current?.type) && (
         <SingleFileUploadModal report={current} onClose={() => setUploadOpen(false)} reload={load} />
       )}
@@ -250,7 +255,7 @@ export default function RawDataUpload() {
       if (date1 && date2) {
         dateStr = `${date1.format("DD-MM-YYYY")} to ${date2.format("DD-MM-YYYY")}`;
       }
-    } else if (createType === "achieved_target" || createType === "monthly_stock_sales" || createType === "monthly_summary") {
+    } else if (["achieved_target", "monthly_stock_sales", "monthly_summary", "pi_variance_raw"].includes(createType)) {
       if (reportDate) {
         dateStr = reportDate.format("MM-YYYY");
       }
@@ -337,8 +342,7 @@ export default function RawDataUpload() {
                   }}
                 />
               </Space>
-            </Form.Item>
-      ) : createType === "achieved_target" || createType === "monthly_stock_sales" || createType === "monthly_summary" ? (
+            </Form.Item>) : (["achieved_target", "monthly_stock_sales", "monthly_summary", "pi_variance_raw"].includes(createType)) ? (
         <Form.Item label="Month">
           <DatePicker 
             picker="month"
@@ -376,6 +380,9 @@ export default function RawDataUpload() {
 
     if (["daily_secondary_sales", "daily_warehouse", "warehouse_stock"].includes(current.type)) {
       return <MultiWarehouseFileUpload report={current} onClose={() => setUploadOpen(false)} reload={refresh} />;
+    }
+    if (current.type === "pi_variance_raw") {
+      return <MultiShopUpload report={current} onClose={() => setUploadOpen(false)} reload={refresh} />;
     }
     if (["shopwise", "daily_warehouse_offtake", "shop_sales_cumulative"].includes(current.type)) {
       return <SingleFileUploadModal report={current} onClose={() => setUploadOpen(false)} reload={refresh} />;

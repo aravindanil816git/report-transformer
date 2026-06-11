@@ -13,6 +13,8 @@ from services.reports.cumulative_shopwise import CumulativeShopwiseReportService
 from services.reports.achieved_target import AchievedTargetReportService
 from services.reports.warehouse_stock import WarehouseStockService
 from services.reports.monthly_summary import MonthlySummaryReportService
+from services.reports.pi_variance_raw import PiVarianceRawService
+from services.reports.pi_variance import PiVarianceReportService
 
 _registry = {
     "shopwise": ShopwiseReportService(),
@@ -32,6 +34,8 @@ _registry = {
     "achieved_target": AchievedTargetReportService(),
     "warehouse_stock": WarehouseStockService(),
     "monthly_summary": MonthlySummaryReportService(),
+    "pi_variance_raw": PiVarianceRawService(),
+    "pi_variance": PiVarianceReportService(),
 }
 
 def get_service(report_type):
