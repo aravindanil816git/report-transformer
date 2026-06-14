@@ -1,17 +1,17 @@
-import { Modal, Table, Upload, Button, message, Progress, Space } from "antd";
+import { Modal, Table, Upload, Button, message, Progress, Space, Input } from "antd";
 import { uploadFile, processReport, downloadRaw } from "../api";
 import { useState } from "react";
 import { DownloadOutlined } from "@ant-design/icons";
 
 const { Dragger } = Upload;
 
-export default function MultiWarehouseFileUpload({
+export default function MultiShopUpload({
   report,
   onClose,
   reload,
 }) {
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [searchText, setSearchText] = useState("");
 
   const handleProcess = async () => {
     try {
@@ -24,10 +24,10 @@ export default function MultiWarehouseFileUpload({
     }
   };
 
-  const handleUpload = async (file, warehouse) => {
+  const handleUpload = async (file, shopCode) => {
     try {
-      await uploadFile(report.id, file, null, null, warehouse);
-      message.success(`${file.name} uploaded successfully`);
+      await uploadFile(report.id, file, null, null, shopCode);
+      message.success(`${file.name} uploaded successfully for shop ${shopCode}`);
       
       // Auto-process
       message.loading("Auto-processing report...", 2);
@@ -41,7 +41,6 @@ export default function MultiWarehouseFileUpload({
     if (fileList.length === 0) return;
 
     setUploading(true);
-    setProgress(0);
 
     let successCount = 0;
     let failCount = 0;
@@ -50,7 +49,7 @@ export default function MultiWarehouseFileUpload({
       try {
         const res = await uploadFile(report.id, file, null, null, "auto");
         if (res.data?.status === "error") {
-          console.error(`Failed to auto-detect warehouse for ${file.name}: ${res.data.message}`);
+          console.error(`Failed to auto-detect shop for ${file.name}: ${res.data.message}`);
           failCount++;
         } else {
           successCount++;
@@ -59,7 +58,6 @@ export default function MultiWarehouseFileUpload({
         console.error(`Failed to upload ${file.name}`, e);
         failCount++;
       }
-      setProgress(Math.round(((i + 1) / fileList.length) * 100));
     }
 
     if (failCount > 0) {
@@ -70,28 +68,45 @@ export default function MultiWarehouseFileUpload({
     
     setUploading(false);
     
-    // Auto-process if any files uploaded
     if (successCount > 0) {
       message.loading("Auto-processing report...", 2);
       await handleProcess();
     } else {
       setTimeout(() => {
         reload();
-        setProgress(0);
       }, 500);
     }
   };
 
+  const totalCount = (report.uploads || []).length;
+  const uploadedCount = (report.uploads || []).filter(u => u.status === "uploaded").length;
+
+  const filteredUploads = (report.uploads || []).filter(u => {
+    // Visually hide any non-KSBC shops from the list
+    if (u.category && String(u.category).toUpperCase() !== "KSBC") {
+      return false;
+    }
+
+    if (!searchText) return true;
+    const lower = searchText.toLowerCase();
+    return (
+      (u.shop_name && u.shop_name.toLowerCase().includes(lower)) ||
+      (u.shop_code && String(u.shop_code).toLowerCase().includes(lower))
+    );
+  });
+
   const columns = [
     {
-      title: "Warehouse",
-      dataIndex: "warehouse",
+      title: "Shop",
+      dataIndex: "shop_name",
+      render: (text, record) => `${record.shop_name} (${record.shop_code})`,
     },
     {
       title: "Status",
       dataIndex: "status",
-      render: (v) =>
-        v === "uploaded" ? "✅ Uploaded" : "Pending",
+      render: (v) => (
+        <span style={{ color: v === "uploaded" ? "green" : "orange" }}>{v}</span>
+      ),
     },
     {
       title: "File",
@@ -108,7 +123,7 @@ export default function MultiWarehouseFileUpload({
               <Button 
                 icon={<DownloadOutlined />} 
                 size="small"
-                onClick={() => downloadRaw(report.id, row.warehouse)}
+                onClick={() => downloadRaw(report.id, row.shop_code)}
               >
                 Download
               </Button>
@@ -120,7 +135,7 @@ export default function MultiWarehouseFileUpload({
           <Upload
             maxCount={1}
             beforeUpload={(file) => {
-              handleUpload(file, row.warehouse);
+              handleUpload(file, row.shop_code);
               return false;
             }}
             showUploadList={false}
@@ -139,7 +154,7 @@ export default function MultiWarehouseFileUpload({
       footer={null}
       title={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 40 }}>
-          <span>Upload Warehouse Data</span>
+          <span>Upload PI Variance Data</span>
           <Button 
             type="primary" 
             onClick={handleProcess}
@@ -152,42 +167,27 @@ export default function MultiWarehouseFileUpload({
       width={900}
     >
       <div style={{ marginBottom: 24 }}>
-        <Dragger
-          multiple
-          showUploadList={false}
-          beforeUpload={(file, fileList) => {
-            if (fileList.indexOf(file) === fileList.length - 1) {
-              handleBulkUpload(fileList);
-            }
-            return false;
-          }}
-          disabled={uploading}
-        >
-          <p className="ant-upload-drag-icon">
-            <span style={{ fontSize: "2rem" }}>📥</span>
-          </p>
-          <p className="ant-upload-text">
-            Click or drag files to this area to upload
-          </p>
-          <p className="ant-upload-hint">
-            Support for bulk upload. System will automatically match files to
-            warehouses based on content.
-          </p>
+        <Dragger multiple showUploadList={false} beforeUpload={(file, fileList) => { if (fileList.indexOf(file) === fileList.length - 1) { handleBulkUpload(fileList); } return false; }} disabled={uploading} >
+          <p className="ant-upload-drag-icon"><span style={{ fontSize: "2rem" }}>📥</span></p>
+          <p className="ant-upload-text">Click or drag files to this area to upload</p>
+          <p className="ant-upload-hint">Support for bulk upload. System will automatically match files to shops based on content.</p>
         </Dragger>
-        {uploading && (
-          <div style={{ marginTop: 16 }}>
-            <Progress percent={progress} />
-          </div>
-        )}
+        {uploading && <div style={{ marginTop: 16 }}><Progress percent={100} status="active" showInfo={false} /></div>}
+      </div>
+      
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <span style={{ fontSize: '16px', fontWeight: 500 }}>
+          Status: <span style={{ color: uploadedCount === totalCount ? 'green' : '#1890ff' }}>{uploadedCount}</span> / {totalCount} Uploaded
+        </span>
+        <Input.Search 
+          placeholder="Search by shop name or code..." 
+          onChange={(e) => setSearchText(e.target.value)} 
+          style={{ width: 300 }} 
+          allowClear 
+        />
       </div>
 
-      <Table
-        columns={columns}
-        dataSource={report.uploads || []}
-        rowKey="warehouse"
-        pagination={false}
-        size="small"
-      />
+      <Table columns={columns} dataSource={filteredUploads} rowKey="shop_code" pagination={{ pageSize: 50, showSizeChanger: true }} size="small" />
     </Modal>
   );
 }

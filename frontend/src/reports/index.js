@@ -11,6 +11,8 @@ import CombinedShopwiseReport from "./shopwise/CombinedShopwiseReport";
 import NewCumulativeReport from "./shopwise/NewCumulativeReport";
 import WarehouseStock from "../pages/WarehouseStock";
 import MonthlySummaryReport from "../pages/MonthlySummaryReport";
+import PiVarianceReport from "../pages/PiVarianceReport";
+import RawDataReport from "../pages/RawDataReport";
 
 export const REPORT_REGISTRY = {
   shopwise: {
@@ -87,5 +89,15 @@ export const REPORT_REGISTRY = {
     label: "Monthly Summary Report",
     component: MonthlySummaryReport,
     route: "/report/monthly_summary/:id"
+  },
+  pi_variance: {
+    label: "PI Variance",
+    component: PiVarianceReport,
+    route: "/report/pi_variance/:id"
+  },
+  pi_variance_raw: {
+    label: "PI Variance Uploads",
+    component: RawDataReport,
+    route: "/report/pi_variance_raw/:id"
   }
 };

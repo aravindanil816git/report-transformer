@@ -28,6 +28,7 @@ RAW_DATA_TYPES = [
     "daily_secondary_sales",
     "item_issue_consolidation",
     "warehouse_stock",
+    "pi_variance_raw",
 ]
 
 # ================= GLOBAL CLEANER =================
@@ -243,16 +244,28 @@ def sync_cumulative_report(report, all_reports=None):
     # Now update current report
     changed = False
     for u in report.get("uploads", []):
-        if u.get("status") != "uploaded":
-            dt = u.get("date")
-            if dt in available_data:
+        dt = u.get("date")
+        if dt in available_data:
+            meta = available_data[dt]
+            # 🔥 Always update if paths have changed (e.g., user deleted and re-uploaded a mapping)
+            if u.get("status") != "uploaded" or u.get("path") != meta.get("path") or u.get("storage_path") != meta.get("storage_path"):
                 u["status"] = "uploaded"
-                meta = available_data[dt]
                 if "path" in meta and meta["path"]:
                     u["path"] = meta["path"]
                     u["storage_path"] = meta.get("storage_path")
                 u["file"] = "Auto-synced from system"
+                
+                # Clear stale cached data to force fresh JSON data fetch
+                u.pop("data", None)
                 changed = True
+        elif u.get("status") == "uploaded" and str(u.get("file")).startswith("Auto-synced") and dt not in available_data:
+            # 🔥 If auto-synced but source was completely deleted by the user, unlink it
+            u["status"] = "pending"
+            u["path"] = None
+            u["storage_path"] = None
+            u["file"] = None
+            u.pop("data", None)
+            changed = True
                 
     if changed:
         # Update report status
@@ -331,7 +344,7 @@ def create_report(
         config = {"date1": date1, "date2": date2}
 
     # 🔥 MONTHLY STOCK SALES & ACHIEVED TARGET
-    elif type in ["monthly_stock_sales", "achieved_target", "monthly_summary"]:
+    elif type in ["monthly_stock_sales", "achieved_target", "monthly_summary", "pi_variance"]:
         config = {"month": str(date)[:7] if date else None}
 
     # 🔥 WAREHOUSE STOCK
@@ -348,6 +361,28 @@ def create_report(
             for wh in master_data.keys()
         ]
         config = {"date": date}
+
+    # 🔥 PI VARIANCE RAW
+    elif type == "pi_variance_raw":
+        import json
+        shops_path = os.path.join(os.path.dirname(__file__), "..", "shops.json")
+        with open(shops_path, "r", encoding="utf-8") as f:
+            all_shops = json.load(f)
+        
+        uploads = []
+        for code, details in all_shops.items():
+            cat = str(details.get("category", "")).strip().upper()
+            if code and str(code).lower() != 'nan' and cat == "KSBC":
+                uploads.append({
+                    "shop_code": str(code).strip(),
+                    "shop_name": details.get("shop_name", "Unknown"),
+                    "category": details.get("category"),
+                "file": None,
+                "path": None,
+                "status": "pending",
+                "data": None
+            })
+        config = {"month": str(date)[:7] if date else None}
 
     # 🔥 MONTH COMPARATIVE
     elif type == "month_comparative":
@@ -406,12 +441,16 @@ def create_report(
     sync_cumulative_report(report)
 
     # 🔥 AUTO PROCESS FOR MONTHLY REPORT
-    if type in ["monthly_stock_sales", "monthly_summary"]:
+    if type in ["monthly_stock_sales", "monthly_summary", "pi_variance"]:
         svc = get_service(type)
 
-        report["all_reports"] = [
-            r for r in get_all_reports(types=["daily_warehouse", "warehouse_stock", "daily_secondary_sales", "daily_warehouse_offtake", "combined_shopwise"], columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data, processed") if r["id"] != rid
-        ]
+        # Define which raw reports each monthly report depends on
+        dependency_map = {
+            "monthly_stock_sales": ["daily_warehouse", "warehouse_stock", "daily_secondary_sales", "daily_warehouse_offtake"],
+            "monthly_summary": ["daily_warehouse_offtake", "shop_sales_cumulative", "combined_shopwise", "cumulative_shopwise"],
+            "pi_variance": ["pi_variance_raw"]
+        }
+        report["all_reports"] = get_all_reports(types=dependency_map.get(type, []), columns="id, name, type, status, config, uploads, created_at, path, file, storage_path")
 
         svc.process(report)
 
@@ -568,7 +607,8 @@ def ensure_defaults_exist():
     monthly_defaults = [
         "achieved_target",
         "monthly_stock_sales",
-        "monthly_summary"
+        "monthly_summary",
+        "pi_variance"
     ]
     for dtype in monthly_defaults:
         name = f"Default - {month_name}"
@@ -730,23 +770,56 @@ async def upload(
     # 🔥 AUTO-DETECT WAREHOUSE IF KEY IS MISSING
     detected_key = key
     if not detected_key or detected_key == "auto":
-        possible_warehouses = [u["warehouse"] for u in report.get("uploads", []) if "warehouse" in u]
-        if possible_warehouses:
+        if report["type"] == "pi_variance_raw":
+            import json
+            import re
+            shops_path = os.path.join(os.path.dirname(__file__), "..", "shops.json")
+            with open(shops_path, "r", encoding="utf-8") as f:
+                all_shops = json.load(f)
+            
+            shop_name_to_code_map = {
+                str(details.get('shop_name', '')).upper().strip(): str(code).strip() 
+                for code, details in all_shops.items() 
+                if details.get('shop_name') and str(code).lower() not in ('nan', '')
+            }
+
             try:
-                # We read the first few lines manually to be more robust
                 df_raw = read_excel_robust(path, header=None, nrows=20)
                 for i in range(len(df_raw)):
-                    row_str = " ".join([str(x) for x in df_raw.iloc[i].values if str(x) != "nan"]).upper()
-                    # Sort by length descending to match longest warehouse name first (to avoid partial matches)
-                    for wh in sorted(possible_warehouses, key=len, reverse=True):
-                        if wh.upper() in row_str:
-                            detected_key = wh
-                            print(f"DEBUG: Auto-detected warehouse: {detected_key}")
+                    row_str = " ".join([str(x) for x in df_raw.iloc[i].values if str(x) != "nan"])
+                    
+                    match = re.search(r"Shop\s*:\s*(.+?)(,|$)", row_str, re.IGNORECASE)
+                    if match:
+                        detected_shop_name = match.group(1).strip().upper()
+                        if detected_shop_name in shop_name_to_code_map:
+                            detected_key = shop_name_to_code_map[detected_shop_name]
                             break
-                    if detected_key and detected_key != "auto":
-                        break
+                
+                if not detected_key or detected_key == "auto":
+                    for i in range(len(df_raw)):
+                        row_str_upper = " ".join([str(x) for x in df_raw.iloc[i].values if str(x) != "nan"]).upper()
+                        for shop_name_upper, shop_code in sorted(shop_name_to_code_map.items(), key=lambda item: len(item[0]), reverse=True):
+                            if shop_name_upper in row_str_upper:
+                                detected_key = shop_code
+                                break
+                        if detected_key and detected_key != "auto":
+                            break
             except Exception as e:
-                print(f"DEBUG: Error auto-detecting: {e}")
+                print(f"DEBUG: Error auto-detecting shop for pi_variance_raw: {e}")
+        else:
+            possible_warehouses = [u["warehouse"] for u in report.get("uploads", []) if "warehouse" in u]
+            if possible_warehouses:
+                try:
+                    df_raw = read_excel_robust(path, header=None, nrows=20)
+                    for i in range(len(df_raw)):
+                        row_str = " ".join([str(x) for x in df_raw.iloc[i].values if str(x) != "nan"]).upper()
+                        for wh in sorted(possible_warehouses, key=len, reverse=True):
+                            if wh.upper() in row_str:
+                                detected_key = wh
+                                break
+                        if detected_key and detected_key != "auto": break
+                except Exception as e:
+                    print(f"DEBUG: Error auto-detecting: {e}")
 
     match_found = False
     if report["type"] in ["daily_secondary_sales", "item_issue_consolidation"]:
@@ -780,6 +853,20 @@ async def upload(
                     df = read_excel_robust(path)
                     df = df.replace({pd.NA: None}).astype(object).where(pd.notnull(df), None)
                     u["data"] = df.to_dict("records")
+                match_found = True
+                break
+
+    elif report["type"] == "pi_variance_raw":
+        for u in report["uploads"]:
+            if str(u.get("shop_code", "")).strip().upper() == str(detected_key).strip().upper():
+                report_month = report.get("config", {}).get("month")
+                u["file"] = file.filename
+                u["from"] = report_month
+                u["to"] = report_month
+                u["status"] = "uploaded"
+                u["path"] = path
+                u["storage_path"] = storage_path
+                u.pop("data", None)
                 match_found = True
                 break
 
@@ -868,51 +955,6 @@ def process(rid: str):
     report = get_report_by_id(rid)
     if not report: raise HTTPException(status_code=404, detail="Report not found")
 
-    # 🔥 CONCURRENTLY RESTORE FILES FROM SUPABASE IF MISSING LOCALLY BEFORE PROCESSING
-    missing_files = []
-    
-    def resolve_path(p):
-        if not p: return p
-        filename = os.path.basename(p)
-        temp_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "temp"))
-        return os.path.join(temp_dir, filename)
-
-    if report.get("storage_path") and report.get("path"):
-        report["path"] = resolve_path(report["path"])
-        if not os.path.exists(report["path"]):
-            missing_files.append((report["storage_path"], report["path"]))
-            
-    for u in report.get("uploads", []):
-        if u.get("storage_path") and u.get("path"):
-            u["path"] = resolve_path(u["path"])
-            if not os.path.exists(u["path"]):
-                missing_files.append((u["storage_path"], u["path"]))
-            
-    if missing_files:
-        print(f"Fetching {len(missing_files)} missing files from Supabase concurrently...")
-        with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
-            futures = [executor.submit(ensure_local_file, sp, lp) for sp, lp in missing_files]
-            concurrent.futures.wait(futures)
-
-    if report["type"] in ["monthly_stock_sales", "monthly_summary"]:
-        report["all_reports"] = get_all_reports(types=["daily_warehouse", "warehouse_stock", "daily_secondary_sales", "daily_warehouse_offtake", "combined_shopwise"], columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, data, processed")
-
-    if report["type"] == "month_comparative":
-        all_reports = get_all_reports(types=["item_issue_consolidation", "daily_secondary_sales"], columns="id, type, status, config, processed")
-        all_reports.sort(key=lambda x: 0 if x.get("type") == "daily_secondary_sales" else 1)
-
-        combined = []
-        for d in all_reports:
-            rep_date = d.get("config", {}).get("date")
-            for item in (d.get("processed") or []):
-                if isinstance(item, dict):
-                    new_item = dict(item)
-                    if not new_item.get("date") and rep_date:
-                        new_item["date"] = rep_date
-                    combined.append(new_item)
-
-        report["_live_source"] = combined
-
     original_start = None
     original_num = None
     original_end = None
@@ -943,15 +985,73 @@ def process(rid: str):
                 start_date = datetime.strptime(d1_clean, "%Y-%m-%d")
                 end_date = datetime.strptime(d2_clean, "%Y-%m-%d")
                 
-                # 🔥 OOM SAFETY LIMIT: Universally prevent processing more than 35 days
-                if (end_date - start_date).days > 35:
-                    end_date = start_date + timedelta(days=35)
+                # 🔥 OOM SAFETY LIMIT: Universally prevent processing more than 95 days
+                if (end_date - start_date).days > 95:
+                    end_date = start_date + timedelta(days=95)
                     
                 config["start_date"] = start_date.strftime("%Y-%m-%d")
                 config["num_days"] = (end_date - start_date).days + 1
                 config["end_date"] = end_date.strftime("%Y-%m-%d")
             except ValueError:
                 pass # Ignore malformed dates
+
+    # 🔥 CONCURRENTLY RESTORE FILES FROM SUPABASE IF MISSING LOCALLY BEFORE PROCESSING
+    missing_files = []
+    
+    def resolve_path(p):
+        if not p: return p
+        filename = os.path.basename(p)
+        temp_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "temp"))
+        return os.path.join(temp_dir, filename)
+
+    if report.get("storage_path") and report.get("path"):
+        report["path"] = resolve_path(report["path"])
+        if not os.path.exists(report["path"]):
+            missing_files.append((report["storage_path"], report["path"]))
+            
+    for u in report.get("uploads", []):
+        if u.get("storage_path") and u.get("path"):
+            u["path"] = resolve_path(u["path"])
+            if not os.path.exists(u["path"]):
+                missing_files.append((u["storage_path"], u["path"]))
+            
+    if missing_files:
+        print(f"Fetching {len(missing_files)} missing files from Supabase concurrently...")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+            futures = [executor.submit(ensure_local_file, sp, lp) for sp, lp in missing_files]
+            concurrent.futures.wait(futures)
+
+    if report["type"] == "month_comparative":
+        all_reports = get_all_reports(types=["item_issue_consolidation", "daily_secondary_sales"], columns="id, type, status, config, processed")
+        all_reports.sort(key=lambda x: 0 if x.get("type") == "daily_secondary_sales" else 1)
+
+        combined = []
+        for d in all_reports:
+            rep_date = d.get("config", {}).get("date")
+            for item in (d.get("processed") or []):
+                if isinstance(item, dict):
+                    new_item = dict(item)
+                    if not new_item.get("date") and rep_date:
+                        new_item["date"] = rep_date
+                    combined.append(new_item)
+
+        report["_live_source"] = combined
+    elif report["type"] == "pi_variance":
+        report["all_reports"] = get_all_reports(types=["pi_variance_raw"], columns="id, name, type, status, config, uploads, created_at, path, file, storage_path")
+        # Pre-fetch missing raw files for PI Variance as well
+        missing_pi_files = []
+        for raw_rep in report["all_reports"]:
+            for u in raw_rep.get("uploads", []):
+                if u.get("storage_path") and u.get("path"):
+                    local_p = resolve_path(u["path"])
+                    u["path"] = local_p
+                    if not os.path.exists(local_p):
+                        missing_pi_files.append((u.get("storage_path"), local_p))
+        if missing_pi_files:
+            print(f"Fetching {len(missing_pi_files)} missing PI files from Supabase concurrently...")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+                futures = [executor.submit(ensure_local_file, sp, lp) for sp, lp in missing_pi_files]
+                concurrent.futures.wait(futures)
 
     try:
         svc = get_service(report["type"])

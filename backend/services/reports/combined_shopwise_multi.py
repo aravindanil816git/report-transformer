@@ -102,16 +102,50 @@ class CombinedShopwiseMultiReportService(BaseReportService):
     # ---------------------------------------------------------------------
     def get_report(self, report, shop_code=None, warehouse=None, bond=None, view="case", start_idx=None, end_idx=None, **kwargs):
         uploads = report.get("uploads", [])
+        start_date = kwargs.get("start_date")
+        end_date = kwargs.get("end_date")
+        view_param = kwargs.get("view", view)
+        mode = kwargs.get("mode", "warehouse")
+        
+        # Date Range Filter logic for "1-16" and "17-31" sets
+        selected_keys = set()
+        if start_date and end_date:
+            try:
+                s_day = int(pd.to_datetime(start_date).day)
+                e_day = int(pd.to_datetime(end_date).day)
+                if s_day <= 16:
+                    selected_keys.add("1-16")
+                if e_day >= 17:
+                    selected_keys.add("17-31")
+                    selected_keys.add("17-30")
+            except Exception:
+                pass
         
         # Build DataFrames from each upload entry
         dfs = []
         for u in uploads:
+            r_key = u.get("range_key") or u.get("date", "default")
+            if selected_keys and r_key in ["1-16", "17-31", "17-30"] and r_key not in selected_keys:
+                continue
+                
             data = u.get("data")
             if isinstance(data, list) and data:
                 df = pd.DataFrame(data)
                 if not df.empty:
-                    df['range_key'] = u.get("date", "default")
+                    df['range_key'] = r_key
                     dfs.append(df)
+            else:
+                # 🔥 READ DIRECTLY FROM PATH IF DB PAYLOAD DROPPED THE DATA ARRAY
+                path = u.get("path")
+                if path and __import__("os").path.exists(path):
+                    try:
+                        df = read_excel_robust(path)
+                        df = normalize(df)
+                        if not df.empty:
+                            df['range_key'] = r_key
+                            dfs.append(df)
+                    except Exception as e:
+                        print(f"[ERROR] [combined_shopwise_multi] Failed to read {path}: {e}")
 
         if not dfs:
             return {"data": [], "uploads": report.get("uploads", []), "config": report.get("config", {})}
@@ -204,8 +238,15 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         if "range_key" in full_df.columns:
             full_df = full_df.sort_values(by="range_key")
 
+        # KSBC files might have duplicate rows for the same brand in the same period, causing massive inflated sums. Keep only the latest entry.
+        full_df = full_df.drop_duplicates(subset=[shop_col, brand_col, pack_col, "range_key"], keep="last")
+
         result = []
         grouped = full_df.groupby([shop_col, brand_col, pack_col])
+        
+        from core.mapping_utils import get_shop_to_parent_maps, get_shop_lookup_and_warehouse_to_bond
+        shop_to_bond, _ = get_shop_to_parent_maps()
+        shop_lookup, _ = get_shop_lookup_and_warehouse_to_bond()
         
         for (s_code, brand, pack), g in grouped:
             bpc = float(g["_bpc"].iloc[0])
@@ -218,28 +259,70 @@ class CombinedShopwiseMultiReportService(BaseReportService):
             if closing_bottles == 0 and (opening_bottles > 0 or inward_bottles > 0 or outward_bottles > 0):
                 closing_bottles = opening_bottles + inward_bottles - outward_bottles
                 
-            if view == "case":
-                result.append({
-                    "shop_code": str(s_code),
-                    "brand": str(brand),
-                    "pack": str(pack),
-                    "opening": round(opening_bottles / bpc, 4),
-                    "inward": round(inward_bottles / bpc, 4),
-                    "outward": round(outward_bottles / bpc, 4),
-                    "closing": round(closing_bottles / bpc, 4),
-                })
-            else:
-                result.append({
-                    "shop_code": str(s_code),
-                    "brand": str(brand),
-                    "pack": str(pack),
-                    "opening": opening_bottles,
-                    "inward": inward_bottles,
-                    "outward": outward_bottles,
-                    "closing": closing_bottles,
-                })
+            s_code_str = str(s_code).strip()
+            wh_info = str(g["warehouse_info"].iloc[0]) if "warehouse_info" in g.columns else "Unknown"
+            
+            item = {
+                "shop_code": s_code_str,
+                "brand": str(brand),
+                "pack": str(pack),
+                "opening": round(opening_bottles / bpc, 4) if view_param != "bottle" else opening_bottles,
+                "inward": round(inward_bottles / bpc, 4) if view_param != "bottle" else inward_bottles,
+                "outward": round(outward_bottles / bpc, 4) if view_param != "bottle" else outward_bottles,
+                "closing": round(closing_bottles / bpc, 4) if view_param != "bottle" else closing_bottles,
+                "warehouse": wh_info,
+                "bond": shop_to_bond.get(s_code_str, "Unknown"),
+                "shop_name": shop_lookup.get(s_code_str, {}).get("shop_name", "Unknown Shop")
+            }
+            result.append(item)
 
-        return {"data": result, "uploads": report.get("uploads", []), "config": report.get("config", {})}
+        config_out = report.get("config", {})
+        if start_date: config_out["start_date"] = start_date
+        if end_date: config_out["end_date"] = end_date
+
+        if view_param in ["cumulative", "daywise"]:
+            agg_map = {}
+            for r in result:
+                wh = r["warehouse"]
+                bnd = r["bond"]
+                sc = r["shop_code"]
+                sn = r["shop_name"]
+                
+                if mode == "bond":
+                    pk = bnd
+                elif mode == "shop":
+                    pk = f"{wh}_{bnd}_{sc}"
+                else: # warehouse
+                    pk = wh
+                    
+                if pk not in agg_map:
+                    agg_map[pk] = {
+                        "warehouse": wh if mode != "bond" else pk,
+                        "bond": bnd,
+                        "shop_code": sc if mode == "shop" else None,
+                        "shop_name": sn if mode == "shop" else None,
+                        "opening": 0.0,
+                        "inward": 0.0,
+                        "outward": 0.0,
+                        "closing": 0.0
+                    }
+                
+                agg_map[pk]["opening"] += r["opening"]
+                agg_map[pk]["inward"] += r["inward"]
+                agg_map[pk]["outward"] += r["outward"]
+                agg_map[pk]["closing"] += r["closing"]
+                
+            final_res = []
+            for v in agg_map.values():
+                v["opening"] = round(v["opening"], 2)
+                v["inward"] = round(v["inward"], 2)
+                v["outward"] = round(v["outward"], 2)
+                v["closing"] = round(v["closing"], 2)
+                final_res.append(v)
+                
+            return {"data": final_res, "uploads": report.get("uploads", []), "config": config_out}
+
+        return {"data": result, "uploads": report.get("uploads", []), "config": config_out}
 
     def get_filters(self, report):
         # Get bonds and shops from mapping as a base
