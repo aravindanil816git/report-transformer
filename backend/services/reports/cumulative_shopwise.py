@@ -245,23 +245,17 @@ class CumulativeShopwiseReportService(BaseReportService):
         from services.store import reports as all_reports_store
         reports_list = list(all_reports_store.values())
         
-        # Check if we actually have shopwise reports loaded in memory, otherwise fetch from DB
-        has_shopwise = any(r.get("type") == "shopwise" and r.get("data") for r in reports_list)
+        # Fetching 'data' for all shopwise reports causes OOM errors!
+        has_shopwise = any(r.get("type") == "shopwise" for r in reports_list)
         if not has_shopwise:
             try:
                 from services.db import supabase
-                res = supabase.table("reports").select("id, type, status, config, data").eq("type", "shopwise").execute()
+                # Avoid selecting "data" column to prevent OOM
+                res = supabase.table("reports").select("id, type, status, config, path, storage_path").eq("type", "shopwise").execute()
                 if res.data:
                     reports_list.extend(res.data)
             except Exception as e:
                 print(f"[WARN] Failed to fetch shopwise fallback data from DB: {e}")
-
-        source_data_map = {}
-        for r in reports_list:
-            if r.get("type") == "shopwise" and r.get("status") in ["Processed", "Ready", "Uploaded"]:
-                rd = r.get("config", {}).get("date")
-                if rd and r.get("data"):
-                    source_data_map[rd] = r.get("data")
 
         total_raw_rows = 0
         total_shrunk_rows = 0
@@ -273,10 +267,18 @@ class CumulativeShopwiseReportService(BaseReportService):
             label = labels[i]
 
             u = uploads_by_date.get(current_date_str)
+            fallback_report = None
             
-            # 🔥 If upload missing entirely, check DB
-            if not u and current_date_str in source_data_map:
-                u = {"date": current_date_str, "file": "Auto-linked from Daily Shopwise"}
+            # 🔥 Find the fallback_report for this date to enable data recovery
+            for r in reports_list:
+                if r.get("type") == "shopwise" and r.get("status") in ["Processed", "Ready", "Uploaded"]:
+                    if r.get("config", {}).get("date") == current_date_str:
+                        fallback_report = r
+                        break
+            
+            # 🔥 If upload missing entirely, auto-link
+            if not u and fallback_report:
+                u = {"date": current_date_str, "file": "Auto-linked from Daily Shopwise", "path": fallback_report.get("path"), "storage_path": fallback_report.get("storage_path")}
                 
             if not u:
                 print(f"[WARN] [process] Day {i+1}/{num_days}: NO UPLOAD FOUND for date {current_date_str}. It will be skipped.")
@@ -286,9 +288,17 @@ class CumulativeShopwiseReportService(BaseReportService):
 
             data = u.get("data")
             # 🔥 Auto-link if data is missing locally but available in daily processed reports
-            if not data and current_date_str in source_data_map:
-                data = source_data_map[current_date_str]
-                print(f"[INFO] [process] Intercepted processed JSON data from daily 'shopwise' report for {current_date_str} (bypassing missing file).")
+            if not data and fallback_report:
+                data = fallback_report.get("data")
+                if not data:
+                    try:
+                        from services.db import supabase
+                        res = supabase.table("reports").select("data").eq("id", fallback_report["id"]).execute()
+                        if res.data and res.data[0].get("data"):
+                            data = res.data[0].get("data")
+                            print(f"[INFO] [process] Fetched 'data' from DB for fallback report {fallback_report['id']}.")
+                    except Exception as e:
+                        print(f"[WARN] Failed to fetch data for fallback report: {e}")
                 
             df = None
             if data and len(data) > 0:
@@ -302,6 +312,19 @@ class CumulativeShopwiseReportService(BaseReportService):
                     filename = os.path.basename(path)
                     temp_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "temp"))
                     local_path = os.path.join(temp_dir, filename)
+                    
+                    storage_path = u.get("storage_path") or (fallback_report.get("storage_path") if fallback_report else None)
+                    
+                    if storage_path and not os.path.exists(local_path):
+                        try:
+                            from services.db import supabase as db_supabase
+                            res = db_supabase.storage.from_("raw-reports").download(storage_path)
+                            with open(local_path, "wb") as f:
+                                f.write(res)
+                            print(f"[INFO] Downloaded {storage_path} from Supabase.")
+                        except Exception as e:
+                            print(f"[WARN] Failed to download fallback file: {e}")
+
                     if not os.path.exists(path) and os.path.exists(local_path):
                         path = local_path
                         
@@ -312,7 +335,7 @@ class CumulativeShopwiseReportService(BaseReportService):
                     print(f"[WARN] [process] No data or valid path found for date {current_date_str}. (Tried path: {path})")
                     continue
 
-            if df.empty:
+            if df is None or df.empty:
                 print(f"[WARN] [process] DataFrame is empty for date {current_date_str}.")
                 continue
 
@@ -338,6 +361,11 @@ class CumulativeShopwiseReportService(BaseReportService):
             df = df.rename(columns=column_map)
             df = normalize(df)
             df_calc = self._compute(df)
+            
+            # FREE MEMORY
+            del df
+            import gc
+            gc.collect()
 
             if df_calc.empty:
                 print(f"[WARN] [process] DataFrame is empty after _compute for date {current_date_str}.")
@@ -382,6 +410,11 @@ class CumulativeShopwiseReportService(BaseReportService):
                 # 🔥 DO NOT sum opening stock across all days! Opening is the stock on day 1.
                 cumulative_map[group_key]["receipt"] += receipt
                 cumulative_map[group_key]["sales"] += sales
+            
+            # FREE MEMORY
+            del df_calc
+            del grouped
+            gc.collect()
             
             day_end_time = time.time()
             print(f"[INFO] [process] Progress: Day {i+1}/{num_days} ({current_date_str}). "
