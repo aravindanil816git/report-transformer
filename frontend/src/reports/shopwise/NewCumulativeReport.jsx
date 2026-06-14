@@ -182,6 +182,33 @@ export default function CumulativeShopwiseReport() {
     return current.isBefore(minDate, "day") || current.isAfter(maxDate, "day");
   };
 
+  // 🔥 Calculate missing columns locally in the frontend
+  const processedData = useMemo(() => {
+    return filteredData.map(d => {
+      const opening = d.opening || 0;
+      const receipt = d.inward || d.receipt || 0;
+      const sales = d.outward || d.sales || 0;
+      const closing = d.closing || 0;
+
+      const difference = closing - opening;
+      const closing_stock_at_sales_perc = sales ? (closing * 100) / sales : 0;
+      const perc = opening ? (difference * 100) / opening : 0;
+      const avg_sales_per_day = netDays ? sales / netDays : 0;
+
+      return {
+        ...d,
+        opening,
+        receipt,
+        sales,
+        closing,
+        difference,
+        closing_stock_at_sales_perc,
+        perc,
+        avg_sales_per_day
+      };
+    });
+  }, [filteredData, netDays]);
+
   const getTitle = () => {
     if (drilledWarehouse || drilledBond || mode === "shop") return "Shop Name";
     if (mode === "bond" && !drilledBond) return "Bond";
@@ -240,7 +267,7 @@ export default function CumulativeShopwiseReport() {
   const downloadExcel = () => {
     let exportData = [];
     if (view === "cumulative") {
-      exportData = filteredData.map(d => ({
+      exportData = processedData.map(d => ({
         [getTitle()]: d.shop_code ? `${d.shop_name} (${d.shop_code})` : formatName(d.warehouse),
         Opening: d.opening,
         Receipt: d.receipt,
@@ -252,7 +279,7 @@ export default function CumulativeShopwiseReport() {
         "Perc(%)": d.perc
       }));
     } else {
-      exportData = filteredData.map(row => {
+      exportData = processedData.map(row => {
         const obj = { [getTitle()]: row.shop_code ? `${row.shop_name} (${row.shop_code})` : formatName(row.warehouse) };
         let total = 0;
         labels.forEach(l => {
@@ -381,7 +408,7 @@ export default function CumulativeShopwiseReport() {
       <Table
         loading={loading}
         columns={view === "cumulative" ? cumulativeColumns : daywiseColumns}
-        dataSource={filteredData}
+        dataSource={processedData}
         rowKey={(record) => `${record.warehouse}-${record.shop_code || "none"}-${record.bond || "none"}`}
         scroll={{ x: true }}
         pagination={false}
@@ -393,19 +420,19 @@ export default function CumulativeShopwiseReport() {
             let totalReceipt = 0;
             let totalSales = 0;
             let totalClosing = 0;
-            let totalDiff = 0;
-            let totalClosingStockAtSalesPerc = 0;
-            let totalPerc = 0;
 
-            pageData.forEach(({ opening, receipt, sales, closing, difference, closing_stock_at_sales_perc, perc }) => {
+            // Compute accurate overall mathematically-correct percentage & variance totals
+            pageData.forEach(({ opening, receipt, sales, closing }) => {
               totalOpening += opening || 0;
               totalReceipt += receipt || 0;
               totalSales += sales || 0;
               totalClosing += closing || 0;
-              totalDiff += difference || 0;
-              totalClosingStockAtSalesPerc += closing_stock_at_sales_perc || 0;
-              totalPerc += perc || 0;
             });
+            
+            const totalDiff = totalClosing - totalOpening;
+            const totalClosingStockAtSalesPerc = totalSales ? (totalClosing * 100) / totalSales : 0;
+            const totalPerc = totalOpening ? (totalDiff * 100) / totalOpening : 0;
+            const totalAvgSalesPerDay = netDays ? totalSales / netDays : 0;
 
             return (
               <Table.Summary fixed="bottom">
@@ -417,7 +444,7 @@ export default function CumulativeShopwiseReport() {
                   <Table.Summary.Cell index={4} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalClosing.toFixed(2)}</Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={5} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalDiff.toFixed(2)}</Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={6} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalClosingStockAtSalesPerc.toFixed(2)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={7} style={{ padding: "12px 8px" }} />
+                  <Table.Summary.Cell index={7} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalAvgSalesPerDay.toFixed(2)}</Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={8} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalPerc.toFixed(2)}</Text></Table.Summary.Cell>
                 </Table.Summary.Row>
               </Table.Summary>

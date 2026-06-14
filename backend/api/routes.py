@@ -943,6 +943,46 @@ def process(rid: str):
     report = get_report_by_id(rid)
     if not report: raise HTTPException(status_code=404, detail="Report not found")
 
+    original_start = None
+    original_num = None
+    original_end = None
+
+    if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
+        sync_cumulative_report(report)
+        
+        # Enforce Lazy Processing limits universally for all cumulative reports
+        config = report.get("config", {})
+        d1 = config.get("date1")
+        d2 = config.get("date2")
+        
+        original_start = config.get("start_date")
+        original_num = config.get("num_days")
+        original_end = config.get("end_date")
+        
+        from datetime import datetime, timedelta
+        
+        if not d1 or not d2:
+            d1 = original_start
+            d2 = original_end
+
+        if d1 and d2:
+            # Safely extract just the date part in case an ISO timestamp is passed
+            d1_clean = str(d1).split('T')[0].split(' ')[0]
+            d2_clean = str(d2).split('T')[0].split(' ')[0]
+            try:
+                start_date = datetime.strptime(d1_clean, "%Y-%m-%d")
+                end_date = datetime.strptime(d2_clean, "%Y-%m-%d")
+                
+                # 🔥 OOM SAFETY LIMIT: Universally prevent processing more than 95 days
+                if (end_date - start_date).days > 95:
+                    end_date = start_date + timedelta(days=95)
+                    
+                config["start_date"] = start_date.strftime("%Y-%m-%d")
+                config["num_days"] = (end_date - start_date).days + 1
+                config["end_date"] = end_date.strftime("%Y-%m-%d")
+            except ValueError:
+                pass # Ignore malformed dates
+
     # 🔥 CONCURRENTLY RESTORE FILES FROM SUPABASE IF MISSING LOCALLY BEFORE PROCESSING
     missing_files = []
     
@@ -1000,46 +1040,6 @@ def process(rid: str):
             with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
                 futures = [executor.submit(ensure_local_file, sp, lp) for sp, lp in missing_pi_files]
                 concurrent.futures.wait(futures)
-
-    original_start = None
-    original_num = None
-    original_end = None
-
-    if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
-        sync_cumulative_report(report)
-        
-        # Enforce Lazy Processing limits universally for all cumulative reports
-        config = report.get("config", {})
-        d1 = config.get("date1")
-        d2 = config.get("date2")
-        
-        original_start = config.get("start_date")
-        original_num = config.get("num_days")
-        original_end = config.get("end_date")
-        
-        from datetime import datetime, timedelta
-        
-        if not d1 or not d2:
-            d1 = original_start
-            d2 = original_end
-
-        if d1 and d2:
-            # Safely extract just the date part in case an ISO timestamp is passed
-            d1_clean = str(d1).split('T')[0].split(' ')[0]
-            d2_clean = str(d2).split('T')[0].split(' ')[0]
-            try:
-                start_date = datetime.strptime(d1_clean, "%Y-%m-%d")
-                end_date = datetime.strptime(d2_clean, "%Y-%m-%d")
-                
-                # 🔥 OOM SAFETY LIMIT: Universally prevent processing more than 35 days
-                if (end_date - start_date).days > 35:
-                    end_date = start_date + timedelta(days=35)
-                    
-                config["start_date"] = start_date.strftime("%Y-%m-%d")
-                config["num_days"] = (end_date - start_date).days + 1
-                config["end_date"] = end_date.strftime("%Y-%m-%d")
-            except ValueError:
-                pass # Ignore malformed dates
 
     try:
         svc = get_service(report["type"])

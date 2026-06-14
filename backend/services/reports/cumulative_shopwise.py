@@ -70,7 +70,7 @@ class CumulativeShopwiseReportService(BaseReportService):
         if not shop_col:
             # Try fallback to just 'code' or 'license'
             for c in df.columns:
-                if c == "code" or "license" in c:
+                if "code" in c or "license" in c:
                     shop_col = c
                     break
                     
@@ -83,17 +83,19 @@ class CumulativeShopwiseReportService(BaseReportService):
         open_case_col = next((c for c in df.columns if "opening" in c and "case" in c), None)
         open_bottle_col = next((c for c in df.columns if "opening" in c and "bottle" in c), None)
 
-        in_case_col = next((c for c in df.columns if "shop_in" in c and "case" in c), None)
-        in_bottle_col = next((c for c in df.columns if "shop_in" in c and "bottle" in c), None)
+        in_case_col = next((c for c in df.columns if ("shop_in" in c or "receipt" in c or "inward" in c or c.startswith("in_") or c.endswith("_in")) and "case" in c), None)
+        in_bottle_col = next((c for c in df.columns if ("shop_in" in c or "receipt" in c or "inward" in c or c.startswith("in_") or c.endswith("_in")) and "bottle" in c), None)
 
-        out_case_col = next((c for c in df.columns if "out" in c and "case" in c), None)
-        out_bottle_col = next((c for c in df.columns if "out" in c and "bottle" in c), None)
+        out_case_col = next((c for c in df.columns if ("out" in c or "sales" in c) and "case" in c), None)
+        out_bottle_col = next((c for c in df.columns if ("out" in c or "sales" in c) and "bottle" in c), None)
 
         # ✅ Normalize
         df[shop_col] = df[shop_col].astype(str).str.strip()
         
         if bpc_col:
             df[bpc_col] = pd.to_numeric(df[bpc_col], errors="coerce").fillna(1)
+            # Prevent division by zero mathematically crashing output
+            df.loc[df[bpc_col] <= 0, bpc_col] = 1
         else:
             bpc_col = "_bpc_temp"
             df[bpc_col] = 1
@@ -196,27 +198,38 @@ class CumulativeShopwiseReportService(BaseReportService):
         start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
         end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
 
-        # 🔥 OOM SAFETY LIMIT: Prevent processing more than 35 days at once
-        if (end_date - start_date).days > 35:
-            end_date = start_date + timedelta(days=35)
+        # 🔥 OOM SAFETY LIMIT: Prevent processing more than 95 days at once (Allows full quarter)
+        if (end_date - start_date).days > 95:
+            end_date = start_date + timedelta(days=95)
             end_date_str = end_date.strftime("%Y-%m-%d")
             config["date2"] = end_date_str
-            print(f"[WARN] [process] Report date range exceeds 35 days. Truncating to {end_date_str}.")
+            print(f"[WARN] [process] Report date range exceeds 95 days. Truncating to {end_date_str}.")
 
         # Filter uploads to only include those within the date range
         relevant_uploads = []
+        print(f"\n[DEBUG] === DATE RANGE APPLY TRACE (PROCESS) ===")
+        print(f"[DEBUG] Total uploads attached to report: {len(uploads)}")
         for u in uploads:
-            if u.get("status") != "uploaded" or not u.get("date"):
+            file_name = u.get("file", "Unknown")
+            if u.get("status") != "uploaded":
+                print(f"[DEBUG] -> Skipping {file_name}: Status is '{u.get('status')}' (needs 'uploaded')")
+                continue
+            if not u.get("date"):
+                print(f"[DEBUG] -> Skipping {file_name}: No date assigned")
                 continue
             
             upload_date = datetime.strptime(u["date"], "%Y-%m-%d")
             if start_date <= upload_date <= end_date:
                 relevant_uploads.append(u)
+                print(f"[DEBUG] -> INCLUDED {file_name} for date {u['date']}")
+            else:
+                print(f"[DEBUG] -> Skipping {file_name} for date {u['date']}: Outside range ({start_date_str} to {end_date_str})")
         
         # Sort by date to ensure correct order
         relevant_uploads.sort(key=lambda x: x["date"])
         
         print(f"[INFO] [process] Processing {len(relevant_uploads)} relevant uploads from {start_date_str} to {end_date_str}.")
+        print(f"[DEBUG] ========================================\n")
         
         num_days = (end_date - start_date).days + 1
         labels = self._generate_labels(start_date_str, num_days)
@@ -228,6 +241,28 @@ class CumulativeShopwiseReportService(BaseReportService):
 
         uploads_by_date = {u["date"]: u for u in relevant_uploads}
 
+        # 🔥 LINK WITH DAILY SOURCE DATA IN DB IF RAW FILES ARE MISSING (Prevents file-not-found errors)
+        from services.store import reports as all_reports_store
+        reports_list = list(all_reports_store.values())
+        
+        # Check if we actually have shopwise reports loaded in memory, otherwise fetch from DB
+        has_shopwise = any(r.get("type") == "shopwise" and r.get("data") for r in reports_list)
+        if not has_shopwise:
+            try:
+                from services.db import supabase
+                res = supabase.table("reports").select("id, type, status, config, data").eq("type", "shopwise").execute()
+                if res.data:
+                    reports_list.extend(res.data)
+            except Exception as e:
+                print(f"[WARN] Failed to fetch shopwise fallback data from DB: {e}")
+
+        source_data_map = {}
+        for r in reports_list:
+            if r.get("type") == "shopwise" and r.get("status") in ["Processed", "Ready", "Uploaded"]:
+                rd = r.get("config", {}).get("date")
+                if rd and r.get("data"):
+                    source_data_map[rd] = r.get("data")
+
         total_raw_rows = 0
         total_shrunk_rows = 0
 
@@ -238,24 +273,43 @@ class CumulativeShopwiseReportService(BaseReportService):
             label = labels[i]
 
             u = uploads_by_date.get(current_date_str)
+            
+            # 🔥 If upload missing entirely, check DB
+            if not u and current_date_str in source_data_map:
+                u = {"date": current_date_str, "file": "Auto-linked from Daily Shopwise"}
+                
             if not u:
-                # This is normal if a day has no upload, so no need to log as warning
+                print(f"[WARN] [process] Day {i+1}/{num_days}: NO UPLOAD FOUND for date {current_date_str}. It will be skipped.")
                 continue
             
             print(f"[INFO] [process] Day {i+1}/{num_days}: Processing date {current_date_str}")
 
             data = u.get("data")
+            # 🔥 Auto-link if data is missing locally but available in daily processed reports
+            if not data and current_date_str in source_data_map:
+                data = source_data_map[current_date_str]
+                print(f"[INFO] [process] Intercepted processed JSON data from daily 'shopwise' report for {current_date_str} (bypassing missing file).")
+                
             df = None
             if data and len(data) > 0:
                 print(f"[INFO] [process] Loading data from 'data' key with {len(data)} records for {current_date_str}.")
                 df = pd.DataFrame(data)
             else:
                 path = u.get("path")
+                
+                # Fallback resolve path just in case the router didn't catch it
+                if path:
+                    filename = os.path.basename(path)
+                    temp_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "temp"))
+                    local_path = os.path.join(temp_dir, filename)
+                    if not os.path.exists(path) and os.path.exists(local_path):
+                        path = local_path
+                        
                 if path and os.path.exists(path):
                     print(f"[INFO] [process] Reading data from file: {path} for {current_date_str}")
                     df = read_excel_robust(path)
                 else:
-                    print(f"[WARN] [process] No data or valid path found for date {current_date_str}.")
+                    print(f"[WARN] [process] No data or valid path found for date {current_date_str}. (Tried path: {path})")
                     continue
 
             if df.empty:
@@ -323,9 +377,9 @@ class CumulativeShopwiseReportService(BaseReportService):
                     store[group_key][label] = val
 
                 if group_key not in cumulative_map:
-                    cumulative_map[group_key] = {"warehouse": display_wh, "bond": bond, "shop_code": shop_code, "shop_name": shop_name, "opening": 0, "receipt": 0, "sales": 0}
+                    cumulative_map[group_key] = {"warehouse": display_wh, "bond": bond, "shop_code": shop_code, "shop_name": shop_name, "opening": opening, "receipt": 0, "sales": 0}
 
-                cumulative_map[group_key]["opening"] += opening
+                # 🔥 DO NOT sum opening stock across all days! Opening is the stock on day 1.
                 cumulative_map[group_key]["receipt"] += receipt
                 cumulative_map[group_key]["sales"] += sales
             
@@ -549,6 +603,58 @@ class CumulativeShopwiseReportService(BaseReportService):
         if view == "cumulative":
             cum_start = time.time()
             print(f"[INFO] [get_report] Starting CUMULATIVE view processing...")
+            
+            # 🔥 INTERCEPT: Fetch from combined_shopwise for perfect 1-16 / 17-31 accuracy as requested
+            from services.registry import get_service
+            from services.db import supabase
+            start_date_param = kwargs.get("start_date") or report.get("config", {}).get("start_date") or report.get("config", {}).get("date1")
+            if start_date_param:
+                month_prefix = str(start_date_param).split("T")[0][:7]
+                res = supabase.table("reports").select("id, type, config, uploads").in_("type", ["shop_sales_cumulative", "combined_shopwise"]).execute()
+                
+                # 🔥 Accumulate all uploads from all relevant reports for the month
+                source_uploads_map = {}
+                
+                if res.data:
+                    for r in res.data:
+                        if r.get("type") == "shop_sales_cumulative":
+                            r_start = str(r.get("config", {}).get("date1") or r.get("config", {}).get("start_date") or "").split("T")[0]
+                            if r_start[:7] == month_prefix:
+                                for u in r.get("uploads", []):
+                                    if u.get("status") == "uploaded":
+                                        rk = u.get("range_key") or u.get("date") or "1-16"
+                                        source_uploads_map[rk] = {**u, "status": "uploaded"}
+                
+                if source_uploads_map:
+                    print(f"\n[DEBUG] === DELEGATING TO COMBINED SHOPWISE MULTI (GET_REPORT) ===")
+                    print(f"[DEBUG] Month Prefix: {month_prefix}")
+                    print(f"[DEBUG] Found {len(source_uploads_map)} valid uploads in DB for this month.")
+                    for k, u in source_uploads_map.items():
+                        print(f"[DEBUG] -> Key: {k}, File: {u.get('file')}")
+
+                    # Create a temporary, in-memory report object with the combined uploads
+                    combined_report_payload = {
+                        "id": "temp-combined",
+                        "type": "combined_shopwise_multi",
+                        "uploads": list(source_uploads_map.values()),
+                        "config": {"start_date": start_date_param, "end_date": kwargs.get("end_date")}
+                    }
+                    try:
+                        print(f"[INFO] [get_report] Delegating cumulative view to combined_shopwise_multi with {len(source_uploads_map)} upload sets.")
+                        svc = get_service("combined_shopwise_multi")
+                        combined_res = svc.get_report(combined_report_payload, shop_code=shop_code, warehouse=warehouse, bond=bond, view="cumulative", mode=mode, **kwargs)
+                        
+                        if combined_res and combined_res.get("data"):
+                            return {
+                                "data": combined_res.get("data", []),
+                                "labels": selected_labels,
+                                "config": report.get("config", {})
+                            }
+                        else:
+                            print(f"[WARN] [get_report] Delegated report returned empty data. Falling back to internal cumulative data.")
+                    except Exception as e:
+                        print(f"[ERROR] [get_report] Delegation failed: {e}. Falling back to internal cumulative data.")
+            
             cumulative_data = processed.get("cumulative", [])
             if mode == "bond":
                 bond_map = {}
