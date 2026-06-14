@@ -244,16 +244,28 @@ def sync_cumulative_report(report, all_reports=None):
     # Now update current report
     changed = False
     for u in report.get("uploads", []):
-        if u.get("status") != "uploaded":
-            dt = u.get("date")
-            if dt in available_data:
+        dt = u.get("date")
+        if dt in available_data:
+            meta = available_data[dt]
+            # 🔥 Always update if paths have changed (e.g., user deleted and re-uploaded a mapping)
+            if u.get("status") != "uploaded" or u.get("path") != meta.get("path") or u.get("storage_path") != meta.get("storage_path"):
                 u["status"] = "uploaded"
-                meta = available_data[dt]
                 if "path" in meta and meta["path"]:
                     u["path"] = meta["path"]
                     u["storage_path"] = meta.get("storage_path")
                 u["file"] = "Auto-synced from system"
+                
+                # Clear stale cached data to force fresh JSON data fetch
+                u.pop("data", None)
                 changed = True
+        elif u.get("status") == "uploaded" and str(u.get("file")).startswith("Auto-synced") and dt not in available_data:
+            # 🔥 If auto-synced but source was completely deleted by the user, unlink it
+            u["status"] = "pending"
+            u["path"] = None
+            u["storage_path"] = None
+            u["file"] = None
+            u.pop("data", None)
+            changed = True
                 
     if changed:
         # Update report status

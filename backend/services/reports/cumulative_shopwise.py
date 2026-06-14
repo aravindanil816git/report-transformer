@@ -306,14 +306,18 @@ class CumulativeShopwiseReportService(BaseReportService):
                 df = pd.DataFrame(data)
             else:
                 path = u.get("path")
+                storage_path = u.get("storage_path") or (fallback_report.get("storage_path") if fallback_report else None)
                 
-                # Fallback resolve path just in case the router didn't catch it
+                # If path is missing but storage_path exists, infer the local path
+                if not path and storage_path:
+                    filename = os.path.basename(storage_path)
+                    temp_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "temp"))
+                    path = os.path.join(temp_dir, filename)
+                
                 if path:
                     filename = os.path.basename(path)
                     temp_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "temp"))
                     local_path = os.path.join(temp_dir, filename)
-                    
-                    storage_path = u.get("storage_path") or (fallback_report.get("storage_path") if fallback_report else None)
                     
                     if storage_path and not os.path.exists(local_path):
                         try:
@@ -330,9 +334,12 @@ class CumulativeShopwiseReportService(BaseReportService):
                         
                 if path and os.path.exists(path):
                     print(f"[INFO] [process] Reading data from file: {path} for {current_date_str}")
-                    df = read_excel_robust(path)
+                    try:
+                        df = read_excel_robust(path)
+                    except Exception as e:
+                        print(f"[WARN] [process] Error reading {path}: {e}")
                 else:
-                    print(f"[WARN] [process] No data or valid path found for date {current_date_str}. (Tried path: {path})")
+                    print(f"[WARN] [process] No data or valid path found for date {current_date_str}. (Tried path: {path}, Storage path: {storage_path})")
                     continue
 
             if df is None or df.empty:
