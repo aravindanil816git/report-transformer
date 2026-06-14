@@ -2,7 +2,7 @@ import pandas as pd
 from .base import BaseReportService
 from .shopwise import ShopwiseReportService
 from core.utils import safe_int, find_column, find_dynamic
-from core.mapping_utils import get_shop_to_parent_maps, get_filters_from_mapping
+from core.mapping_utils import get_shop_to_parent_maps, get_filters_from_mapping, get_shop_lookup_and_warehouse_to_bond
 
 class CombinedShopwiseReportService(BaseReportService):
     type_name = "combined_shopwise"
@@ -65,7 +65,10 @@ class CombinedShopwiseReportService(BaseReportService):
             full_df["warehouse_info"] = full_df[wh_col].astype(str).str.strip()
         else:
             full_df["warehouse_info"] = "Unknown"
-        full_df["bond_info"] = full_df[shop_col].map(self.shop_to_bond).fillna("Unknown")
+            
+        _, warehouse_to_bond = get_shop_lookup_and_warehouse_to_bond()
+        full_df["bond_info"] = full_df[shop_col].map(self.shop_to_bond)
+        full_df["bond_info"] = full_df["bond_info"].fillna(full_df["warehouse_info"].map(warehouse_to_bond)).fillna("Unknown")
 
         # --- Filters ---
         if shop_code:

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Table, Button, Select, DatePicker, Space, Typography, message } from "antd";
+import { Table, Button, Select, DatePicker, Space, Typography, message, Checkbox } from "antd";
 
 const { Text } = Typography;
 import { useParams, useNavigate } from "react-router-dom";
@@ -18,7 +18,6 @@ export default function CumulativeShopwiseReport() {
   const [labels, setLabels] = useState([]);
   const [allLabels, setAllLabels] = useState([]);
   const [config, setConfig] = useState({});
-  const [view, setView] = useState("cumulative");
 
   const [warehouseFilter, setWarehouseFilter] = useState(null);
   const [dateRange, setDateRange] = useState([]);
@@ -26,8 +25,11 @@ export default function CumulativeShopwiseReport() {
   const [mode, setMode] = useState("warehouse");
   const [drilledWarehouse, setDrilledWarehouse] = useState(null);
   const [drilledBond, setDrilledBond] = useState(null);
+  const [roundOff, setRoundOff] = useState(false);
 
   const [shopLeaves, setShopLeaves] = useState([]);
+  const [prevMonthData, setPrevMonthData] = useState([]);
+  const [prevNetDays, setPrevNetDays] = useState(0);
 
   useEffect(() => {
     getJson("leaves").then(res => {
@@ -50,7 +52,7 @@ export default function CumulativeShopwiseReport() {
         params.start_date = d1;
         params.end_date = d2;
       }
-      const res = await getReport(id, null, view, params);
+      const res = await getReport(id, null, "cumulative", params);
   
       const cleaned = (res.data.data || []).filter(d => d.warehouse);
   
@@ -65,6 +67,35 @@ export default function CumulativeShopwiseReport() {
       if (allLabels.length === 0) {
         setAllLabels(res.data.labels || []);
       }
+
+      // 🔥 Fetch previous month data silently for comparative metrics
+      const activeStart = d1 || res.data.config?.date1 || res.data.config?.start_date;
+      const activeEnd = d2 || res.data.config?.date2 || res.data.config?.end_date;
+
+      if (activeStart && activeEnd) {
+        const prevD1 = dayjs(activeStart).subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
+        const prevD2 = dayjs(activeStart).subtract(1, 'month').endOf('month').format('YYYY-MM-DD');
+        
+        const s = dayjs(prevD1);
+        const e = dayjs(prevD2);
+        const diffDays = e.diff(s, 'day') + 1;
+        let count = 0;
+        for (let i = 0; i < diffDays; i++) {
+          if (!shopLeaves.includes(s.add(i, 'day').format('YYYY-MM-DD'))) count++;
+        }
+        setPrevNetDays(count);
+
+        getReport(id, null, "cumulative", { 
+          ...params, 
+          start_date: prevD1, 
+          end_date: prevD2 
+        }).then(prevRes => {
+          setPrevMonthData((prevRes.data.data || []).filter(d => d.warehouse));
+        }).catch(() => setPrevMonthData([]));
+      } else {
+        setPrevMonthData([]);
+        setPrevNetDays(0);
+      }
     } finally {
       setLoading(false);
     }
@@ -73,7 +104,7 @@ export default function CumulativeShopwiseReport() {
   // 🔥 Reload when view or data parameters change
   useEffect(() => {
     fetchCurrentView();
-  }, [view, mode, drilledWarehouse, drilledBond]);
+  }, [mode, drilledWarehouse, drilledBond]);
 
   const labelToDate = (label) => dayjs(label.split(" ")[0], "DD-MMM");
 
@@ -193,9 +224,15 @@ export default function CumulativeShopwiseReport() {
       const difference = closing - opening;
       const closing_stock_at_sales_perc = sales ? (closing * 100) / sales : 0;
       const perc = opening ? (difference * 100) / opening : 0;
-      const avg_sales_per_day = netDays ? sales / netDays : 0;
+      const avg_this_month = netDays ? sales / netDays : 0;
 
-      return {
+      // Find comparative previous row
+      const prevRow = prevMonthData.find(p => p.warehouse === d.warehouse && p.shop_code === d.shop_code && p.bond === d.bond);
+      const prevSales = prevRow ? (prevRow.sales || prevRow.outward || 0) : 0;
+      const avg_prev_month = prevNetDays ? prevSales / prevNetDays : 0;
+      const diff_avg = avg_this_month - avg_prev_month;
+
+      let row = {
         ...d,
         opening,
         receipt,
@@ -204,10 +241,32 @@ export default function CumulativeShopwiseReport() {
         difference,
         closing_stock_at_sales_perc,
         perc,
-        avg_sales_per_day
+        avg_this_month,
+        avg_prev_month,
+        diff_avg
       };
+
+      if (roundOff) {
+        row.opening = Math.round(row.opening);
+        row.receipt = Math.round(row.receipt);
+        row.sales = Math.round(row.sales);
+        row.closing = Math.round(row.closing);
+        row.difference = Math.round(row.difference);
+        row.closing_stock_at_sales_perc = Math.round(row.closing_stock_at_sales_perc);
+        row.perc = Math.round(row.perc);
+        row.avg_this_month = Math.round(row.avg_this_month);
+        row.avg_prev_month = Math.round(row.avg_prev_month);
+        row.diff_avg = Math.round(row.diff_avg);
+        
+        labels.forEach(l => {
+          if (row[l] !== undefined) row[l] = Math.round(row[l]);
+        });
+        if (row.total !== undefined) row.total = Math.round(row.total);
+      }
+
+      return row;
     });
-  }, [filteredData, netDays]);
+  }, [filteredData, netDays, prevMonthData, prevNetDays, roundOff, labels]);
 
   const getTitle = () => {
     if (drilledWarehouse || drilledBond || mode === "shop") return "Shop Name";
@@ -238,18 +297,6 @@ export default function CumulativeShopwiseReport() {
     return <span>{record.shop_code ? `${displayText} (${record.shop_code})` : displayText}</span>;
   };
 
-  // 🔹 daywise + total
-  const daywiseColumns = [
-    { title: getTitle(), dataIndex: getDataIndex(), fixed: "left", width: 220, render: renderFirstCol },
-    ...labels.map(l => ({ title: l, dataIndex: l, width: 180, align: "center" })),
-    {
-      title: "Total",
-      dataIndex: "total",
-      fixed: "right",
-      width: 220,
-      align: "right",
-    }
-  ];
 
   const cumulativeColumns = [
     { title: getTitle(), dataIndex: getDataIndex(), width: 220, render: renderFirstCol },
@@ -259,43 +306,36 @@ export default function CumulativeShopwiseReport() {
     { title: "Closing", dataIndex: "closing", width: 200, align: "center" },
     { title: "Difference", dataIndex: "difference", width: 200, align: "center" },
     { title: "ClosingStock@Sales%", dataIndex: "closing_stock_at_sales_perc", width: 220, align: "center" },
-    { title: "Avg Sales / Day", dataIndex: "avg_sales_per_day", width: 220, align: "center" },
-    { title: "Perc(%)", dataIndex: "perc", width: 220, align: "right" }
+    { title: "Perc(%)", dataIndex: "perc", width: 160, align: "right" },
+    
+    { title: "", dataIndex: "spacer", width: 40, render: () => "", onCell: () => ({ style: { background: "#fafafa", borderTop: "none", borderBottom: "none" } }) },
+    
+    { title: "Avg / Day (This Month)", dataIndex: "avg_this_month", width: 180, align: "center" },
+    { title: "Avg / Day (Prev Month)", dataIndex: "avg_prev_month", width: 180, align: "center" },
+    { title: "Difference (Avg)", dataIndex: "diff_avg", width: 160, align: "center" }
   ];
 
   // 🔥 DOWNLOAD
   const downloadExcel = () => {
-    let exportData = [];
-    if (view === "cumulative") {
-      exportData = processedData.map(d => ({
-        [getTitle()]: d.shop_code ? `${d.shop_name} (${d.shop_code})` : formatName(d.warehouse),
-        Opening: d.opening,
-        Receipt: d.receipt,
-        Sales: d.sales,
-        Closing: d.closing,
-        Difference: d.difference,
-        "ClosingStock@Sales%": d.closing_stock_at_sales_perc,
-        "Avg Sales / Day": d.avg_sales_per_day,
-        "Perc(%)": d.perc
-      }));
-    } else {
-      exportData = processedData.map(row => {
-        const obj = { [getTitle()]: row.shop_code ? `${row.shop_name} (${row.shop_code})` : formatName(row.warehouse) };
-        let total = 0;
-        labels.forEach(l => {
-          obj[l] = row[l] || 0;
-          total += row[l] || 0;
-        });
-        obj["Total"] = total;
-        return obj;
-      });
-    }
+    const exportData = processedData.map(d => ({
+      [getTitle()]: d.shop_code ? `${d.shop_name} (${d.shop_code})` : formatName(d.warehouse),
+      Opening: d.opening,
+      Receipt: d.receipt,
+      Sales: d.sales,
+      Closing: d.closing,
+      Difference: d.difference,
+      "ClosingStock@Sales%": d.closing_stock_at_sales_perc,
+      "Perc(%)": d.perc,
+      " ": "",
+      "Avg / Day (This Month)": d.avg_this_month,
+      "Avg / Day (Prev Month)": d.avg_prev_month,
+      "Difference (Avg)": d.diff_avg
+    }));
 
     exportToExcel(
       exportData,
       {
         Mode: mode,
-        View: view,
         Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
         "Date Range": dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
         "Start Date": activeStartStr ? dayjs(activeStartStr).format("DD-MM-YYYY") : null,
@@ -391,94 +431,64 @@ export default function CumulativeShopwiseReport() {
         <Button onClick={resetFilters}>
           Reset
         </Button>
+        <Checkbox checked={roundOff} onChange={(e) => setRoundOff(e.target.checked)}>
+          Round off
+        </Checkbox>
       </Space>
-
-      {/* 🔥 VIEW PILLS */}
-      <div style={{ marginBottom: 16 }}>
-        <Button
-          type={view === "cumulative" ? "primary" : "default"}
-          onClick={() => setView("cumulative")}
-          style={{ marginLeft: 8 }}
-        >
-          Cumulative
-        </Button>
-      </div>
 
       {/* 🔥 TABLE */}
       <Table
         loading={loading}
-        columns={view === "cumulative" ? cumulativeColumns : daywiseColumns}
+        columns={cumulativeColumns}
         dataSource={processedData}
         rowKey={(record) => `${record.warehouse}-${record.shop_code || "none"}-${record.bond || "none"}`}
-        scroll={{ x: true }}
+        scroll={{ x: "max-content" }}
         pagination={false}
         summary={(pageData) => {
           if (pageData.length === 0) return null;
 
-          if (view === "cumulative") {
-            let totalOpening = 0;
-            let totalReceipt = 0;
-            let totalSales = 0;
-            let totalClosing = 0;
+          let totalOpening = 0;
+          let totalReceipt = 0;
+          let totalSales = 0;
+          let totalClosing = 0;
+          let totalPrevSales = 0;
 
-            // Compute accurate overall mathematically-correct percentage & variance totals
-            pageData.forEach(({ opening, receipt, sales, closing }) => {
-              totalOpening += opening || 0;
-              totalReceipt += receipt || 0;
-              totalSales += sales || 0;
-              totalClosing += closing || 0;
-            });
-            
-            const totalDiff = totalClosing - totalOpening;
-            const totalClosingStockAtSalesPerc = totalSales ? (totalClosing * 100) / totalSales : 0;
-            const totalPerc = totalOpening ? (totalDiff * 100) / totalOpening : 0;
-            const totalAvgSalesPerDay = netDays ? totalSales / netDays : 0;
+          // Compute accurate overall mathematically-correct percentage & variance totals
+          pageData.forEach(({ opening, receipt, sales, closing, avg_prev_month }) => {
+            totalOpening += opening || 0;
+            totalReceipt += receipt || 0;
+            totalSales += sales || 0;
+            totalClosing += closing || 0;
+            totalPrevSales += (avg_prev_month * prevNetDays) || 0;
+          });
+          
+          const totalDiff = totalClosing - totalOpening;
+          const totalClosingStockAtSalesPerc = totalSales ? (totalClosing * 100) / totalSales : 0;
+          const totalPerc = totalOpening ? (totalDiff * 100) / totalOpening : 0;
+          const totalAvgThisMonth = netDays ? totalSales / netDays : 0;
+          const totalAvgPrevMonth = prevNetDays ? totalPrevSales / prevNetDays : 0;
+          const totalDiffAvg = totalAvgThisMonth - totalAvgPrevMonth;
+          
+          const formatNumber = (val) => roundOff ? Math.round(val) : val.toFixed(2);
 
-            return (
-              <Table.Summary fixed="bottom">
-                <Table.Summary.Row style={{ background: "#f0f2f5", fontWeight: "bold", borderTop: "2px solid #d9d9d9" }}>
-                  <Table.Summary.Cell index={0} style={{ padding: "12px 8px" }}>Total</Table.Summary.Cell>
-                  <Table.Summary.Cell index={1} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalOpening.toFixed(2)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={2} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalReceipt.toFixed(2)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={3} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalSales.toFixed(2)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={4} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalClosing.toFixed(2)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={5} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalDiff.toFixed(2)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={6} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalClosingStockAtSalesPerc.toFixed(2)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={7} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalAvgSalesPerDay.toFixed(2)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={8} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalPerc.toFixed(2)}</Text></Table.Summary.Cell>
-                </Table.Summary.Row>
-              </Table.Summary>
-            );
-          } else {
-            // Daywise view
-            const colTotals = {};
-            let grandTotal = 0;
-
-            labels.forEach(l => colTotals[l] = 0);
-
-            pageData.forEach(row => {
-              labels.forEach(l => {
-                colTotals[l] += row[l] || 0;
-              });
-              grandTotal += row.total || 0;
-            });
-
-            return (
-              <Table.Summary fixed="bottom">
-                <Table.Summary.Row style={{ background: "#f0f2f5", fontWeight: "bold", borderTop: "2px solid #d9d9d9" }}>
-                  <Table.Summary.Cell index={0} style={{ padding: "12px 8px" }}>Total</Table.Summary.Cell>
-                  {labels.map((l, index) => (
-                    <Table.Summary.Cell key={l} index={index + 1} align="center" style={{ padding: "12px 8px" }}>
-                      <Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{colTotals[l].toFixed(2)}</Text>
-                    </Table.Summary.Cell>
-                  ))}
-                  <Table.Summary.Cell index={labels.length + 1} align="right" style={{ padding: "12px 8px" }}>
-                    <Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{grandTotal.toFixed(2)}</Text>
-                  </Table.Summary.Cell>
-                </Table.Summary.Row>
-              </Table.Summary>
-            );
-          }
+          return (
+            <Table.Summary fixed="bottom">
+              <Table.Summary.Row style={{ background: "#f0f2f5", fontWeight: "bold", borderTop: "2px solid #d9d9d9" }}>
+                <Table.Summary.Cell index={0} style={{ padding: "12px 8px" }}>Total</Table.Summary.Cell>
+                <Table.Summary.Cell index={1} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalOpening)}</Text></Table.Summary.Cell>
+                <Table.Summary.Cell index={2} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalReceipt)}</Text></Table.Summary.Cell>
+                <Table.Summary.Cell index={3} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalSales)}</Text></Table.Summary.Cell>
+                <Table.Summary.Cell index={4} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalClosing)}</Text></Table.Summary.Cell>
+                <Table.Summary.Cell index={5} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalDiff)}</Text></Table.Summary.Cell>
+                <Table.Summary.Cell index={6} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalClosingStockAtSalesPerc)}</Text></Table.Summary.Cell>
+                <Table.Summary.Cell index={7} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalPerc)}</Text></Table.Summary.Cell>
+                <Table.Summary.Cell index={8} style={{ padding: "12px 8px", background: "#fafafa" }}></Table.Summary.Cell>
+                <Table.Summary.Cell index={9} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalAvgThisMonth)}</Text></Table.Summary.Cell>
+                <Table.Summary.Cell index={10} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalAvgPrevMonth)}</Text></Table.Summary.Cell>
+                <Table.Summary.Cell index={11} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalDiffAvg)}</Text></Table.Summary.Cell>
+              </Table.Summary.Row>
+            </Table.Summary>
+          );
         }}
       />
     </div>

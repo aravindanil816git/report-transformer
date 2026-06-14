@@ -288,6 +288,29 @@ export default function RawDataUpload() {
       config.date = reportDate?.format("YYYY-MM-DD");
     }
 
+    // Check if the date mapping entry exists and replace it if uploading a new one
+    try {
+      const r = await listReports({ type: createType, skip: 0, limit: 500 });
+      const existingReports = r.data?.items || r.data || [];
+      const duplicate = existingReports.find(rep => {
+        if (createType === "shop_sales_cumulative") {
+          return rep.config?.date1 === config.date1 && rep.config?.date2 === config.date2;
+        } else if (["achieved_target", "monthly_stock_sales", "monthly_summary", "pi_variance_raw"].includes(createType)) {
+          return rep.config?.month === reportDate?.format("YYYY-MM") || rep.config?.date === config.date;
+        } else {
+          return rep.config?.date === config.date;
+        }
+      });
+
+      if (duplicate) {
+        message.loading({ content: "Replacing earlier mapping...", key: "replace" });
+        await deleteReport(duplicate.id);
+        message.success({ content: "Earlier mapping replaced", key: "replace" });
+      }
+    } catch (err) {
+      console.warn("Could not fetch existing reports to check for duplicates", err);
+    }
+
     const res = await createReport(name, createType, config);
     setCreateOpen(false);
     message.success("Upload created successfully");
