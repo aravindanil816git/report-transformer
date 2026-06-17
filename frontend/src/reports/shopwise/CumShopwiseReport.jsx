@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Table, Button, Select, DatePicker, Space, Typography, message } from "antd";
 
 const { Text } = Typography;
 import { useParams, useNavigate } from "react-router-dom";
-import { getReport, processReport } from "../../api";
+import { getReport, processReport, getJson } from "../../api";
 import dayjs from "dayjs";
 import { exportToExcel } from "../../utils/exportUtils";
 
@@ -26,6 +26,14 @@ export default function CumulativeShopwiseReport() {
   const [mode, setMode] = useState("bond");
   const [drilledWarehouse, setDrilledWarehouse] = useState(null);
   const [drilledBond, setDrilledBond] = useState(null);
+
+  const [shopLeaves, setShopLeaves] = useState([]);
+
+  useEffect(() => {
+    getJson("leaves").then(res => {
+      setShopLeaves(res.data?.shop || []);
+    }).catch(() => {});
+  }, []);
 
   // 🔹 load
   const load = async (startIdx = null, endIdx = null, selectedWarehouse = warehouseFilter, selectedBond = null, selectedMode = mode, d1 = null, d2 = null) => {
@@ -174,6 +182,37 @@ export default function CumulativeShopwiseReport() {
 
   const uniqueWarehouses = [...new Set(data.map(d => d.warehouse))];
 
+  const activeStartStr = config.start_date || config.date1;
+  const activeEndStr = config.end_date || config.date2;
+
+  const netDays = useMemo(() => {
+    if (activeStartStr && activeEndStr) {
+      const s = dayjs(activeStartStr);
+      const e = dayjs(activeEndStr);
+      const diff = e.diff(s, 'day') + 1;
+      const totalDays = diff > 0 ? diff : 0;
+      let count = 0;
+      for (let i = 0; i < totalDays; i++) {
+        const dStr = s.add(i, 'day').format('YYYY-MM-DD');
+        if (!shopLeaves.includes(dStr)) count++;
+      }
+      return count;
+    }
+    return config.num_days || 0;
+  }, [activeStartStr, activeEndStr, shopLeaves, config.num_days]);
+
+  const processedData = useMemo(() => {
+    return filteredData.map(d => {
+      const sales = d.sales || d.outward || 0;
+      const avg_sales_per_day = netDays ? sales / netDays : 0;
+
+      return {
+        ...d,
+        avg_sales_per_day
+      };
+    });
+  }, [filteredData, netDays]);
+
   // 🔒 strict date range
   const minDate = config.start_date ? dayjs(config.start_date) : null;
   const maxDate = minDate ? minDate.add(config.num_days - 1, "day") : null;
@@ -234,14 +273,14 @@ export default function CumulativeShopwiseReport() {
     { title: "Sales", dataIndex: "sales", width: 200, align: "right" },
     { title: "Closing", dataIndex: "closing", width: 200, align: "right" },
     { title: "Difference", dataIndex: "difference", width: 200, align: "right" },
-    { title: "Avg Sales / Day", dataIndex: "avg_sales_per_day", width: 220, align: "right" }
+    { title: "Avg Sales / Day", dataIndex: "avg_sales_per_day", width: 220, align: "right", render: (v) => Number(v || 0).toFixed(2) }
   ];
 
   // 🔥 DOWNLOAD
   const downloadExcel = () => {
     let exportData = [];
     if (view === "cumulative") {
-      exportData = filteredData.map(d => ({
+      exportData = processedData.map(d => ({
         [getTitle()]: d.shop_code ? `${d.shop_name} (${d.shop_code})` : formatName(d.warehouse),
         Opening: d.opening,
         Receipt: d.receipt,
@@ -251,7 +290,7 @@ export default function CumulativeShopwiseReport() {
         "Avg Sales / Day": d.avg_sales_per_day
       }));
     } else {
-      exportData = filteredData.map(row => {
+      exportData = processedData.map(row => {
         const obj = { [getTitle()]: row.shop_code ? `${row.shop_name} (${row.shop_code})` : formatName(row.warehouse) };
         let total = 0;
         labels.forEach(l => {
@@ -378,6 +417,7 @@ export default function CumulativeShopwiseReport() {
         loading={loading}
         columns={view === "cumulative" ? cumulativeColumns : daywiseColumns}
         dataSource={filteredData}
+        dataSource={processedData}
         rowKey={(record) => `${record.warehouse}-${record.shop_code || "none"}-${record.bond || "none"}`}
         scroll={{ x: true }}
         pagination={false}
@@ -398,6 +438,8 @@ export default function CumulativeShopwiseReport() {
               totalClosing += closing || 0;
               totalDiff += difference || 0;
             });
+            
+            const totalAvgSalesPerDay = netDays ? totalSales / netDays : 0;
 
             return (
               <Table.Summary fixed="bottom">
@@ -408,7 +450,7 @@ export default function CumulativeShopwiseReport() {
                   <Table.Summary.Cell index={3} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalSales.toFixed(2)}</Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={4} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalClosing.toFixed(2)}</Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={5} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalDiff.toFixed(2)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={6} style={{ padding: "12px 8px" }} />
+                  <Table.Summary.Cell index={6} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{totalAvgSalesPerDay.toFixed(2)}</Text></Table.Summary.Cell>
                 </Table.Summary.Row>
               </Table.Summary>
             );

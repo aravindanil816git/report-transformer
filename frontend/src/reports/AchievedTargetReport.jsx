@@ -92,7 +92,7 @@ export default function AchievedTargetReport() {
       if (!newData[rowIndex].brands[brand]) {
         newData[rowIndex].brands[brand] = { achieved: 0, target: 0 };
       }
-      newData[rowIndex].brands[brand].target = val;,
+      newData[rowIndex].brands[brand].target = val;
       setData(newData);
     }
   };
