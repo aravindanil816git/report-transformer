@@ -18,24 +18,52 @@ export default function CumulativeShopwiseReport() {
   const [labels, setLabels] = useState([]);
   const [allLabels, setAllLabels] = useState([]);
   const [config, setConfig] = useState({});
+  const [view, setView] = useState("cumulative");
 
   const [warehouseFilter, setWarehouseFilter] = useState(null);
   const [dateRange, setDateRange] = useState([]);
 
-  const [mode, setMode] = useState("warehouse");
+  const [mode, setMode] = useState("bond");
   const [drilledWarehouse, setDrilledWarehouse] = useState(null);
   const [drilledBond, setDrilledBond] = useState(null);
-  const [roundOff, setRoundOff] = useState(false);
+  const [useWholeNumbers, setUseWholeNumbers] = useState(false);
 
   const [shopLeaves, setShopLeaves] = useState([]);
-  const [prevMonthData, setPrevMonthData] = useState([]);
-  const [prevNetDays, setPrevNetDays] = useState(0);
 
   useEffect(() => {
     getJson("leaves").then(res => {
       setShopLeaves(res.data?.shop || []);
     }).catch(() => {});
   }, []);
+
+  // Initialize default date range (1st of month to today) on load
+  useEffect(() => {
+    getReport(id, null, view, { limit: 1 }).then(res => {
+      const reportConfig = res?.data?.config || {};
+      
+      let defaultStart = dayjs().startOf("month");
+      let defaultEnd = dayjs();
+
+      const startDateStr = reportConfig.start_date || reportConfig.date1;
+      const endDateStr = reportConfig.end_date || reportConfig.date2;
+
+      if (startDateStr && endDateStr) {
+         const configStart = dayjs(startDateStr);
+         const configEnd = dayjs(endDateStr);
+         
+         if (defaultEnd.isAfter(configEnd)) defaultEnd = configEnd;
+         if (defaultEnd.isBefore(configStart)) defaultEnd = configEnd;
+         
+         defaultStart = defaultEnd.startOf("month");
+         if (defaultStart.isBefore(configStart)) defaultStart = configStart;
+      }
+
+      setDateRange([defaultStart, defaultEnd]);
+
+      // The default mode is now 'bond', so we pass that to the initial load
+      load(null, null, null, null, "bond", defaultStart.format("YYYY-MM-DD"), defaultEnd.format("YYYY-MM-DD"));
+    }).catch(() => {});
+  }, [id]);
 
   // 🔹 load
   const load = async (startIdx = null, endIdx = null, selectedWarehouse = warehouseFilter, selectedBond = null, selectedMode = mode, d1 = null, d2 = null) => {
@@ -52,9 +80,16 @@ export default function CumulativeShopwiseReport() {
         params.start_date = d1;
         params.end_date = d2;
       }
-      const res = await getReport(id, null, "cumulative", params);
+      const res = await getReport(id, null, view, params);
   
-      const cleaned = (res.data.data || []).filter(d => d.warehouse);
+      const rawData = res.data.data || [];
+      const cleaned = rawData.filter(d => {
+        const isValid = d.warehouse || d.shop_code || d.bond || d.warehouse === "";
+        if (!isValid) {
+          console.warn("[NewCumulativeReport] Dropped row due to missing identifiers:", d);
+        }
+        return isValid;
+      });
   
       setData(cleaned);
       setLabels(res.data.labels || []);
@@ -67,35 +102,6 @@ export default function CumulativeShopwiseReport() {
       if (allLabels.length === 0) {
         setAllLabels(res.data.labels || []);
       }
-
-      // 🔥 Fetch previous month data silently for comparative metrics
-      const activeStart = d1 || res.data.config?.date1 || res.data.config?.start_date;
-      const activeEnd = d2 || res.data.config?.date2 || res.data.config?.end_date;
-
-      if (activeStart && activeEnd) {
-        const prevD1 = dayjs(activeStart).subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
-        const prevD2 = dayjs(activeStart).subtract(1, 'month').endOf('month').format('YYYY-MM-DD');
-        
-        const s = dayjs(prevD1);
-        const e = dayjs(prevD2);
-        const diffDays = e.diff(s, 'day') + 1;
-        let count = 0;
-        for (let i = 0; i < diffDays; i++) {
-          if (!shopLeaves.includes(s.add(i, 'day').format('YYYY-MM-DD'))) count++;
-        }
-        setPrevNetDays(count);
-
-        getReport(id, null, "cumulative", { 
-          ...params, 
-          start_date: prevD1, 
-          end_date: prevD2 
-        }).then(prevRes => {
-          setPrevMonthData((prevRes.data.data || []).filter(d => d.warehouse));
-        }).catch(() => setPrevMonthData([]));
-      } else {
-        setPrevMonthData([]);
-        setPrevNetDays(0);
-      }
     } finally {
       setLoading(false);
     }
@@ -104,7 +110,7 @@ export default function CumulativeShopwiseReport() {
   // 🔥 Reload when view or data parameters change
   useEffect(() => {
     fetchCurrentView();
-  }, [mode, drilledWarehouse, drilledBond]);
+  }, [view, mode, drilledWarehouse, drilledBond]);
 
   const labelToDate = (label) => dayjs(label.split(" ")[0], "DD-MMM");
 
@@ -124,7 +130,10 @@ export default function CumulativeShopwiseReport() {
     if (drilledWarehouse) currentMode = "shop";
     else if (drilledBond) currentMode = "shop";
 
-    await load(null, null, drilledWarehouse || warehouseFilter, drilledBond, currentMode);
+    const d1 = dateRange[0].format("YYYY-MM-DD");
+    const d2 = dateRange[1].format("YYYY-MM-DD");
+
+    await load(null, null, drilledWarehouse || warehouseFilter, drilledBond, currentMode, d1, d2);
   };
 
   // 🔥 APPLY FILTERS (Reload data from backend for date range)
@@ -179,7 +188,9 @@ export default function CumulativeShopwiseReport() {
     }
   };
 
-  const filteredData = warehouseFilter
+  // Backend already filters by warehouse, but we keep this for drilled views or fast-filtering if needed
+  // We restrict this frontend filter only to 'warehouse' mode so it doesn't break 'bond' mode where the backend re-uses the warehouse key.
+  const filteredData = (warehouseFilter && mode === "warehouse")
     ? data.filter(d => d.warehouse === warehouseFilter)
     : data;
 
@@ -209,6 +220,8 @@ export default function CumulativeShopwiseReport() {
   const maxDate = minDate ? minDate.add(config.num_days - 1, "day") : null;
 
   const disabledDate = (current) => {
+    if (!current) return false;
+    if (current.isAfter(dayjs().add(1, "day"), "day")) return true;
     if (!minDate || !maxDate) return false;
     return current.isBefore(minDate, "day") || current.isAfter(maxDate, "day");
   };
@@ -224,15 +237,9 @@ export default function CumulativeShopwiseReport() {
       const difference = closing - opening;
       const closing_stock_at_sales_perc = sales ? (closing * 100) / sales : 0;
       const perc = opening ? (difference * 100) / opening : 0;
-      const avg_this_month = netDays ? sales / netDays : 0;
+      const avg_sales_per_day = netDays ? sales / netDays : 0;
 
-      // Find comparative previous row
-      const prevRow = prevMonthData.find(p => p.warehouse === d.warehouse && p.shop_code === d.shop_code && p.bond === d.bond);
-      const prevSales = prevRow ? (prevRow.sales || prevRow.outward || 0) : 0;
-      const avg_prev_month = prevNetDays ? prevSales / prevNetDays : 0;
-      const diff_avg = avg_this_month - avg_prev_month;
-
-      let row = {
+      return {
         ...d,
         opening,
         receipt,
@@ -241,32 +248,10 @@ export default function CumulativeShopwiseReport() {
         difference,
         closing_stock_at_sales_perc,
         perc,
-        avg_this_month,
-        avg_prev_month,
-        diff_avg
+        avg_sales_per_day
       };
-
-      if (roundOff) {
-        row.opening = Math.round(row.opening);
-        row.receipt = Math.round(row.receipt);
-        row.sales = Math.round(row.sales);
-        row.closing = Math.round(row.closing);
-        row.difference = Math.round(row.difference);
-        row.closing_stock_at_sales_perc = Math.round(row.closing_stock_at_sales_perc);
-        row.perc = Math.round(row.perc);
-        row.avg_this_month = Math.round(row.avg_this_month);
-        row.avg_prev_month = Math.round(row.avg_prev_month);
-        row.diff_avg = Math.round(row.diff_avg);
-        
-        labels.forEach(l => {
-          if (row[l] !== undefined) row[l] = Math.round(row[l]);
-        });
-        if (row.total !== undefined) row.total = Math.round(row.total);
-      }
-
-      return row;
     });
-  }, [filteredData, netDays, prevMonthData, prevNetDays, roundOff, labels]);
+  }, [filteredData, netDays]);
 
   const getTitle = () => {
     if (drilledWarehouse || drilledBond || mode === "shop") return "Shop Name";
@@ -292,55 +277,84 @@ export default function CumulativeShopwiseReport() {
       return <a onClick={() => setDrilledWarehouse(record.warehouse)}>{displayText}</a>;
     }
     if (mode === "bond" && !drilledBond) {
-      return <a onClick={() => setDrilledBond(record.warehouse)}>{displayText}</a>;
+      return <a onClick={() => setDrilledBond(record.bond || record.warehouse)}>{displayText}</a>;
     }
     return <span>{record.shop_code ? `${displayText} (${record.shop_code})` : displayText}</span>;
   };
 
+  const formatVal = (val) => {
+    if (val === null || val === undefined) return "";
+    const num = Number(val);
+    if (isNaN(num)) return val;
+    return useWholeNumbers ? Math.round(num) : num.toFixed(2);
+  };
+
+  // 🔹 daywise + total
+  const daywiseColumns = [
+    { title: getTitle(), dataIndex: getDataIndex(), fixed: "left", width: 220, render: renderFirstCol },
+    ...labels.map(l => ({ title: l, dataIndex: l, width: 180, align: "center", render: (v) => formatVal(v) })),
+    {
+      title: "Total",
+      dataIndex: "total",
+      fixed: "right",
+      width: 220,
+      align: "right",
+      render: (v) => formatVal(v)
+    }
+  ];
 
   const cumulativeColumns = [
     { title: getTitle(), dataIndex: getDataIndex(), width: 220, render: renderFirstCol },
-    { title: "Opening", dataIndex: "opening", width: 200, align: "center" },
-    { title: "Receipt", dataIndex: "receipt", width: 200, align: "center" },
-    { title: "Sales", dataIndex: "sales", width: 200, align: "center" },
-    { title: "Closing", dataIndex: "closing", width: 200, align: "center" },
-    { title: "Difference", dataIndex: "difference", width: 200, align: "center" },
-    { title: "ClosingStock@Sales%", dataIndex: "closing_stock_at_sales_perc", width: 220, align: "center" },
-    { title: "Perc(%)", dataIndex: "perc", width: 160, align: "right" },
-    
-    { title: "", dataIndex: "spacer", width: 40, render: () => "", onCell: () => ({ style: { background: "#fafafa", borderTop: "none", borderBottom: "none" } }) },
-    
-    { title: "Avg / Day (This Month)", dataIndex: "avg_this_month", width: 180, align: "center" },
-    { title: "Avg / Day (Prev Month)", dataIndex: "avg_prev_month", width: 180, align: "center" },
-    { title: "Difference (Avg)", dataIndex: "diff_avg", width: 160, align: "center" }
+    { title: "Opening", dataIndex: "opening", width: 200, align: "center", render: (v) => formatVal(v) },
+    { title: "Receipt", dataIndex: "receipt", width: 200, align: "center", render: (v) => formatVal(v) },
+    { title: "Sales", dataIndex: "sales", width: 200, align: "center", render: (v) => formatVal(v) },
+    { title: "Closing", dataIndex: "closing", width: 200, align: "center", render: (v) => formatVal(v) },
+    { title: "Difference", dataIndex: "difference", width: 200, align: "center", render: (v) => formatVal(v) },
+    { title: "ClosingStock@Sales%", dataIndex: "closing_stock_at_sales_perc", width: 220, align: "center", render: (v) => formatVal(v) },
+    { title: "Avg Sales / Day", dataIndex: "avg_sales_per_day", width: 220, align: "center", render: (v) => formatVal(v) },
+    { title: "Perc(%)", dataIndex: "perc", width: 220, align: "right", render: (v) => formatVal(v) }
   ];
 
   // 🔥 DOWNLOAD
   const downloadExcel = () => {
-    const exportData = processedData.map(d => ({
-      [getTitle()]: d.shop_code ? `${d.shop_name} (${d.shop_code})` : formatName(d.warehouse),
-      Opening: d.opening,
-      Receipt: d.receipt,
-      Sales: d.sales,
-      Closing: d.closing,
-      Difference: d.difference,
-      "ClosingStock@Sales%": d.closing_stock_at_sales_perc,
-      "Perc(%)": d.perc,
-      " ": "",
-      "Avg / Day (This Month)": d.avg_this_month,
-      "Avg / Day (Prev Month)": d.avg_prev_month,
-      "Difference (Avg)": d.diff_avg
-    }));
+    let exportData = [];
+    if (view === "cumulative") {
+      exportData = processedData.map(d => ({
+        [getTitle()]: d.shop_code ? `${d.shop_name} (${d.shop_code})` : formatName(d.warehouse),
+        Opening: useWholeNumbers ? Math.round(d.opening || 0) : d.opening,
+        Receipt: useWholeNumbers ? Math.round(d.receipt || 0) : d.receipt,
+        Sales: useWholeNumbers ? Math.round(d.sales || 0) : d.sales,
+        Closing: useWholeNumbers ? Math.round(d.closing || 0) : d.closing,
+        Difference: useWholeNumbers ? Math.round(d.difference || 0) : d.difference,
+        "ClosingStock@Sales%": useWholeNumbers ? Math.round(d.closing_stock_at_sales_perc || 0) : d.closing_stock_at_sales_perc,
+        "Avg Sales / Day": useWholeNumbers ? Math.round(d.avg_sales_per_day || 0) : d.avg_sales_per_day,
+        "Perc(%)": useWholeNumbers ? Math.round(d.perc || 0) : d.perc
+      }));
+    } else {
+      exportData = processedData.map(row => {
+        const obj = { [getTitle()]: row.shop_code ? `${row.shop_name} (${row.shop_code})` : formatName(row.warehouse) };
+        let total = 0;
+        labels.forEach(l => {
+          const v = row[l] || 0;
+          obj[l] = useWholeNumbers ? Math.round(v) : v;
+          total += v;
+        });
+        obj["Total"] = useWholeNumbers ? Math.round(total) : total;
+        return obj;
+      });
+    }
 
     exportToExcel(
       exportData,
       {
         Mode: mode,
+        View: view,
         Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
         "Date Range": dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
         "Start Date": activeStartStr ? dayjs(activeStartStr).format("DD-MM-YYYY") : null,
         "End Date": activeEndStr ? dayjs(activeEndStr).format("DD-MM-YYYY") : null,
-        "Net Days": netDays
+        "Net Days": netDays,
+        "Round off": useWholeNumbers ? "Yes" : "No"
       },
       "cumulative_shopwise_report.xlsx",
       "Cumulative Shopwise"
@@ -364,23 +378,23 @@ export default function CumulativeShopwiseReport() {
 
       <div style={{ marginBottom: 16 }}>
   <Button
-    type={mode === "warehouse" && !drilledBond ? "primary" : "default"}
-    onClick={() => { setMode("warehouse"); setDrilledBond(null); setDrilledWarehouse(null); }}
-  >
-    Warehouse
-  </Button>
-
-  <Button
     type={mode === "bond" ? "primary" : "default"}
-    onClick={() => { setMode("bond"); setDrilledBond(null); setDrilledWarehouse(null); }}
-    style={{ marginLeft: 8 }}
+    onClick={() => { setMode("bond"); setDrilledBond(null); setDrilledWarehouse(null); setWarehouseFilter(null); }}
   >
     Bond
   </Button>
   
   <Button
+    type={mode === "warehouse" && !drilledBond ? "primary" : "default"}
+    onClick={() => { setMode("warehouse"); setDrilledBond(null); setDrilledWarehouse(null); setWarehouseFilter(null); }}
+    style={{ marginLeft: 8 }}
+  >
+    Warehouse
+  </Button>
+  
+  <Button
     type={mode === "shop" ? "primary" : "default"}
-    onClick={() => { setMode("shop"); setDrilledBond(null); setDrilledWarehouse(null); }}
+    onClick={() => { setMode("shop"); setDrilledBond(null); setDrilledWarehouse(null); setWarehouseFilter(null); }}
     style={{ marginLeft: 8 }}
   >
     Shop
@@ -431,7 +445,22 @@ export default function CumulativeShopwiseReport() {
         <Button onClick={resetFilters}>
           Reset
         </Button>
-        <Checkbox checked={roundOff} onChange={(e) => setRoundOff(e.target.checked)}>
+      </Space>
+
+      {/* 🔥 VIEW PILLS */}
+      <Space style={{ marginBottom: 16 }}>
+        <Button
+          type={view === "cumulative" ? "primary" : "default"}
+          onClick={() => setView("cumulative")}
+          style={{ marginLeft: 8 }}
+        >
+          Cumulative
+        </Button>
+        <Checkbox
+          checked={useWholeNumbers}
+          onChange={e => setUseWholeNumbers(e.target.checked)}
+          style={{ marginLeft: 16 }}
+        >
           Round off
         </Checkbox>
       </Space>
@@ -439,56 +468,78 @@ export default function CumulativeShopwiseReport() {
       {/* 🔥 TABLE */}
       <Table
         loading={loading}
-        columns={cumulativeColumns}
+        columns={view === "cumulative" ? cumulativeColumns : daywiseColumns}
         dataSource={processedData}
         rowKey={(record) => `${record.warehouse}-${record.shop_code || "none"}-${record.bond || "none"}`}
-        scroll={{ x: "max-content" }}
+        scroll={{ x: true }}
         pagination={false}
         summary={(pageData) => {
           if (pageData.length === 0) return null;
 
-          let totalOpening = 0;
-          let totalReceipt = 0;
-          let totalSales = 0;
-          let totalClosing = 0;
-          let totalPrevSales = 0;
+          if (view === "cumulative") {
+            let totalOpening = 0;
+            let totalReceipt = 0;
+            let totalSales = 0;
+            let totalClosing = 0;
 
-          // Compute accurate overall mathematically-correct percentage & variance totals
-          pageData.forEach(({ opening, receipt, sales, closing, avg_prev_month }) => {
-            totalOpening += opening || 0;
-            totalReceipt += receipt || 0;
-            totalSales += sales || 0;
-            totalClosing += closing || 0;
-            totalPrevSales += (avg_prev_month * prevNetDays) || 0;
-          });
-          
-          const totalDiff = totalClosing - totalOpening;
-          const totalClosingStockAtSalesPerc = totalSales ? (totalClosing * 100) / totalSales : 0;
-          const totalPerc = totalOpening ? (totalDiff * 100) / totalOpening : 0;
-          const totalAvgThisMonth = netDays ? totalSales / netDays : 0;
-          const totalAvgPrevMonth = prevNetDays ? totalPrevSales / prevNetDays : 0;
-          const totalDiffAvg = totalAvgThisMonth - totalAvgPrevMonth;
-          
-          const formatNumber = (val) => roundOff ? Math.round(val) : val.toFixed(2);
+            // Compute accurate overall mathematically-correct percentage & variance totals
+            pageData.forEach(({ opening, receipt, sales, closing }) => {
+              totalOpening += opening || 0;
+              totalReceipt += receipt || 0;
+              totalSales += sales || 0;
+              totalClosing += closing || 0;
+            });
+            
+            const totalDiff = totalClosing - totalOpening;
+            const totalClosingStockAtSalesPerc = totalSales ? (totalClosing * 100) / totalSales : 0;
+            const totalPerc = totalOpening ? (totalDiff * 100) / totalOpening : 0;
+            const totalAvgSalesPerDay = netDays ? totalSales / netDays : 0;
 
-          return (
-            <Table.Summary fixed="bottom">
-              <Table.Summary.Row style={{ background: "#f0f2f5", fontWeight: "bold", borderTop: "2px solid #d9d9d9" }}>
-                <Table.Summary.Cell index={0} style={{ padding: "12px 8px" }}>Total</Table.Summary.Cell>
-                <Table.Summary.Cell index={1} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalOpening)}</Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={2} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalReceipt)}</Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={3} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalSales)}</Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={4} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalClosing)}</Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={5} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalDiff)}</Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={6} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalClosingStockAtSalesPerc)}</Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={7} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalPerc)}</Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={8} style={{ padding: "12px 8px", background: "#fafafa" }}></Table.Summary.Cell>
-                <Table.Summary.Cell index={9} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalAvgThisMonth)}</Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={10} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalAvgPrevMonth)}</Text></Table.Summary.Cell>
-                <Table.Summary.Cell index={11} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatNumber(totalDiffAvg)}</Text></Table.Summary.Cell>
-              </Table.Summary.Row>
-            </Table.Summary>
-          );
+            return (
+              <Table.Summary fixed="bottom">
+                <Table.Summary.Row style={{ background: "#f0f2f5", fontWeight: "bold", borderTop: "2px solid #d9d9d9" }}>
+                  <Table.Summary.Cell index={0} style={{ padding: "12px 8px" }}>Total</Table.Summary.Cell>
+                  <Table.Summary.Cell index={1} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalOpening)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={2} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalReceipt)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={3} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalSales)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={4} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalClosing)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={5} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalDiff)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={6} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalClosingStockAtSalesPerc)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={7} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalAvgSalesPerDay)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={8} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalPerc)}</Text></Table.Summary.Cell>
+                </Table.Summary.Row>
+              </Table.Summary>
+            );
+          } else {
+            // Daywise view
+            const colTotals = {};
+            let grandTotal = 0;
+
+            labels.forEach(l => colTotals[l] = 0);
+
+            pageData.forEach(row => {
+              labels.forEach(l => {
+                colTotals[l] += row[l] || 0;
+              });
+              grandTotal += row.total || 0;
+            });
+
+            return (
+              <Table.Summary fixed="bottom">
+                <Table.Summary.Row style={{ background: "#f0f2f5", fontWeight: "bold", borderTop: "2px solid #d9d9d9" }}>
+                  <Table.Summary.Cell index={0} style={{ padding: "12px 8px" }}>Total</Table.Summary.Cell>
+                  {labels.map((l, index) => (
+                    <Table.Summary.Cell key={l} index={index + 1} align="center" style={{ padding: "12px 8px" }}>
+                      <Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(colTotals[l])}</Text>
+                    </Table.Summary.Cell>
+                  ))}
+                  <Table.Summary.Cell index={labels.length + 1} align="right" style={{ padding: "12px 8px" }}>
+                    <Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(grandTotal)}</Text>
+                  </Table.Summary.Cell>
+                </Table.Summary.Row>
+              </Table.Summary>
+            );
+          }
         }}
       />
     </div>

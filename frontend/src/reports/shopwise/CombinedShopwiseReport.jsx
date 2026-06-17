@@ -92,18 +92,20 @@ export default function CombinedShopwiseReport() {
   }, [bond, warehouse, filterMode, filterMapping, allShops, bondMapping]);
 
 
-  const load = () => {
+  const load = (d1 = null, d2 = null) => {
     setLoading(true);
     let startIdx = null;
     let endIdx = null;
-    let sStr = null;
-    let eStr = null;
+    let sStr = d1;
+    let eStr = d2;
 
-    if (dateRange && Array.isArray(dateRange) && dateRange.length === 2 && dateRange[0] && dateRange[1]) {
-      const allDates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
+    if (!sStr && !eStr && dateRange && Array.isArray(dateRange) && dateRange.length === 2 && dateRange[0] && dateRange[1]) {
       sStr = dateRange[0].format("YYYY-MM-DD");
       eStr = dateRange[1].format("YYYY-MM-DD");
-      
+    }
+
+    if (sStr && eStr) {
+      const allDates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
       startIdx = allDates.findIndex(d => d >= sStr);
       if (startIdx === -1) startIdx = null;
 
@@ -126,10 +128,6 @@ export default function CombinedShopwiseReport() {
       setUploads(res.data.uploads || []);
       setConfig(res.data.config || {});
       
-      if (res.data.config?.date1 && res.data.config?.date2 && (!dateRange || dateRange.length === 0)) {
-        setDateRange([dayjs(res.data.config.date1), dayjs(res.data.config.date2)]);
-      }
-
       const initialCollapsed = {};
       const uniqueShops = [...new Set((res.data.data || []).map(r => r.shop_code))];
       uniqueShops.forEach(s => initialCollapsed[s] = true);
@@ -138,11 +136,32 @@ export default function CombinedShopwiseReport() {
     }).catch(() => setLoading(false));
   };
 
+  // Initialize default date range (1st of month to today) on load
   useEffect(() => {
-    // 🔥 Remove dateRange from dependencies so clearing/picking a date 
-    // doesn't trigger an automatic unwanted API call.
-    load();
-  }, []);
+    getReport(id, null, view, { limit: 1 }).then(res => {
+      const reportConfig = res?.data?.config || {};
+      
+      let defaultStart = dayjs().startOf("month");
+      let defaultEnd = dayjs();
+
+      const startDateStr = reportConfig.start_date || reportConfig.date1;
+      const endDateStr = reportConfig.end_date || reportConfig.date2;
+
+      if (startDateStr && endDateStr) {
+         const configStart = dayjs(startDateStr);
+         const configEnd = dayjs(endDateStr);
+         
+         if (defaultEnd.isAfter(configEnd)) defaultEnd = configEnd;
+         if (defaultEnd.isBefore(configStart)) defaultEnd = configEnd;
+         
+         defaultStart = defaultEnd.startOf("month");
+         if (defaultStart.isBefore(configStart)) defaultStart = configStart;
+      }
+
+      setDateRange([defaultStart, defaultEnd]);
+      load(defaultStart.format("YYYY-MM-DD"), defaultEnd.format("YYYY-MM-DD"));
+    }).catch(() => {});
+  }, [id]);
 
   const handleApply = () => {
     if (dateRange && dateRange.length > 0 && (!dateRange[0] || !dateRange[1])) {
@@ -163,6 +182,15 @@ export default function CombinedShopwiseReport() {
 
     return `COMBINED PERIOD : ${dayjs(dates[0]).format("DD-MM-YYYY")} - ${dayjs(dates[dates.length - 1]).format("DD-MM-YYYY")}`;
   }, [uploads, dateRange]);
+
+  const disabledDate = (current) => {
+    if (!current) return false;
+    if (current.isAfter(dayjs().add(1, "day"), "day")) return true;
+    const minDate = config.start_date || config.date1 ? dayjs(config.start_date || config.date1) : null;
+    const maxDate = config.end_date || config.date2 ? dayjs(config.end_date || config.date2) : null;
+    if (!minDate || !maxDate) return false;
+    return current.isBefore(minDate, "day") || current.isAfter(maxDate, "day");
+  };
 
   // const uploadDateLabel = useMemo(() => {
   //   const dates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
@@ -407,7 +435,7 @@ export default function CombinedShopwiseReport() {
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
           <Col>
             Date :
-            <RangePicker value={dateRange} onChange={setDateRange} style={{ width: 250 }} disabledDate={disabledFutureMonthDates} />
+            <RangePicker value={dateRange} onChange={setDateRange} style={{ width: 250 }} disabledDate={disabledDate} />
           </Col>
         </Row>
 

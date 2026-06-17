@@ -180,19 +180,15 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         full_df = full_df[full_df[shop_col].notna() & (full_df[shop_col] != "nan") & (full_df[shop_col] != "")]
 
         # Enrichment
-        from core.mapping_utils import get_shop_to_parent_maps, get_shop_lookup_and_warehouse_to_bond
+        from core.mapping_utils import get_shop_to_parent_maps
         shop_to_bond, _ = get_shop_to_parent_maps()
-        _, warehouse_to_bond = get_shop_lookup_and_warehouse_to_bond()
-
+        full_df["bond_info"] = full_df[shop_col].map(shop_to_bond).fillna("Unknown")
         # Use warehouse from raw data if available, otherwise it's Unknown. Do not use mapping file.
         wh_col = find_column(full_df, ["warehouse"])
         if wh_col:
             full_df["warehouse_info"] = full_df[wh_col].astype(str).str.strip()
         else:
             full_df["warehouse_info"] = "Unknown"
-            
-        full_df["bond_info"] = full_df[shop_col].map(shop_to_bond)
-        full_df["bond_info"] = full_df["bond_info"].fillna(full_df["warehouse_info"].map(warehouse_to_bond)).fillna("Unknown")
 
         # Filtering
         if shop_code:
@@ -248,6 +244,8 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         result = []
         grouped = full_df.groupby([shop_col, brand_col, pack_col])
         
+        from core.mapping_utils import get_shop_to_parent_maps, get_shop_lookup_and_warehouse_to_bond
+        shop_to_bond, _ = get_shop_to_parent_maps()
         shop_lookup, _ = get_shop_lookup_and_warehouse_to_bond()
         
         for (s_code, brand, pack), g in grouped:
@@ -263,7 +261,6 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                 
             s_code_str = str(s_code).strip()
             wh_info = str(g["warehouse_info"].iloc[0]) if "warehouse_info" in g.columns else "Unknown"
-            bnd_info = str(g["bond_info"].iloc[0]) if "bond_info" in g.columns else "Unknown"
             
             item = {
                 "shop_code": s_code_str,
@@ -274,7 +271,7 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                 "outward": round(outward_bottles / bpc, 4) if view_param != "bottle" else outward_bottles,
                 "closing": round(closing_bottles / bpc, 4) if view_param != "bottle" else closing_bottles,
                 "warehouse": wh_info,
-                "bond": bnd_info,
+                "bond": shop_to_bond.get(s_code_str, "Unknown"),
                 "shop_name": shop_lookup.get(s_code_str, {}).get("shop_name", "Unknown Shop")
             }
             result.append(item)
@@ -291,12 +288,16 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                 sc = r["shop_code"]
                 sn = r["shop_name"]
                 
+                if not bnd or str(bnd).upper() in ["UNKNOWN", "UNMAPPED", "NONE", ""]:
+                    print(f"[DEBUG] [combined_shopwise_multi] Missing/Unknown bond for Shop Code: '{sc}', Name: '{sn}', Warehouse: '{wh}', Raw Bond Value: '{bnd}'")
+                    bnd = "UNKNOWN"
+
                 if mode == "bond":
-                    pk = bnd
+                    pk = bnd if bnd else "UNKNOWN"
                 elif mode == "shop":
                     pk = f"{wh}_{bnd}_{sc}"
                 else: # warehouse
-                    pk = wh
+                    pk = wh if wh else "UNKNOWN"
                     
                 if pk not in agg_map:
                     agg_map[pk] = {

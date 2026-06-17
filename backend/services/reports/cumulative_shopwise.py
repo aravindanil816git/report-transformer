@@ -644,17 +644,16 @@ class CumulativeShopwiseReportService(BaseReportService):
             cum_start = time.time()
             print(f"[INFO] [get_report] Starting CUMULATIVE view processing...")
             
-            # 🔥 INTERCEPT: Fetch from combined_shopwise for perfect 1-16 / 17-31 accuracy as requested
+            # 🔥 FORCED DELEGATION: Always rely on combined_shopwise_multi for cumulative accuracy
             from services.registry import get_service
             from services.db import supabase
             start_date_param = kwargs.get("start_date") or report.get("config", {}).get("start_date") or report.get("config", {}).get("date1")
+            end_date_param = kwargs.get("end_date") or report.get("config", {}).get("end_date") or report.get("config", {}).get("date2")
             if start_date_param:
                 month_prefix = str(start_date_param).split("T")[0][:7]
                 res = supabase.table("reports").select("id, type, config, uploads").in_("type", ["shop_sales_cumulative", "combined_shopwise"]).execute()
                 
-                # 🔥 Accumulate all uploads from all relevant reports for the month
                 source_uploads_map = {}
-                
                 if res.data:
                     for r in res.data:
                         if r.get("type") == "shop_sales_cumulative":
@@ -667,35 +666,68 @@ class CumulativeShopwiseReportService(BaseReportService):
                 
                 if source_uploads_map:
                     print(f"\n[DEBUG] === DELEGATING TO COMBINED SHOPWISE MULTI (GET_REPORT) ===")
-                    print(f"[DEBUG] Month Prefix: {month_prefix}")
-                    print(f"[DEBUG] Found {len(source_uploads_map)} valid uploads in DB for this month.")
-                    for k, u in source_uploads_map.items():
-                        print(f"[DEBUG] -> Key: {k}, File: {u.get('file')}")
+                    
+                    # Ensure local files exist to prevent delegation failure
+                    missing_files = []
+                    for u in source_uploads_map.values():
+                        if u.get("storage_path") and u.get("path"):
+                            filename = os.path.basename(u["path"])
+                            temp_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "temp"))
+                            local_p = os.path.join(temp_dir, filename)
+                            u["path"] = local_p
+                            if not os.path.exists(local_p):
+                                missing_files.append((u["storage_path"], local_p))
+                    
+                    if missing_files:
+                        print(f"[DEBUG] Fetching {len(missing_files)} missing files for delegation...")
+                        import concurrent.futures
+                        def _download(sp, lp):
+                            try:
+                                res = supabase.storage.from_("raw-reports").download(sp)
+                                os.makedirs(os.path.dirname(lp) or ".", exist_ok=True)
+                                with open(lp, "wb") as f:
+                                    f.write(res)
+                            except Exception: pass
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                            futures = [executor.submit(_download, sp, lp) for sp, lp in missing_files]
+                            concurrent.futures.wait(futures)
 
-                    # Create a temporary, in-memory report object with the combined uploads
                     combined_report_payload = {
                         "id": "temp-combined",
                         "type": "combined_shopwise_multi",
                         "uploads": list(source_uploads_map.values()),
-                        "config": {"start_date": start_date_param, "end_date": kwargs.get("end_date")}
+                        "config": {"start_date": start_date_param, "end_date": end_date_param}
                     }
                     try:
-                        print(f"[INFO] [get_report] Delegating cumulative view to combined_shopwise_multi with {len(source_uploads_map)} upload sets.")
                         svc = get_service("combined_shopwise_multi")
-                        combined_res = svc.get_report(combined_report_payload, shop_code=shop_code, warehouse=warehouse, bond=bond, view="cumulative", mode=mode, **kwargs)
+                        
+                        delegate_kwargs = kwargs.copy()
+                        # Force exact dates to prevent kwargs defaulting to None and losing the filter
+                        delegate_kwargs["start_date"] = start_date_param
+                        delegate_kwargs["end_date"] = end_date_param
+
+                        combined_res = svc.get_report(combined_report_payload, shop_code=kwargs.get("shop_code"), warehouse=warehouse, bond=bond, view="cumulative", mode=mode, **delegate_kwargs)
                         
                         if combined_res and combined_res.get("data"):
                             return {
-                                "data": combined_res.get("data", []),
+                                "data": combined_res.get("data"),
                                 "labels": selected_labels,
                                 "config": report.get("config", {})
                             }
                         else:
-                            print(f"[WARN] [get_report] Delegated report returned empty data. Falling back to internal cumulative data.")
+                            print(f"[WARN] [get_report] Delegation to combined_shopwise_multi returned empty data. Falling back.")
                     except Exception as e:
-                        print(f"[ERROR] [get_report] Delegation failed: {e}. Falling back to internal cumulative data.")
-            
+                        import traceback
+                        print(f"[ERROR] [get_report] Delegation failed: {e}")
+                        traceback.print_exc()
+
             cumulative_data = processed.get("cumulative", [])
+            
+            if bond:
+                cumulative_data = [d for d in cumulative_data if d.get("bond") == bond]
+            if warehouse:
+                cumulative_data = [d for d in cumulative_data if d.get("warehouse") == warehouse]
+
             if mode == "bond":
                 bond_map = {}
                 if not bond and not warehouse:

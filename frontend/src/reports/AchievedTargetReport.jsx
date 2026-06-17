@@ -32,23 +32,24 @@ export default function AchievedTargetReport() {
   const [clusters, setClusters] = useState({});
 
   useEffect(() => {
-    // 🛑 Intentionally leaving this blank so data doesn't auto-fetch on open.
-    // The user must explicitly choose dates and click "Apply Filter".
+    // Load the basic report structure (bonds, brands, saved targets) on open.
+    loadData();
   }, [id]);
 
   useEffect(() => {
     getJson("clusters").then(res => setClusters(res.data)).catch(() => {});
   }, []);
 
-  const loadData = (isManual = false) => {
-    if (!dateRange || !Array.isArray(dateRange) || dateRange.length !== 2) {
-      if (isManual === true) message.warning("Please select a date range before loading data");
+  const loadData = (applyDates = false) => {
+    const hasDateRange = dateRange && Array.isArray(dateRange) && dateRange.length === 2 && dateRange[0] && dateRange[1];
+    if (applyDates && !hasDateRange) {
+      message.warning("Please select a date range before loading data");
       return;
     }
 
     setLoading(true);
     const params = {};
-    if (dateRange && dateRange.length === 2) {
+    if (applyDates && hasDateRange) {
       params.start_date = dateRange[0].format("YYYY-MM-DD");
       params.end_date = dateRange[1].format("YYYY-MM-DD");
     }
@@ -56,15 +57,30 @@ export default function AchievedTargetReport() {
     getReport(id, null, null, params).then((res) => {
       const reportData = res?.data?.data || [];
       setData(reportData);
-      setConfig(res?.data?.config || {});
+      const reportConfig = res?.data?.config || {};
+      setConfig(reportConfig);
 
-      const allBrands = new Set();
+      if (!applyDates && reportConfig.month && (!dateRange || dateRange.length !== 2)) {
+        const monthStart = dayjs(reportConfig.month).startOf("month");
+        const monthEnd = dayjs(reportConfig.month).endOf("month");
+        const today = dayjs();
+        
+        let defaultEnd = monthEnd;
+        if (today.isBefore(monthEnd)) {
+          defaultEnd = today;
+        }
+        setDateRange([monthStart, defaultEnd]);
+      }
+
+      const allBrands = new Set(DEFAULT_VISIBLE_BRANDS);
       reportData.forEach((row) => {
         if (row.brands) {
           Object.keys(row.brands).forEach((b) => allBrands.add(b));
         }
       });
-      setBrands(Array.from(allBrands).sort());
+      const newBrands = Array.from(allBrands).sort();
+      setBrands(newBrands);
+
       setLoading(false);
     }).catch(() => setLoading(false));
   };
@@ -76,7 +92,7 @@ export default function AchievedTargetReport() {
       if (!newData[rowIndex].brands[brand]) {
         newData[rowIndex].brands[brand] = { achieved: 0, target: 0 };
       }
-      newData[rowIndex].brands[brand].target = val;
+      newData[rowIndex].brands[brand].target = val;,
       setData(newData);
     }
   };
@@ -98,6 +114,16 @@ export default function AchievedTargetReport() {
     } catch (e) {
       message.error("Failed to save targets");
     }
+  };
+
+  const disabledDate = (current) => {
+    if (!current) return false;
+    if (config?.month) {
+      const startOfMonth = dayjs(config.month).startOf("month");
+      const endOfMonth = dayjs(config.month).endOf("month");
+      return current.isBefore(startOfMonth, "day") || current.isAfter(endOfMonth, "day");
+    }
+    return disabledFutureMonthDates(current);
   };
 
   // Group and Pivot the data by Cluster, and calculate Cluster Totals
@@ -293,9 +319,9 @@ export default function AchievedTargetReport() {
           <RangePicker 
             value={dateRange} 
             onChange={setDateRange} 
-            disabledDate={disabledFutureMonthDates}
+            disabledDate={disabledDate}
           />
-          <Button type="primary" onClick={loadData}>Apply Filter</Button>
+          <Button type="primary" onClick={() => loadData(true)}>Apply Filter</Button>
           {!isEditingTargets ? (
             <Button onClick={() => setIsEditingTargets(true)}>Edit Targets</Button>
           ) : (
@@ -346,7 +372,7 @@ export default function AchievedTargetReport() {
           });
 
           return (
-            <Table.Summary fixed="bottom">
+            <Table.Summary>
               <Table.Summary.Row style={{ background: "#fafafa", fontWeight: "bold", borderTop: "2px solid #d9d9d9" }}>
                 <Table.Summary.Cell index={0}>Grand Total</Table.Summary.Cell>
                 <Table.Summary.Cell index={1}><span style={{ color: "#1890ff" }}>Target</span></Table.Summary.Cell>

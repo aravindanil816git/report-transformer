@@ -23,7 +23,7 @@ export default function CumulativeWarehouseReport() {
   const [warehouseFilter, setWarehouseFilter] = useState(null);
   const [dateRange, setDateRange] = useState([]);
 
-  const [mode, setMode] = useState(searchParams.get("mode") || "warehouse");
+  const [mode, setMode] = useState(searchParams.get("mode") || "bond");
   const [drilledWarehouse, setDrilledWarehouse] = useState(null);
   const [drilledBond, setDrilledBond] = useState(null);
 
@@ -58,10 +58,6 @@ export default function CumulativeWarehouseReport() {
       setLabels(res.data.labels || []);
       setConfig(res.data.config || {});
   
-      if (res.data.config?.date1 && res.data.config?.date2 && dateRange.length === 0) {
-        setDateRange([dayjs(res.data.config.date1), dayjs(res.data.config.date2)]);
-      }
-  
       if (allLabels.length === 0) {
         setAllLabels(res.data.labels || []);
       }
@@ -69,6 +65,38 @@ export default function CumulativeWarehouseReport() {
       setLoading(false);
     }
   };
+
+  // Initialize default date range (1st of month to today) on load
+  useEffect(() => {
+    getReport(id, null, view, { limit: 1 }).then(res => {
+      const reportConfig = res?.data?.config || {};
+      
+      let defaultStart = dayjs().startOf("month");
+      let defaultEnd = dayjs();
+
+      const startDateStr = reportConfig.start_date || reportConfig.date1;
+      const endDateStr = reportConfig.end_date || reportConfig.date2;
+
+      if (startDateStr && endDateStr) {
+         const configStart = dayjs(startDateStr);
+         const configEnd = dayjs(endDateStr);
+         
+         if (defaultEnd.isAfter(configEnd)) defaultEnd = configEnd;
+         if (defaultEnd.isBefore(configStart)) defaultEnd = configEnd;
+         
+         defaultStart = defaultEnd.startOf("month");
+         if (defaultStart.isBefore(configStart)) defaultStart = configStart;
+      }
+
+      setDateRange([defaultStart, defaultEnd]);
+
+      let currentMode = mode;
+      if (drilledWarehouse) currentMode = "shop";
+      else if (drilledBond) currentMode = "shop";
+
+      load(null, null, warehouseFilter, drilledBond, currentMode, defaultStart.format("YYYY-MM-DD"), defaultEnd.format("YYYY-MM-DD"));
+    }).catch(() => {});
+  }, [id]);
 
   // 🔥 Reload when view or data parameters change
   useEffect(() => {
@@ -105,7 +133,10 @@ export default function CumulativeWarehouseReport() {
     if (drilledWarehouse) currentMode = "shop";
     else if (drilledBond) currentMode = "shop";
     
-    await load(null, null, drilledWarehouse || warehouseFilter, drilledBond, currentMode);
+    const d1 = dateRange[0].format("YYYY-MM-DD");
+    const d2 = dateRange[1].format("YYYY-MM-DD");
+
+    await load(null, null, drilledWarehouse || warehouseFilter, drilledBond, currentMode, d1, d2);
   };
 
   // 🔥 APPLY FILTERS (Reload data from backend for date range)
@@ -210,6 +241,8 @@ export default function CumulativeWarehouseReport() {
   const maxDate = minDate ? minDate.add(config.num_days - 1, "day") : null;
 
   const disabledDate = (current) => {
+    if (!current) return false;
+    if (current.isAfter(dayjs().add(1, "day"), "day")) return true;
     if (!minDate || !maxDate) return false;
     return current.isBefore(minDate, "day") || current.isAfter(maxDate, "day");
   };
@@ -312,18 +345,6 @@ export default function CumulativeWarehouseReport() {
 
       <div style={{ marginBottom: 16 }}>
         <Button
-          type={mode === "warehouse" && !drilledBond ? "primary" : "default"}
-          onClick={() => {
-            setMode("warehouse");
-            setWarehouseFilter(null);
-            setDrilledBond(null);
-            setDrilledWarehouse(null);
-          }}
-        >
-          Warehouse View
-        </Button>
-
-        <Button
           type={mode === "bond" ? "primary" : "default"}
           onClick={() => {
             setMode("bond");
@@ -331,9 +352,21 @@ export default function CumulativeWarehouseReport() {
             setDrilledBond(null);
             setDrilledWarehouse(null);
           }}
-          style={{ marginLeft: 8 }}
         >
           Bond View
+        </Button>
+
+        <Button
+          type={mode === "warehouse" && !drilledBond ? "primary" : "default"}
+          onClick={() => {
+            setMode("warehouse");
+            setWarehouseFilter(null);
+            setDrilledBond(null);
+            setDrilledWarehouse(null);
+          }}
+          style={{ marginLeft: 8 }}
+        >
+          Warehouse View
         </Button>
 
         <Button
