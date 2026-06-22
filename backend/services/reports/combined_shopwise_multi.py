@@ -39,55 +39,65 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         df = read_excel_robust(path)
         df = clean_df(normalize(df))
 
-        # Determine the key for this upload
-        key = None
+        # Determine the key for this upload and store exact start/end day bounds
+        start_day, end_day = None, None
+        lowered = file_name.lower()
         
-        # 1. Use the report's config date to categorize into sets
-        config_date = report.get("config", {}).get("date1")
-        print("cfdate",config_date)
-        if config_date:
-            try:
-                day = int(pd.to_datetime(config_date).day)
-                key = "1-16" if day <= 16 else "17-31"
-            except Exception:
-                pass
-                
-        # 2. Fallback to parsing filename
+        # 1. Parse start and end day from filename (e.g. "1-16", "17-30", "17-20")
+        match = re.search(r"\b(\d{1,2})\s*(?:-|to|–|—|_)\s*(\d{1,2})\b", lowered)
+        if match:
+            start_day = int(match.group(1))
+            end_day = int(match.group(2))
+            key = f"{start_day}-{end_day}"
+            
+        # 2. Fallback to report config date
         if not key:
-            lowered = file_name.lower()
-            if re.search(r"\b1\s*(?:-|to|–|—|_)\s*1[562]\b", lowered) or "1-16" in lowered or "1-15" in lowered or "1-12" in lowered:
-                key = "1-16"
-            elif re.search(r"\b1[67]\s*(?:-|to|–|—|_)\s*3[01]\b", lowered) or "17-30" in lowered or "17-31" in lowered or "16-30" in lowered or "16-31" in lowered:
-                key = "17-31"
-            else:
-                key = "1-16" # Default to first set
+            config_date = report.get("config", {}).get("date1") or report.get("config", {}).get("start_date")
+            if config_date:
+                try:
+                    day = int(pd.to_datetime(config_date).day)
+                    if day <= 16:
+                        start_day, end_day = 1, 16
+                    else:
+                        start_day, end_day = 17, 31
+                except Exception:
+                    pass
+            
+            # 3. Fallback to standard range patterns
+            if start_day is None or end_day is None:
+                if re.search(r"\b1\s*(?:-|to|–|—|_)\s*1[562]\b", lowered) or "1-16" in lowered or "1-15" in lowered or "1-12" in lowered:
+                    start_day, end_day = 1, 16
+                elif re.search(r"\b1[67]\s*(?:-|to|–|—|_)\s*3[01]\b", lowered) or "17-30" in lowered or "17-31" in lowered or "16-30" in lowered or "16-31" in lowered:
+                    start_day, end_day = 17, 31
+                else:
+                    start_day, end_day = 1, 16  # Default fallback
+            
+            key = f"{start_day}-{end_day}"
 
         # Ensure the uploads list exists
         report.setdefault("uploads", [])
         
+        upload_entry = {
+            "date": key,
+            "range_key": key,
+            "start_day": start_day,
+            "end_day": end_day,
+            "file": file_name,
+            "path": path,
+            "status": "uploaded",
+            "data": df.replace({pd.NA: None}).astype(object).where(pd.notnull(df), None).to_dict("records")
+        }
+
         # Find existing entry for this date key (or range key) and replace it.
-        # This ensures the latest upload for a set (e.g. 1-16) overwrites older ones (like 1-12).
         updated = False
         for u in report["uploads"]:
             if u.get("date") == key or u.get("range_key") == key:
-                u["date"] = key
-                u["range_key"] = key
-                u["file"] = file_name
-                u["path"] = path
-                u["status"] = "uploaded"
-                u["data"] = df.replace({pd.NA: None}).astype(object).where(pd.notnull(df), None).to_dict("records")
+                u.update(upload_entry)
                 updated = True
                 break
         if not updated:
             # Append a new upload entry
-            report["uploads"].append({
-                "date": key,
-                "range_key": key,
-                "file": file_name,
-                "path": path,
-                "status": "uploaded",
-                "data": df.replace({pd.NA: None}).astype(object).where(pd.notnull(df), None).to_dict("records")
-            })
+            report["uploads"].append(upload_entry)
         return report
 
     # ---------------------------------------------------------------------
@@ -107,17 +117,13 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         view_param = kwargs.get("view", view)
         mode = kwargs.get("mode", "warehouse")
         
-        # Date Range Filter logic for "1-16" and "17-31" sets
-        selected_keys = set()
+        # Parse selected date filter range bounds
+        sel_start_day = None
+        sel_end_day = None
         if start_date and end_date:
             try:
-                s_day = int(pd.to_datetime(start_date).day)
-                e_day = int(pd.to_datetime(end_date).day)
-                if s_day <= 16:
-                    selected_keys.add("1-16")
-                if e_day >= 17:
-                    selected_keys.add("17-31")
-                    selected_keys.add("17-30")
+                sel_start_day = int(pd.to_datetime(start_date).day)
+                sel_end_day = int(pd.to_datetime(end_date).day)
             except Exception:
                 pass
         
@@ -125,8 +131,29 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         dfs = []
         for u in uploads:
             r_key = u.get("range_key") or u.get("date", "default")
-            if selected_keys and r_key in ["1-16", "17-31", "17-30"] and r_key not in selected_keys:
-                continue
+            
+            # Determine day range bounds for this upload
+            u_start_day = u.get("start_day")
+            u_end_day = u.get("end_day")
+            
+            if u_start_day is None or u_end_day is None:
+                # Fallback to parsing from range_key
+                match = re.search(r"(\d{1,2})\s*-\s*(\d{1,2})", str(r_key))
+                if match:
+                    u_start_day = int(match.group(1))
+                    u_end_day = int(match.group(2))
+                else:
+                    if r_key == "1-16":
+                        u_start_day, u_end_day = 1, 16
+                    elif r_key in ["17-31", "17-30"]:
+                        u_start_day, u_end_day = 17, 31
+                    else:
+                        u_start_day, u_end_day = 1, 31
+            
+            # Filter strictly: only include if the upload's range is fully within the selected filter bounds
+            if sel_start_day is not None and sel_end_day is not None:
+                if not (u_start_day >= sel_start_day and u_end_day <= sel_end_day):
+                    continue
                 
             data = u.get("data")
             if isinstance(data, list) and data:

@@ -125,7 +125,7 @@ export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", she
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf]), filename);
+  saveAs(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), filename);
 };
 
 export const exportUnifiedWithDropdown = async ({
@@ -139,6 +139,18 @@ export const exportUnifiedWithDropdown = async ({
   dropdownLabel = "Warehouse",
   filterColumnName = "Warehouse"
 }) => {
+  // Helper to convert 1-based column index to Excel column letter (e.g. 1 -> A, 27 -> AA)
+  const getColLetter = (c) => {
+    let temp = c;
+    let letter = "";
+    while (temp > 0) {
+      let modulo = (temp - 1) % 26;
+      letter = String.fromCharCode(65 + modulo) + letter;
+      temp = Math.floor((temp - modulo) / 26);
+    }
+    return letter;
+  };
+
   const workbook = new ExcelJS.Workbook();
   const reportSheet = workbook.addWorksheet(sheetName);
   const rawDataSheet = workbook.addWorksheet("RawData", { state: "hidden" });
@@ -150,10 +162,12 @@ export const exportUnifiedWithDropdown = async ({
   });
 
   const allWarehouses = ["All", ...warehouses];
+  const dropdownColIdx = columns.length + 5; // Put validation list 5 columns to the right of active columns
+  const dropdownColLetter = getColLetter(dropdownColIdx);
   allWarehouses.forEach((wh, index) => {
-    rawDataSheet.getCell(`Z${index + 1}`).value = wh;
+    rawDataSheet.getCell(index + 1, dropdownColIdx).value = wh;
   });
-  const warehousesRange = `RawData!$Z$1:$Z$${allWarehouses.length}`;
+  const warehousesRange = `RawData!$${dropdownColLetter}$1:$${dropdownColLetter}$${allWarehouses.length}`;
 
   // Report Title
   reportSheet.mergeCells("A1:F1");
@@ -212,17 +226,7 @@ export const exportUnifiedWithDropdown = async ({
     };
   });
 
-  // Helper to convert 1-based column index to Excel column letter (e.g. 1 -> A, 27 -> AA)
-  const getColLetter = (c) => {
-    let temp = c;
-    let letter = "";
-    while (temp > 0) {
-      let modulo = (temp - 1) % 26;
-      letter = String.fromCharCode(65 + modulo) + letter;
-      temp = Math.floor((temp - modulo) / 26);
-    }
-    return letter;
-  };
+  // getColLetter helper is defined at the top of function scope
 
   const lastColLetter = getColLetter(columns.length);
   const targetColLower = filterColumnName.toLowerCase();
@@ -266,7 +270,7 @@ export const exportUnifiedWithDropdown = async ({
   workbook.calcProperties.fullCalcOnLoad = true;
 
   const buffer = await workbook.xlsx.writeBuffer();
-  saveAs(new Blob([buffer]), filename);
+  saveAs(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), filename);
 };
 
 export const exportToPdf = ({
@@ -418,8 +422,8 @@ export const exportClusterPdf = async ({
   for (const [clusterName, whList] of entries) {
     // Filter data for warehouses belonging to this cluster
     const clusterData = data.filter(row => {
-      const whVal = String(row[groupByField] || "").trim().toUpperCase();
-      return whList.some(wh => wh.trim().toUpperCase() === whVal);
+      const whVal = String(row[groupByField] || "").trim().toUpperCase().replace(/^WH-/i, "");
+      return whList.some(wh => wh.trim().toUpperCase().replace(/^WH-/i, "") === whVal);
     });
 
     if (clusterData.length > 0) {
