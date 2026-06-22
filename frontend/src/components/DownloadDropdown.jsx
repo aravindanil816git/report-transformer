@@ -10,7 +10,7 @@ import { DownOutlined } from "@ant-design/icons";
  * @param {boolean} [props.loading] - Whether the button is in a loading/exporting state
  * @param {boolean} [props.disabled] - Whether the download buttons should be disabled
  */
-export default function DownloadDropdown({ onDownload, loading, disabled, showPdf = true }) {
+export default function DownloadDropdown({ onDownload, loading, disabled, showPdf = true, pdfOptions, clusterLabel = "Cluster" }) {
   const excelItems = [
     {
       key: "xlsx-current",
@@ -32,8 +32,8 @@ export default function DownloadDropdown({ onDownload, loading, disabled, showPd
     },
   ];
 
-  const pdfItems = [
-    {
+  const allPdfItems = {
+    current: {
       key: "pdf-current",
       label: (
         <div style={{ padding: "4px 8px" }}>
@@ -42,7 +42,7 @@ export default function DownloadDropdown({ onDownload, loading, disabled, showPd
         </div>
       ),
     },
-    {
+    unified: {
       key: "pdf-unified",
       label: (
         <div style={{ padding: "4px 8px" }}>
@@ -51,16 +51,20 @@ export default function DownloadDropdown({ onDownload, loading, disabled, showPd
         </div>
       ),
     },
-    {
+    cluster: {
       key: "pdf-cluster",
       label: (
         <div style={{ padding: "4px 8px" }}>
-          <div style={{ fontWeight: 600, fontSize: "14px", color: "#1f1f1f" }}>PDF by Cluster</div>
-          <div style={{ fontSize: "12px", color: "#8c8c8c", marginTop: "2px" }}>Downloads separate PDF files for each cluster</div>
+          <div style={{ fontWeight: 600, fontSize: "14px", color: "#1f1f1f" }}>PDF by {clusterLabel}</div>
+          <div style={{ fontSize: "12px", color: "#8c8c8c", marginTop: "2px" }}>Downloads separate PDF files for each {clusterLabel.toLowerCase()}</div>
         </div>
       ),
     },
-  ];
+  };
+
+  const pdfItems = pdfOptions
+    ? pdfOptions.map(opt => allPdfItems[opt]).filter(Boolean)
+    : [allPdfItems.current, allPdfItems.unified, allPdfItems.cluster];
 
   const handleExcelClick = ({ key }) => {
     if (key === "xlsx-current") {

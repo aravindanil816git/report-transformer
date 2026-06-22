@@ -2,10 +2,11 @@ import { useEffect, useState, useMemo } from "react";
 import { Table, Select, Segmented, Row, Col, Button, Checkbox, DatePicker, message } from "antd";
 import { useParams, useNavigate } from "react-router-dom";
 import { PlusSquareOutlined, MinusSquareOutlined } from "@ant-design/icons";
-import { getReport, getFilters } from "../../api";
-import { exportToExcel } from "../../utils/exportUtils";
+import { getReport, getFilters, getJson } from "../../api";
+import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportShopDrilldownPdfByBond } from "../../utils/exportUtils";
 import dayjs from "dayjs";
 import { disabledFutureMonthDates } from "../../utils/dateUtils";
+import DownloadDropdown from "../../components/DownloadDropdown";
 
 const { RangePicker } = DatePicker;
 
@@ -34,6 +35,17 @@ export default function CombinedShopwiseReport() {
   const [uploads, setUploads] = useState([]);
   const [config, setConfig] = useState({});
   const [dateRange, setDateRange] = useState([]);
+  const [shopcodeMapping, setShopcodeMapping] = useState({});
+
+  useEffect(() => {
+    getJson("shopcode_mapping")
+      .then((res) => {
+        setShopcodeMapping(res.data || {});
+      })
+      .catch((err) => {
+        console.error("Failed to load shopcode mapping:", err);
+      });
+  }, []);
 
   useEffect(() => {
     getFilters(id).then((res) => {
@@ -238,8 +250,8 @@ export default function CombinedShopwiseReport() {
 
     Object.entries(shopGrouped).forEach(([shopCode, brands]) => {
       const isCollapsed = collapsedShops[shopCode];
-      const shopInfo = allShops.find(s => s.value === shopCode);
-      const displayLabel = shopInfo?.shopName ? `${shopInfo.shopName} (${shopCode})` : shopCode;
+      const shopInfo = allShops.find(s => String(s.value) === String(shopCode));
+      const displayLabel = shopInfo?.shopName ? shopInfo.shopName : shopCode;
 
       let shopOpening = 0, shopInward = 0, shopOutward = 0, shopClosing = 0;
       Object.values(brands).flat().forEach(item => {
@@ -363,15 +375,15 @@ export default function CombinedShopwiseReport() {
     });
 
     Object.entries(shopGrouped).forEach(([shopCode, brands]) => {
-      const shopInfo = allShops.find(s => s.value === shopCode);
-      const displayLabel = shopInfo?.shopName ? `${shopInfo.shopName} (${shopCode})` : `Shop - ${shopCode}`;
+      const shopInfo = allShops.find(s => String(s.value) === String(shopCode));
+      const displayLabel = shopInfo?.shopName ? shopInfo.shopName : shopCode;
 
       let sOpening = 0, sIn = 0, sOut = 0, sClosing = 0;
       Object.values(brands).flat().forEach(item => {
-        sOpening += useWholeNumbers ? Math.round(item.opening) : item.opening;
-        sIn += useWholeNumbers ? Math.round(item.inward) : item.inward;
-        sOut += useWholeNumbers ? Math.round(item.outward) : item.outward;
-        sClosing += useWholeNumbers ? Math.round(item.closing) : item.closing;
+        sOpening += useWholeNumbers ? Math.round(item.opening || 0) : item.opening || 0;
+        sIn += useWholeNumbers ? Math.round(item.inward || 0) : item.inward || 0;
+        sOut += useWholeNumbers ? Math.round(item.outward || 0) : item.outward || 0;
+        sClosing += useWholeNumbers ? Math.round(item.closing || 0) : item.closing || 0;
       });
       exportData.push({
         "Row Labels": displayLabel,
@@ -384,10 +396,10 @@ export default function CombinedShopwiseReport() {
         exportData.push({ "Row Labels": brand });
         let bOpening = 0, bIn = 0, bOut = 0, bClosing = 0;
         items.forEach(item => {
-          const op = useWholeNumbers ? Math.round(item.opening) : item.opening;
-          const i = useWholeNumbers ? Math.round(item.inward) : item.inward;
-          const o = useWholeNumbers ? Math.round(item.outward) : item.outward;
-          const c = useWholeNumbers ? Math.round(item.closing) : item.closing;
+          const op = useWholeNumbers ? Math.round(item.opening || 0) : item.opening || 0;
+          const i = useWholeNumbers ? Math.round(item.inward || 0) : item.inward || 0;
+          const o = useWholeNumbers ? Math.round(item.outward || 0) : item.outward || 0;
+          const c = useWholeNumbers ? Math.round(item.closing || 0) : item.closing || 0;
           
           exportData.push({
             "Row Labels": "  " + item.pack,
@@ -418,6 +430,206 @@ export default function CombinedShopwiseReport() {
     });
 
     exportToExcel(exportData, { Period: periodLabel, Bond: bond, Warehouse: warehouse, Shop: shop, View: view, "Round off": useWholeNumbers ? "Yes" : "No" }, "combined_shopwise_report.xlsx", "Combined Shopwise");
+  };
+
+  const handleDownload = async (format, modeType) => {
+    const reportTitle = "Combined Shopwise Report";
+
+    if (format === "xlsx") {
+      if (modeType === "unified") {
+        setLoading(true);
+        try {
+          const sStr = dateRange[0]?.format("YYYY-MM-DD");
+          const eStr = dateRange[1]?.format("YYYY-MM-DD");
+          let startIdx = null;
+          let endIdx = null;
+
+          if (sStr && eStr) {
+            const allDates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
+            startIdx = allDates.findIndex(d => d >= sStr);
+            const endDates = allDates.filter(d => d <= eStr);
+            if (endDates.length > 0) {
+                endIdx = allDates.indexOf(endDates[endDates.length - 1]);
+            }
+          }
+
+          const params = { start_idx: startIdx, end_idx: endIdx };
+          if (sStr && eStr) {
+            params.start_date = sStr;
+            params.end_date = eStr;
+          }
+
+          // Fetch all data for all shops
+          const res = await getReport(id, null, view, params);
+          const fullData = res.data.data || [];
+
+          const exportData = fullData.map(d => {
+            const shopCodeStr = String(d.shop_code || "");
+            const shopInfo = allShops.find(s => String(s.value) === shopCodeStr);
+            const shopName = shopInfo?.shopName || d.shop_name || "";
+
+            // Find Bond
+            let resolvedBond = "";
+            for (const [bondName, bData] of Object.entries(bondMapping)) {
+              const list = Array.isArray(bData) ? bData : (bData?.shops || []);
+              const found = list.some(s => String(typeof s === 'object' ? s.shop_code : s) === shopCodeStr);
+              if (found) {
+                resolvedBond = bondName;
+                break;
+              }
+            }
+            if (!resolvedBond && shopcodeMapping) {
+              for (const [bondName, shopsList] of Object.entries(shopcodeMapping)) {
+                if (shopsList.some(s => String(s.shop_code) === shopCodeStr)) {
+                  resolvedBond = bondName;
+                  break;
+                }
+              }
+            }
+
+            // Find Warehouse
+            let resolvedWarehouse = "";
+            for (const [whName, shopCodes] of Object.entries(filterMapping)) {
+              if (shopCodes.includes(shopCodeStr)) {
+                resolvedWarehouse = whName;
+                break;
+              }
+            }
+
+            return {
+              Bond: resolvedBond,
+              Warehouse: resolvedWarehouse,
+              "Shop Code": shopCodeStr,
+              "Shop Name": shopName,
+              Brand: d.brand || "",
+              Pack: d.pack || "",
+              Opening: useWholeNumbers ? Math.round(d.opening || 0) : Number((d.opening || 0).toFixed(2)),
+              Receipt: useWholeNumbers ? Math.round(d.inward || 0) : Number((d.inward || 0).toFixed(2)),
+              Sales: useWholeNumbers ? Math.round(d.outward || 0) : Number((d.outward || 0).toFixed(2)),
+              Closing: useWholeNumbers ? Math.round(d.closing || 0) : Number((d.closing || 0).toFixed(2))
+            };
+          });
+
+          const uniqueList = Array.from(new Set(
+            exportData.map(d => filterMode === "bond" ? d.Bond : d.Warehouse).filter(Boolean)
+          )).sort();
+
+          const period = dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All";
+
+          exportUnifiedWithDropdown({
+            data: exportData,
+            warehouses: uniqueList,
+            reportTitle: `${reportTitle} (Unified - Shop Drilldown)`,
+            periodLabel: period,
+            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${filterMode}_unified.xlsx`,
+            sheetName: "Shop Drilldown",
+            sumCols: ["Opening", "Receipt", "Sales", "Closing"],
+            dropdownLabel: filterMode === "bond" ? "Bond" : "Warehouse",
+            filterColumnName: filterMode === "bond" ? "Bond" : "Warehouse"
+          });
+        } catch (e) {
+          console.error("Error exporting unified excel:", e);
+          message.error("Failed to export unified report");
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        // current view excel
+        downloadExcel();
+      }
+    } else if (format === "pdf") {
+      if (modeType === "current") {
+        const period = dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All";
+        const pdfCols = ["Row Labels", `Opening ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Receipt ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Sales ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Closing ${view === 'bottle' ? 'Bottles' : 'Cases'}`];
+        
+        const pdfData = tableData.map(row => {
+          if (row.isSpacer) {
+            return {
+              "Row Labels": "",
+              [`Opening ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: "",
+              [`Receipt ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: "",
+              [`Sales ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: "",
+              [`Closing ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: ""
+            };
+          }
+          return {
+            "Row Labels": row.label,
+            [`Opening ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: row.isBrandHeader ? "" : formatVal(row.opening),
+            [`Receipt ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: row.isBrandHeader ? "" : formatVal(row.inward),
+            [`Sales ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: row.isBrandHeader ? "" : formatVal(row.outward),
+            [`Closing ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: row.isBrandHeader ? "" : formatVal(row.closing)
+          };
+        });
+
+        exportToPdf({
+          title: `${reportTitle} (Current View)`,
+          periodLabel: period,
+          columns: pdfCols,
+          data: pdfData,
+          filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_current.pdf`
+        });
+      } else {
+        // Download by bonds
+        setLoading(true);
+        try {
+          const period = dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All";
+          
+          const sStr = dateRange[0]?.format("YYYY-MM-DD");
+          const eStr = dateRange[1]?.format("YYYY-MM-DD");
+          let startIdx = null;
+          let endIdx = null;
+
+          if (sStr && eStr) {
+            const allDates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
+            startIdx = allDates.findIndex(d => d >= sStr);
+            const endDates = allDates.filter(d => d <= eStr);
+            if (endDates.length > 0) {
+                endIdx = allDates.indexOf(endDates[endDates.length - 1]);
+            }
+          }
+
+          const params = { start_idx: startIdx, end_idx: endIdx };
+          if (sStr && eStr) {
+            params.start_date = sStr;
+            params.end_date = eStr;
+          }
+
+          // Fetch all data for all shops
+          const res = await getReport(id, null, view, params);
+          const fullData = res.data.data || [];
+
+          const activeBonds = bond ? [bond] : Object.keys(shopcodeMapping);
+          for (const bondName of activeBonds) {
+            const bondShops = shopcodeMapping[bondName] || [];
+            
+            // Check if there is any data for shops in this bond
+            const bondShopCodes = bondShops.map(s => String(s.shop_code));
+            const bondHasData = fullData.some(d => bondShopCodes.includes(String(d.shop_code)));
+            
+            if (bondHasData) {
+              await exportShopDrilldownPdfByBond({
+                title: reportTitle,
+                periodLabel: period,
+                data: fullData,
+                bondName: bondName,
+                bondShops: bondShops,
+                allShops: allShops,
+                useWholeNumbers: useWholeNumbers,
+                view: view,
+                filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_bond_${bondName.toLowerCase().replace(/\s+/g, '_')}.pdf`
+              });
+              await new Promise(resolve => setTimeout(resolve, 300));
+            }
+          }
+          message.success("Bonds PDF export completed!");
+        } catch (e) {
+          console.error("Error exporting bonds PDF:", e);
+          message.error("Failed to export PDF by bonds");
+        } finally {
+          setLoading(false);
+        }
+      }
+    }
   };
 
   return (
@@ -516,7 +728,14 @@ export default function CombinedShopwiseReport() {
         {/* Download Button Row */}
         <Row gutter={[16, 16]}>
           <Col>
-            <Button onClick={downloadExcel}>Download</Button>
+            <DownloadDropdown 
+              onDownload={handleDownload} 
+              loading={loading} 
+              disabled={tableData.length === 0} 
+              showPdf={true} 
+              pdfOptions={["current", "cluster"]}
+              clusterLabel="Bond"
+            />
           </Col>
         </Row>
       </div>

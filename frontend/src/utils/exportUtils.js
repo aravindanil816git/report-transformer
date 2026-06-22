@@ -290,28 +290,53 @@ export const exportToPdf = ({
   });
 
   const drawHeader = (doc, currentTitle, currentPeriod, subHeader = null) => {
-    // Report Title
-    doc.setFontSize(14);
+    // Header must be a navy blue background, with title in orange font
+    doc.setFillColor(27, 54, 93); // Navy blue
+    doc.rect(15, 12, 180, 10, "F");
+    doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(208, 0, 0); // Red Accent
-    doc.text(currentTitle, 105, 15, { align: "center" });
+    doc.setTextColor(255, 189, 49); // Orange font (#ffbd31)
+    doc.text(currentTitle, 20, 18.5, { align: "left" });
 
-    // Period / Subtext
+    // Second row must be orange background, with navy blue text Period: {As_on_date}
+    doc.setFillColor(255, 189, 49); // Orange background (#ffbd31)
+    doc.rect(15, 22, 180, 8, "F");
     doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(80, 80, 80);
-    doc.text(currentPeriod, 15, 22);
-
-    if (subHeader) {
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(43, 87, 154); // Blue Accent for warehouse name
-      doc.text(subHeader, 15, 27);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(27, 54, 93); // Navy blue text
+    const cleanPeriod = (currentPeriod || "").replace(/^Report Period:\s*/i, "").replace(/^As\s+on\s*:\s*/i, "").replace(/^As\s+On\s*:\s*/i, "").trim();
+    
+    let formattedDate = cleanPeriod;
+    if (cleanPeriod) {
+      const parts = cleanPeriod.split("-");
+      if (parts.length === 3) {
+        let day, month, year;
+        if (parts[0].length === 4) {
+          year = parseInt(parts[0], 10);
+          month = parseInt(parts[1], 10) - 1;
+          day = parseInt(parts[2], 10);
+        } else {
+          day = parseInt(parts[0], 10);
+          month = parseInt(parts[1], 10) - 1;
+          year = parseInt(parts[2], 10);
+        }
+        const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        if (!isNaN(day) && !isNaN(month) && !isNaN(year) && month >= 0 && month < 12) {
+          formattedDate = `${day} ${months[month]} ${year}`;
+        }
+      }
     }
     
-    // Thin divider line
-    doc.setDrawColor(220, 220, 220);
-    doc.setLineWidth(0.3);
-    doc.line(15, 30, 195, 30);
+    doc.text(`Period: ${formattedDate}`, 20, 27.5, { align: "left" });
+
+    // After one row (leaving an empty row space of ~8mm, so start at 38), navy blue background row with black text {Warehouse Name}
+    const whName = subHeader ? subHeader.replace(/^Warehouse:\s*/i, "") : (metadataWarehouse || "All");
+    doc.setFillColor(27, 54, 93); // Navy blue
+    doc.rect(15, 38, 180, 8, "F");
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0); // Black text
+    doc.text(whName, 20, 43, { align: "left" });
   };
 
   if (groupByField) {
@@ -346,16 +371,18 @@ export const exportToPdf = ({
         tableRows.push(totalsRow);
       }
 
-      drawHeader(doc, title, periodLabel, `Warehouse: ${groupName}`);
-
       autoTable(doc, {
         head: [columns],
         body: tableRows,
-        startY: 34,
-        margin: { top: 35, bottom: 20, left: 15, right: 15 },
-        styles: { fontSize: 8, cellPadding: 2, font: "helvetica" },
-        headStyles: { fillColor: [43, 87, 154], textColor: 255, fontStyle: "bold" },
+        startY: 50,
+        margin: { top: 50, bottom: 20, left: 15, right: 15 },
+        theme: "grid",
+        styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
+        headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
         alternateRowStyles: { fillColor: [248, 250, 252] },
+        didDrawPage: (cellData) => {
+          drawHeader(doc, title, periodLabel, `Warehouse: ${groupName}`);
+        },
         didParseCell: (cellData) => {
           const isTotalRow = cellData.row.index === tableRows.length - 1;
           if (isTotalRow && sumCols.length > 0) {
@@ -376,16 +403,18 @@ export const exportToPdf = ({
     const firstCellVal = lastRow ? String(Object.values(lastRow)[0] || "").trim().toLowerCase() : "";
     const hasTotalRow = firstCellVal === "total";
 
-    drawHeader(doc, title, periodLabel, metadataWarehouse ? `Warehouse: ${metadataWarehouse}` : null);
-
     autoTable(doc, {
       head: [columns],
       body: tableRows,
-      startY: 34,
-      margin: { top: 35, bottom: 20, left: 15, right: 15 },
-      styles: { fontSize: 8, cellPadding: 2, font: "helvetica" },
-      headStyles: { fillColor: [43, 87, 154], textColor: 255, fontStyle: "bold" },
+      startY: 50,
+      margin: { top: 50, bottom: 20, left: 15, right: 15 },
+      theme: "grid",
+      styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
+      headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
       alternateRowStyles: { fillColor: [248, 250, 252] },
+      didDrawPage: (cellData) => {
+        drawHeader(doc, title, periodLabel, metadataWarehouse ? `Warehouse: ${metadataWarehouse}` : null);
+      },
       didParseCell: (cellData) => {
         const isTotalRow = hasTotalRow && (cellData.row.index === tableRows.length - 1);
         if (isTotalRow) {
@@ -440,5 +469,199 @@ export const exportClusterPdf = async ({
       // Introduce a 300ms delay to prevent browser from blocking subsequent downloads
       await new Promise(resolve => setTimeout(resolve, 300));
     }
+  }
+};
+
+export const exportShopDrilldownPdfByBond = async ({
+  title,
+  periodLabel,
+  data,
+  bondName,
+  bondShops,
+  allShops,
+  useWholeNumbers,
+  view,
+  filename
+}) => {
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4"
+  });
+
+  const formatVal = (val) => {
+    if (val === undefined || val === null) return "";
+    const num = Number(val);
+    if (useWholeNumbers) {
+      return Math.round(num);
+    }
+    return num.toFixed(2);
+  };
+
+  const getShopTableRows = (shopCode, shopData) => {
+    const rows = [];
+    const brands = {};
+    shopData.forEach(row => {
+      const brand = row.brand;
+      if (!brands[brand]) brands[brand] = [];
+      brands[brand].push(row);
+    });
+
+    const shopInfo = allShops.find(s => String(s.value) === String(shopCode));
+    const displayLabel = shopInfo?.shopName ? shopInfo.shopName : shopCode;
+
+    let shopOpening = 0, shopInward = 0, shopOutward = 0, shopClosing = 0;
+    Object.values(brands).flat().forEach(item => {
+      shopOpening += item.opening || 0;
+      shopInward += item.inward || 0;
+      shopOutward += item.outward || 0;
+      shopClosing += item.closing || 0;
+    });
+
+    Object.entries(brands).forEach(([brand, items]) => {
+      rows.push({
+        label: brand,
+        isBrandHeader: true
+      });
+
+      const brandTotal = {
+        label: `${brand} Total`,
+        opening: 0,
+        inward: 0,
+        outward: 0,
+        closing: 0,
+        isBrandTotal: true
+      };
+
+      items.forEach(item => {
+        const op = useWholeNumbers ? Math.round(item.opening || 0) : item.opening || 0;
+        const inward = useWholeNumbers ? Math.round(item.inward || 0) : item.inward || 0;
+        const outward = useWholeNumbers ? Math.round(item.outward || 0) : item.outward || 0;
+        const closing = useWholeNumbers ? Math.round(item.closing || 0) : item.closing || 0;
+        rows.push({
+          label: `  ${item.pack}`,
+          opening: op,
+          inward: inward,
+          outward: outward,
+          closing: closing
+        });
+        brandTotal.opening += op;
+        brandTotal.inward += inward;
+        brandTotal.outward += outward;
+        brandTotal.closing += closing;
+      });
+
+      rows.push(brandTotal);
+      rows.push({ isSpacer: true });
+    });
+
+    rows.push({
+      label: `${displayLabel} Total`,
+      opening: shopOpening,
+      inward: shopInward,
+      outward: shopOutward,
+      closing: shopClosing,
+      isShopTotal: true
+    });
+
+    return rows;
+  };
+
+  const drawHeader = (doc, currentTitle, currentPeriod, shopName) => {
+    doc.setFillColor(27, 54, 93); // Navy blue
+    doc.rect(15, 12, 180, 10, "F");
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 189, 49); // Orange font
+    doc.text(currentTitle, 20, 18.5, { align: "left" });
+
+    doc.setFillColor(255, 189, 49); // Orange background
+    doc.rect(15, 22, 180, 8, "F");
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(27, 54, 93); // Navy blue text
+    const cleanPeriod = (currentPeriod || "").replace(/^COMBINED PERIOD\s*:\s*/i, "").trim();
+    doc.text(`Period: ${cleanPeriod}`, 20, 27.5, { align: "left" });
+
+    doc.setFillColor(27, 54, 93); // Navy blue
+    doc.rect(15, 38, 180, 8, "F");
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0); // Black text
+    doc.text(shopName, 20, 43, { align: "left" });
+  };
+
+  let pageAdded = false;
+
+  for (const shop of bondShops) {
+    const shopCode = shop.shop_code;
+    const shopData = data.filter(d => String(d.shop_code) === String(shopCode));
+    if (shopData.length === 0) continue;
+
+    if (pageAdded) {
+      doc.addPage();
+    } else {
+      pageAdded = true;
+    }
+
+    const shopRows = getShopTableRows(shopCode, shopData);
+
+    const pdfCols = ["Row Labels", `Opening ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Receipt ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Sales ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Closing ${view === 'bottle' ? 'Bottles' : 'Cases'}`];
+
+    const tableRows = shopRows.map(row => {
+      if (row.isSpacer) {
+        return ["", "", "", "", ""];
+      }
+      return [
+        row.label,
+        row.isBrandHeader ? "" : formatVal(row.opening),
+        row.isBrandHeader ? "" : formatVal(row.inward),
+        row.isBrandHeader ? "" : formatVal(row.outward),
+        row.isBrandHeader ? "" : formatVal(row.closing)
+      ];
+    });
+
+    const displayShopName = shop.shop_name ? shop.shop_name : shop.shop_code;
+
+    autoTable(doc, {
+      head: [pdfCols],
+      body: tableRows,
+      startY: 50,
+      margin: { top: 50, bottom: 20, left: 15, right: 15 },
+      theme: "grid",
+      styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
+      headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      didDrawPage: () => {
+        drawHeader(doc, `${title} - ${bondName} Bond`, periodLabel, displayShopName);
+      },
+      didParseCell: (cellData) => {
+        const rowIndex = cellData.row.index;
+        const rowObj = shopRows[rowIndex];
+        if (rowObj) {
+          if (rowObj.isBrandHeader) {
+            cellData.cell.styles.fontStyle = "bold";
+            cellData.cell.styles.fillColor = [240, 240, 240];
+          } else if (rowObj.isBrandTotal) {
+            cellData.cell.styles.fontStyle = "bold";
+            cellData.cell.styles.fillColor = [214, 233, 198];
+          } else if (rowObj.isShopTotal) {
+            cellData.cell.styles.fontStyle = "bold";
+            cellData.cell.styles.fillColor = [173, 201, 230];
+          }
+        }
+      }
+    });
+  }
+
+  if (pageAdded) {
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(140, 140, 140);
+      doc.text(`Page ${i} of ${pageCount}`, 105, 287, { align: "center" });
+    }
+    doc.save(filename);
   }
 };

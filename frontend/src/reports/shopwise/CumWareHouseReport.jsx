@@ -386,14 +386,14 @@ export default function CumulativeWarehouseReport() {
     if (record.isClusterTotal) {
       return <strong>{record.warehouse}</strong>;
     }
-    const displayText = formatName(text);
+    const displayText = formatName(text) || record.shop_code || "";
     if (mode === "warehouse" && !drilledWarehouse) {
       return <a onClick={() => setDrilledWarehouse(record.warehouse)}>{displayText}</a>;
     }
     if (mode === "bond" && !drilledBond) {
       return <a onClick={() => setDrilledBond(record.warehouse)}>{displayText}</a>;
     }
-    return <span>{record.shop_code ? `${displayText} (${record.shop_code})` : displayText}</span>;
+    return <span>{displayText}</span>;
   };
 
   // 🔹 columns
@@ -725,7 +725,7 @@ export default function CumulativeWarehouseReport() {
             const rowItem = {
               Bond: resolvedBond,
               Warehouse: resolvedWarehouse,
-              "Shop Name": d.shop_name ? `${formatName(d.shop_name)} (${d.shop_code})` : d.shop_code
+              "Shop Name": d.shop_name ? formatName(d.shop_name) : d.shop_code
             };
 
             if (view === "daywise") {

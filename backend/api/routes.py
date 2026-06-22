@@ -482,6 +482,7 @@ ALLOWED_JSON_FILES = {
     "clusters": os.path.join(BASE_DIR, "backend", "clusters.json"),
     "warehouse_clusters": os.path.join(BASE_DIR, "backend", "warehouse_clusters.json"),
     "leaves": os.path.join(BASE_DIR, "backend", "leaves.json"),
+    "shopcode_mapping": os.path.join(BASE_DIR, "backend", "shopcode_mapping.json"),
 }
 
 def _load_json(name: str):
