@@ -1,4 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Path, Body, Query
+from typing import Any
 from fastapi.responses import FileResponse
 import shutil
 import uuid
@@ -479,6 +480,7 @@ ALLOWED_JSON_FILES = {
     "shops": os.path.join(BASE_DIR, "backend", "shops.json"),
     "warehouses": os.path.join(BASE_DIR, "backend", "warehouses.json"),
     "clusters": os.path.join(BASE_DIR, "backend", "clusters.json"),
+    "warehouse_clusters": os.path.join(BASE_DIR, "backend", "warehouse_clusters.json"),
     "leaves": os.path.join(BASE_DIR, "backend", "leaves.json"),
 }
 
@@ -507,14 +509,14 @@ def get_json(name: str = Path(..., description="One of the allowed JSON identifi
 
 @router.post("/json/{name}")
 @router.put("/json/{name}")
-def replace_json(name: str, payload: dict = Body(...)):
+def replace_json(name: str, payload: Any = Body(...)):
     """Replace the entire JSON file with the provided payload."""
     _save_json(name, payload)
     clear_mapping_caches()
     return {"status": "replaced"}
 
 @router.put("/json/{name}/{key}")
-def update_json_key(name: str, key: str, payload: dict = Body(...)):
+def update_json_key(name: str, key: str, payload: Any = Body(...)):
     """Update or add a top‑level key in the JSON file."""
     data = _load_json(name)
     

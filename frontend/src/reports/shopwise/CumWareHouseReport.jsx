@@ -1,9 +1,10 @@
 import { useEffect, useState, useMemo } from "react";
 import { Table, Button, Select, DatePicker, Space, message } from "antd";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { getReport, processReport } from "../../api";
+import { getReport, processReport, getJson } from "../../api";
 import dayjs from "dayjs";
-import { exportToExcel } from "../../utils/exportUtils";
+import { exportToExcel, exportUnifiedWithDropdown } from "../../utils/exportUtils";
+import DownloadDropdown from "../../components/DownloadDropdown";
 
 const { RangePicker } = DatePicker;
 
@@ -302,30 +303,130 @@ export default function CumulativeWarehouseReport() {
   ];
 
   // 🔥 DOWNLOAD
-  const downloadExcel = () => {
+  const handleDownload = async (format, modeType) => {
     const reportTitle = isDailyWiseType 
       ? "DailyWise Secondary Sales" 
       : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "");
 
-    const exportData = processedData.map(d => ({
-      ...d,
-      warehouse: formatName(d.warehouse)
-    }));
+    if (format === "xlsx") {
+      if (modeType === "unified") {
+        setLoading(true);
+        try {
+          const d1 = dateRange[0]?.format("YYYY-MM-DD");
+          const d2 = dateRange[1]?.format("YYYY-MM-DD");
+          
+          const isBondMode = mode === "bond";
+          const filterField = isBondMode ? "Bond" : "Warehouse";
+          
+          const params = {
+            mode: "shop" // Always query at shop level for detailed drilldown
+          };
+          if (d1 && d2) {
+            params.start_date = d1;
+            params.end_date = d2;
+          }
+          
+          // Fetch backend report data and load bond mapping content simultaneously
+          const [res, bondMappingRes] = await Promise.all([
+            getReport(id, null, view, params),
+            getJson("bond_mapping")
+          ]);
+          
+          const fullData = (res.data.data || []).filter(d => d.warehouse || d.shop_code || d.bond);
+          const bondMapping = bondMappingRes.data || {};
+          
+          // Build a lookup map of shop_code -> bond name
+          const shopToBondMap = {};
+          Object.entries(bondMapping).forEach(([bondName, bondData]) => {
+            const shops = bondData?.shops || [];
+            shops.forEach(s => {
+              const shopCode = typeof s === "object" ? s?.shop_code : s;
+              if (shopCode) {
+                shopToBondMap[String(shopCode)] = bondName;
+              }
+            });
+          });
 
-    exportToExcel(
-      exportData,
-      {
-        Mode: mode,
-        View: view,
-        Bond: bondFilter,
-        Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
-        "Date Range": dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
-        "Start Date": config.start_date ? dayjs(config.start_date).format("DD-MM-YYYY") : null,
-        "Total Days": config.num_days
-      },
-      `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}.xlsx`,
-      reportTitle
-    );
+          // Map rows to include readable fields and date/brand values
+          const exportData = fullData.map(d => {
+            const shopCodeStr = String(d.shop_code || "");
+            
+            // Core mapping resolution
+            const resolvedBond = shopToBondMap[shopCodeStr] || formatName(d.bond) || "UNKNOWN";
+
+            const rowItem = {
+              Bond: resolvedBond,
+              Warehouse: formatName(d.warehouse) || "",
+              "Shop Code": d.shop_code || "",
+              "Shop Name": formatName(d.shop_name) || ""
+            };
+
+            if (view === "daywise") {
+              labels.forEach(l => {
+                rowItem[l] = d[l] || 0;
+              });
+            } else {
+              brandColumns.forEach(bc => {
+                rowItem[bc.title] = d[bc.dataIndex] || 0;
+              });
+            }
+            rowItem["Total"] = d.total || 0;
+            return rowItem;
+          });
+
+          // Pull unique validation options list based on selected mode
+          const uniqueList = Array.from(new Set(
+            exportData.map(d => isBondMode ? d.Bond : d.Warehouse).filter(Boolean)
+          )).sort();
+
+          // Define summation keys matching the mapped columns
+          const sumKeys = ["Total"];
+          if (view === "daywise") {
+            sumKeys.push(...labels);
+          } else {
+            sumKeys.push(...brandColumns.map(bc => bc.title));
+          }
+
+          exportUnifiedWithDropdown({
+            data: exportData,
+            warehouses: uniqueList,
+            reportTitle: `${reportTitle} (Unified - Shop Drilldown)`,
+            periodLabel: dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
+            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_unified.xlsx`,
+            sheetName: "Shop Drilldown",
+            sumCols: sumKeys,
+            dropdownLabel: filterField,
+            filterColumnName: filterField // This matches the key in exportData ("Bond" or "Warehouse")
+          });
+        } catch (e) {
+          console.error("Error exporting unified excel:", e);
+          message.error("Failed to export unified report");
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        const exportData = processedData.map(d => ({
+          ...d,
+          warehouse: formatName(d.warehouse),
+          bond: formatName(d.bond)
+        }));
+
+        exportToExcel(
+          exportData,
+          {
+            Mode: mode,
+            View: view,
+            Bond: bondFilter,
+            Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
+            "Date Range": dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
+            "Start Date": config.start_date ? dayjs(config.start_date).format("DD-MM-YYYY") : null,
+            "Total Days": config.num_days
+          },
+          `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.xlsx`,
+          reportTitle
+        );
+      }
+    }
   };
 
   return (
@@ -339,7 +440,12 @@ export default function CumulativeWarehouseReport() {
         <h2>{isDailyWiseType ? "Daily Secondary Sales" : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "")}</h2>
         <Space>
           <Button onClick={handleRefresh}>Refresh Data</Button>
-          <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
+          <DownloadDropdown 
+            onDownload={handleDownload} 
+            loading={loading} 
+            disabled={processedData.length === 0} 
+            showPdf={false} 
+          />
         </Space>
       </div>
 
