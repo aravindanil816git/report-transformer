@@ -18,6 +18,7 @@ export default function ItemIssueConsolidation() {
   const [lastMonthLabel, setLastMonthLabel] = useState("");
   const [daySales1, setDaySales1] = useState("-");
   const [daySales2, setDaySales2] = useState("-");
+  const [hasSetDefaults, setHasSetDefaults] = useState(false);
 
   useEffect(() => {
     listReports().then((res) => {
@@ -36,11 +37,45 @@ export default function ItemIssueConsolidation() {
       .filter(Boolean);
   }, [reports]);
 
+  // Set smart default dates once the available dates are loaded
+  useEffect(() => {
+    if (availableDates.length > 0 && !hasSetDefaults) {
+      const sortedDates = [...availableDates].sort();
+      const latestDateStr = sortedDates[sortedDates.length - 1];
+      const initialDate1 = dayjs(latestDateStr);
+      setDate1(initialDate1);
+
+      const lastMonthStr = initialDate1.subtract(1, "month").format("YYYY-MM");
+      const lastMonthDates = sortedDates.filter(d => d.startsWith(lastMonthStr));
+
+      if (lastMonthDates.length > 0) {
+        setDate2(dayjs(lastMonthDates[lastMonthDates.length - 1]));
+      }
+      
+      setHasSetDefaults(true);
+    }
+  }, [availableDates, hasSetDefaults]);
+
   const disabledDate = (current) => {
     if (!current) return false;
     if (disabledFutureMonthDates(current)) return true;
     const s = current.format("YYYY-MM-DD");
     return !availableDates.includes(s);
+  };
+
+  const handleDate1Change = (val) => {
+    setDate1(val);
+    if (val) {
+      const lastMonthStr = val.subtract(1, "month").format("YYYY-MM");
+      const lastMonthDates = availableDates.filter(d => d.startsWith(lastMonthStr)).sort();
+      if (lastMonthDates.length > 0) {
+        setDate2(dayjs(lastMonthDates[lastMonthDates.length - 1]));
+      } else {
+        setDate2(null);
+      }
+    } else {
+      setDate2(null);
+    }
   };
 
   const handleFetch = async () => {
@@ -227,7 +262,7 @@ export default function ItemIssueConsolidation() {
             <div style={{ marginBottom: 8, fontWeight: 500 }}>First Date</div>
             <DatePicker 
               value={date1} 
-              onChange={setDate1} 
+              onChange={handleDate1Change} 
               disabledDate={disabledDate}
               format="DD MMM YYYY"
             />

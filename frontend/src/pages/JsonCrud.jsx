@@ -10,6 +10,8 @@ const JSON_OPTIONS = [
   { label: "Shops", value: "shops" },
   { label: "Warehouses", value: "warehouses" },
   { label: "Bond Mapping", value: "bond_mapping" },
+  { label: "Bond Clusters", value: "clusters" },
+  { label: "Warehouse Clusters", value: "warehouse_clusters" },
 ];
 
 // Configuration for each entity – defines the fields shown in the table and the form
@@ -46,6 +48,20 @@ const ENTITY_CONFIG = {
       { name: "shops", label: "Shops", component: Input },
     ],
   },
+  clusters: {
+    label: "Bond Clusters",
+    fields: [
+      { name: "cluster", label: "Cluster Name", component: Input, required: true },
+      { name: "bonds", label: "Bonds", component: Input },
+    ],
+  },
+  warehouse_clusters: {
+    label: "Warehouse Clusters",
+    fields: [
+      { name: "cluster", label: "Cluster Name", component: Input, required: true },
+      { name: "warehouses", label: "Warehouses", component: Input },
+    ],
+  },
 };
 
 export default function JsonCrud() {
@@ -75,7 +91,7 @@ export default function JsonCrud() {
         Object.entries(raw).forEach(([k, v]) => {
           const record = {};
           config.fields.forEach(f => {
-            if (f.name === "code" || f.name === "bond_id" || f.name === "warehouse_code" || f.name === "bond") {
+            if (f.name === "code" || f.name === "bond_id" || f.name === "warehouse_code" || f.name === "bond" || f.name === "cluster") {
               // identifier fields use the key (including bond name for bond_mapping)
               record[f.name] = k;
             } else if (f.name === "name") {
@@ -95,6 +111,14 @@ export default function JsonCrud() {
                 record[f.name] = v.shops.map(id => shopLookup[id] || id);
               } else {
                 record["_shopsIds"] = [];
+                record[f.name] = [];
+              }
+            } else if (f.name === "bonds" || f.name === "warehouses") {
+              if (Array.isArray(v)) {
+                record["_" + f.name + "Ids"] = v;
+                record[f.name] = v;
+              } else {
+                record["_" + f.name + "Ids"] = [];
                 record[f.name] = [];
               }
             } else if (f.name === "staffs") {
@@ -117,10 +141,10 @@ export default function JsonCrud() {
     if (selected) loadData(selected);
   }, [selected]);
 
-  // Load auxiliary data (bonds and shops) for dropdowns when needed
+  // Load auxiliary data (bonds, shops, warehouses) for dropdowns when needed
   useEffect(() => {
     const fetchAux = async () => {
-      if (selected === "bond_mapping" || selected === "shops") {
+      if (selected === "bond_mapping" || selected === "shops" || selected === "clusters" || selected === "warehouse_clusters") {
         const [bondsResp, shopsResp, warehousesResp] = await Promise.all([
           getJson("bonds"),
           getJson("shops"),
@@ -154,6 +178,10 @@ export default function JsonCrud() {
         if (selected === "bond_mapping" && f.name === "shops") {
           // use stored raw IDs for checkbox group
           values[f.name] = record["_shopsIds"] || [];
+        } else if (selected === "clusters" && f.name === "bonds") {
+          values[f.name] = record["_bondsIds"] || [];
+        } else if (selected === "warehouse_clusters" && f.name === "warehouses") {
+          values[f.name] = record["_warehousesIds"] || [];
         } else {
           const val = record[f.name];
           values[f.name] = Array.isArray(val) ? JSON.stringify(val, null, 2) : val;
@@ -176,7 +204,7 @@ export default function JsonCrud() {
 
   const onFinish = async (values) => {
     // Build the payload object from the form values
-    const payload = { ...values };
+    let payload = { ...values };
 
     // Intercept saves to keep shops.json strictly formatted
     if (selected === "shops") {
@@ -184,6 +212,12 @@ export default function JsonCrud() {
       payload.shop_name = payload.name;
       delete payload.code;
       delete payload.name;
+    }
+
+    if (selected === "clusters") {
+      payload = values.bonds || [];
+    } else if (selected === "warehouse_clusters") {
+      payload = values.warehouses || [];
     }
 
     // Determine the key for the entry – use the first required field as identifier
@@ -215,7 +249,11 @@ export default function JsonCrud() {
           // Render handles both flat and nested value structures
           render: (_, record) => {
             // Direct field on record (for add/edit) or nested under record.value
-            return record[f.name] ?? (record.value && record.value[f.name]) ?? (record.value && record.value.shop_name && f.name === 'name' ? record.value.shop_name : null);
+            const val = record[f.name] ?? (record.value && record.value[f.name]) ?? (record.value && record.value.shop_name && f.name === 'name' ? record.value.shop_name : null);
+            if (Array.isArray(val)) {
+              return val.join(", ");
+            }
+            return val;
           },
         })),
         {
@@ -289,6 +327,18 @@ export default function JsonCrud() {
                   const options = auxData.shops.map(s => ({ label: s.label, value: s.key }));
                   return (
                     <Checkbox.Group options={options} />
+                  );
+                }
+                if (selected === "clusters" && f.name === "bonds") {
+                  const options = auxData.bonds.map(b => ({ label: b, value: b }));
+                  return (
+                    <Checkbox.Group options={options} style={{ display: "flex", flexDirection: "column" }} />
+                  );
+                }
+                if (selected === "warehouse_clusters" && f.name === "warehouses") {
+                  const options = auxData.warehouses.map(w => ({ label: w, value: w }));
+                  return (
+                    <Checkbox.Group options={options} style={{ display: "flex", flexDirection: "column", maxHeight: "250px", overflowY: "auto" }} />
                   );
                 }
                 return <f.component />;

@@ -190,7 +190,26 @@ class AchievedTargetReportService(BaseReportService):
             import pandas as pd
             from core.utils import find_column, normalize
             
-            for r in valid_reports:
+            # If no brands found from current month data or saved targets, scan all historical data
+            # to ensure the user can set targets for any brand at the start of a month.
+            reports_for_brand_discovery = valid_reports
+            if not reports_for_brand_discovery:
+                # If no reports for the current month, scan all historical reports.
+                # This is a heavier operation but ensures brands are available for target setting.
+                all_historical_reports = []
+                if all_reports_store:
+                    for r in all_reports_store.values():
+                        if r.get("type") in ["daily_warehouse_offtake", "shop_sales_cumulative"]:
+                            all_historical_reports.append(r)
+                
+                if not all_historical_reports: # Fallback to DB if store is empty
+                    from services.db import supabase
+                    res = supabase.table("reports").select("id, type, config, processed, uploads").in_("type", ["daily_warehouse_offtake", "shop_sales_cumulative"]).execute()
+                    if res.data:
+                        all_historical_reports.extend(res.data)
+                reports_for_brand_discovery = all_historical_reports
+
+            for r in reports_for_brand_discovery:
                 if r.get("type") == "shop_sales_cumulative":
                     for u in (r.get("uploads") or []):
                         if u.get("data"):
@@ -198,7 +217,7 @@ class AchievedTargetReportService(BaseReportService):
                                 df = pd.DataFrame(u["data"])
                                 df = normalize(df)
                                 b_col = find_column(df, ["brand"]) or find_column(df, ["item"])
-                                if b_col:
+                                if b_col and b_col in df.columns:
                                     for b in df[b_col].dropna().unique():
                                         b_str = self._clean_brand(b)
                                         if b_str != "UNKNOWN": all_brands.add(b_str)
@@ -212,6 +231,19 @@ class AchievedTargetReportService(BaseReportService):
 
         all_brands = {b for b in all_brands if b and b != "UNKNOWN"}
         
+        # Always include the core default brands so they are available for target entry
+        default_core_brands = [
+            "BCB NO.1 CLASSIC BRANDY",
+            "BLENDERS CHOICE NO.1 BRANDY",
+            "CHAIRMANS CHOICE XO BRANDY",
+            "K.S 99 LIFE TIME MATURED XXX RUM",
+            "MAGIC BLEND RESERVED XXX RUM",
+            "MORNING WALKERS XO BRANDY",
+            "OLD PEARL NO.1 MATURED XXX RUM"
+        ]
+        for b in default_core_brands:
+            all_brands.add(self._clean_brand(b))
+
         # Safely align saved target brands
         clean_targets_map = {}
         for bnd, bnd_data in targets_map.items():

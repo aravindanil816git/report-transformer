@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo } from "react";
-import { Table, Select, Button, Space, Row, Col } from "antd";
+import { Table, Select, Button, Space, Row, Col, message } from "antd";
 import { useParams } from "react-router-dom";
-import { getReport } from "../../api";
-import { exportToExcel } from "../../utils/exportUtils";
+import { getReport, getJson } from "../../api";
+import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf } from "../../utils/exportUtils";
+import DownloadDropdown from "../../components/DownloadDropdown";
 import dayjs from "dayjs";
 
 export default function CleanupReport() {
@@ -99,25 +100,162 @@ export default function CleanupReport() {
   ];
 
   // ✅ DOWNLOAD
-  const downloadExcel = () => {
-    if (!selectedWarehouse) return;
+  const handleDownload = (format, mode) => {
+    if (format === "xlsx") {
+      if (mode === "current") {
+        if (!selectedWarehouse) {
+          message.warning("Please select a warehouse first to download Current View.");
+          return;
+        }
 
-    const exportData = data.map(item => ({
-      "Item Name": item.item_name,
-      "Pack": item.pack,
-      "Physical Stock (Case)": item.physical,
-      "Allotted Stock (Case)": item.allotted,
-      "Pending Stock (Case)": item.pending,
-    }));
+        const exportData = data.map(item => ({
+          "Item Name": item.item_name,
+          "Pack": item.pack,
+          "Physical Stock (Case)": item.physical,
+          "Allotted Stock (Case)": item.allotted,
+          "Pending Stock (Case)": item.pending,
+        }));
 
-    exportToExcel(
-      exportData,
-      {
-        Warehouse: selectedWarehouse
-      },
-      `physical_stock_report_${selectedWarehouse}.xlsx`,
-      "Physical Stock"
-    );
+        const totalPhysical = data.reduce((sum, item) => sum + (Number(item.physical) || 0), 0);
+        const totalAllotted = data.reduce((sum, item) => sum + (Number(item.allotted) || 0), 0);
+        const totalPending = data.reduce((sum, item) => sum + (Number(item.pending) || 0), 0);
+
+        exportData.push({
+          "Item Name": "Total",
+          "Pack": "",
+          "Physical Stock (Case)": totalPhysical,
+          "Allotted Stock (Case)": totalAllotted,
+          "Pending Stock (Case)": totalPending,
+        });
+
+        exportToExcel(
+          exportData,
+          {
+            Warehouse: selectedWarehouse,
+            "Report Period": periodLabel
+          },
+          `physical_stock_report_${selectedWarehouse}.xlsx`,
+          "Physical Stock"
+        );
+      } else if (mode === "unified") {
+        if (!report?.data) return;
+
+        // Flatten all items across all warehouses
+        const exportData = report.data.flatMap(whData =>
+          (whData.items || []).map(item => ({
+            Warehouse: whData.warehouse,
+            "Item Name": item.item_name,
+            "Pack": item.pack,
+            "Physical Stock (Case)": item.physical,
+            "Allotted Stock (Case)": item.allotted,
+            "Pending Stock (Case)": item.pending,
+          }))
+        );
+
+        exportUnifiedWithDropdown({
+          data: exportData,
+          warehouses: warehouses,
+          reportTitle: "Warehouse Physical Stock Report (Unified)",
+          periodLabel: periodLabel,
+          filename: "physical_stock_report_unified.xlsx",
+          sheetName: "Physical Stock",
+          sumCols: ["Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)"]
+        });
+      }
+    } else if (format === "pdf") {
+      if (mode === "current") {
+        if (!selectedWarehouse) {
+          message.warning("Please select a warehouse first to download Current View.");
+          return;
+        }
+
+        const columns = ["Item Name", "Pack", "Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)"];
+        const exportData = data.map(item => ({
+          "Item Name": item.item_name,
+          "Pack": item.pack,
+          "Physical Stock (Case)": item.physical,
+          "Allotted Stock (Case)": item.allotted,
+          "Pending Stock (Case)": item.pending,
+        }));
+
+        const totalPhysical = data.reduce((sum, item) => sum + (Number(item.physical) || 0), 0);
+        const totalAllotted = data.reduce((sum, item) => sum + (Number(item.allotted) || 0), 0);
+        const totalPending = data.reduce((sum, item) => sum + (Number(item.pending) || 0), 0);
+
+        exportData.push({
+          "Item Name": "Total",
+          "Pack": "",
+          "Physical Stock (Case)": totalPhysical,
+          "Allotted Stock (Case)": totalAllotted,
+          "Pending Stock (Case)": totalPending,
+        });
+
+        exportToPdf({
+          title: "Warehouse Physical Stock Report",
+          periodLabel: periodLabel,
+          columns,
+          data: exportData,
+          filename: `physical_stock_report_${selectedWarehouse}.pdf`,
+          metadataWarehouse: selectedWarehouse
+        });
+      } else if (mode === "unified") {
+        if (!report?.data) return;
+
+        const columns = ["Warehouse", "Item Name", "Pack", "Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)"];
+        const exportData = report.data.flatMap(whData =>
+          (whData.items || []).map(item => ({
+            Warehouse: whData.warehouse,
+            "Item Name": item.item_name,
+            "Pack": item.pack,
+            "Physical Stock (Case)": item.physical,
+            "Allotted Stock (Case)": item.allotted,
+            "Pending Stock (Case)": item.pending,
+          }))
+        );
+
+        exportToPdf({
+          title: "Warehouse Physical Stock Report (Unified)",
+          periodLabel: periodLabel,
+          columns,
+          data: exportData,
+          groupByField: "Warehouse",
+          sumCols: ["Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)"],
+          filename: "physical_stock_report_unified.pdf"
+        });
+      } else if (mode === "cluster") {
+        if (!report?.data) return;
+
+        getJson("warehouse_clusters")
+          .then(res => {
+            const clusters = res.data;
+            const columns = ["Warehouse", "Item Name", "Pack", "Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)"];
+            const exportData = report.data.flatMap(whData =>
+              (whData.items || []).map(item => ({
+                Warehouse: whData.warehouse,
+                "Item Name": item.item_name,
+                "Pack": item.pack,
+                "Physical Stock (Case)": item.physical,
+                "Allotted Stock (Case)": item.allotted,
+                "Pending Stock (Case)": item.pending,
+              }))
+            );
+
+            exportClusterPdf({
+              title: "Warehouse Physical Stock Report",
+              periodLabel: periodLabel,
+              columns,
+              data: exportData,
+              groupByField: "Warehouse",
+              sumCols: ["Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)"],
+              clusters,
+              filenamePrefix: "physical_stock"
+            });
+          })
+          .catch(err => {
+            console.error("Error loading cluster info:", err);
+          });
+      }
+    }
   };
 
   const downloadAllWarehouses = async () => {
@@ -175,9 +313,7 @@ export default function CleanupReport() {
               ...packs.map(p => ({ label: p, value: p }))
             ]}
           />
-          <Button type="primary" onClick={downloadExcel} disabled={!selectedWarehouse}>
-            Download Excel
-          </Button>
+          <DownloadDropdown onDownload={handleDownload} disabled={!report?.data || report.data.length === 0} />
         </Space>
         </div>
       </div>

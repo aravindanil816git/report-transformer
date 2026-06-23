@@ -1,9 +1,10 @@
 import { useEffect, useState, useMemo } from "react";
 import { Table, Button, Select, DatePicker, Space, message } from "antd";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { getReport, processReport } from "../../api";
+import { getReport, processReport, getJson } from "../../api";
 import dayjs from "dayjs";
-import { exportToExcel } from "../../utils/exportUtils";
+import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf } from "../../utils/exportUtils";
+import DownloadDropdown from "../../components/DownloadDropdown";
 
 const { RangePicker } = DatePicker;
 
@@ -23,12 +24,35 @@ export default function CumulativeWarehouseReport() {
   const [warehouseFilter, setWarehouseFilter] = useState(null);
   const [dateRange, setDateRange] = useState([]);
 
-  const [mode, setMode] = useState(searchParams.get("mode") || "warehouse");
+  const [mode, setMode] = useState(searchParams.get("mode") || "bond");
   const [drilledWarehouse, setDrilledWarehouse] = useState(null);
   const [drilledBond, setDrilledBond] = useState(null);
 
   const isDailyWiseType = config?.type === "dailywise_secondary_sales_cum";
   const isBrandwiseCumType = config?.type === "brandwise_cum_secondary_sales";
+
+  const [clusters, setClusters] = useState({});
+
+  useEffect(() => {
+    getJson("warehouse_clusters")
+      .then((res) => {
+        setClusters(res.data || {});
+      })
+      .catch((err) => {
+        console.error("Failed to load warehouse clusters config:", err);
+      });
+  }, []);
+
+  const normalizeWhName = (name) => {
+    if (!name) return "";
+    return name.replace(/^WH-/i, "").split(/\s+(?:FL|RFL)/i)[0].trim().toUpperCase();
+  };
+
+  const isWarehouseInCluster = (whName, clusterList) => {
+    if (!whName || !clusterList) return false;
+    const normalizedWh = normalizeWhName(whName);
+    return clusterList.some(item => normalizeWhName(item) === normalizedWh);
+  };
 
   // Force view based on report type
   useEffect(() => {
@@ -58,10 +82,6 @@ export default function CumulativeWarehouseReport() {
       setLabels(res.data.labels || []);
       setConfig(res.data.config || {});
   
-      if (res.data.config?.date1 && res.data.config?.date2 && dateRange.length === 0) {
-        setDateRange([dayjs(res.data.config.date1), dayjs(res.data.config.date2)]);
-      }
-  
       if (allLabels.length === 0) {
         setAllLabels(res.data.labels || []);
       }
@@ -69,6 +89,38 @@ export default function CumulativeWarehouseReport() {
       setLoading(false);
     }
   };
+
+  // Initialize default date range (1st of month to today) on load
+  useEffect(() => {
+    getReport(id, null, view, { limit: 1 }).then(res => {
+      const reportConfig = res?.data?.config || {};
+      
+      let defaultStart = dayjs().startOf("month");
+      let defaultEnd = dayjs();
+
+      const startDateStr = reportConfig.start_date || reportConfig.date1;
+      const endDateStr = reportConfig.end_date || reportConfig.date2;
+
+      if (startDateStr && endDateStr) {
+         const configStart = dayjs(startDateStr);
+         const configEnd = dayjs(endDateStr);
+         
+         if (defaultEnd.isAfter(configEnd)) defaultEnd = configEnd;
+         if (defaultEnd.isBefore(configStart)) defaultEnd = configEnd;
+         
+         defaultStart = defaultEnd.startOf("month");
+         if (defaultStart.isBefore(configStart)) defaultStart = configStart;
+      }
+
+      setDateRange([defaultStart, defaultEnd]);
+
+      let currentMode = mode;
+      if (drilledWarehouse) currentMode = "shop";
+      else if (drilledBond) currentMode = "shop";
+
+      load(null, null, warehouseFilter, drilledBond, currentMode, defaultStart.format("YYYY-MM-DD"), defaultEnd.format("YYYY-MM-DD"));
+    }).catch(() => {});
+  }, [id]);
 
   // 🔥 Reload when view or data parameters change
   useEffect(() => {
@@ -105,7 +157,10 @@ export default function CumulativeWarehouseReport() {
     if (drilledWarehouse) currentMode = "shop";
     else if (drilledBond) currentMode = "shop";
     
-    await load(null, null, drilledWarehouse || warehouseFilter, drilledBond, currentMode);
+    const d1 = dateRange[0].format("YYYY-MM-DD");
+    const d2 = dateRange[1].format("YYYY-MM-DD");
+
+    await load(null, null, drilledWarehouse || warehouseFilter, drilledBond, currentMode, d1, d2);
   };
 
   // 🔥 APPLY FILTERS (Reload data from backend for date range)
@@ -172,8 +227,93 @@ export default function CumulativeWarehouseReport() {
       return bondMatch && whMatch && drillBondMatch && drillWhMatch;
     });
 
+    if (mode === "warehouse" && !drilledWarehouse && Object.keys(clusters).length > 0) {
+      const groupedData = [];
+      const unclustered = [...filtered];
+
+      // Identify brand keys
+      const brandKeys = new Set();
+      data.forEach(row => {
+        Object.keys(row).forEach(k => {
+          if (k.startsWith("BRAND_")) brandKeys.add(k);
+        });
+      });
+
+      Object.entries(clusters).forEach(([clusterName, whList]) => {
+        const clusterWarehouses = [];
+        for (let i = unclustered.length - 1; i >= 0; i--) {
+          const d = unclustered[i];
+          if (isWarehouseInCluster(d.warehouse, whList)) {
+            clusterWarehouses.push(d);
+            unclustered.splice(i, 1);
+          }
+        }
+
+        if (clusterWarehouses.length > 0) {
+          clusterWarehouses.sort((a, b) => (a.warehouse || "").localeCompare(b.warehouse || ""));
+
+          groupedData.push(...clusterWarehouses);
+
+          let clusterTotal = 0;
+          let clusterSums = {};
+          labels.forEach(l => clusterSums[l] = 0);
+          brandKeys.forEach(bk => clusterSums[bk] = 0);
+
+          clusterWarehouses.forEach(d => {
+            clusterTotal += (Number(d.total) || 0);
+            labels.forEach(l => {
+              clusterSums[l] += (Number(d[l]) || 0);
+            });
+            brandKeys.forEach(bk => {
+              clusterSums[bk] += (Number(d[bk]) || 0);
+            });
+          });
+
+          groupedData.push({
+            isClusterTotal: true,
+            clusterName: clusterName,
+            warehouse: `${clusterName} Total`,
+            total: clusterTotal,
+            ...clusterSums,
+            key: `total-${clusterName}`
+          });
+        }
+      });
+
+      if (unclustered.length > 0) {
+        unclustered.sort((a, b) => (a.warehouse || "").localeCompare(b.warehouse || ""));
+        groupedData.push(...unclustered);
+
+        let unclusteredTotal = 0;
+        let unclusteredSums = {};
+        labels.forEach(l => unclusteredSums[l] = 0);
+        brandKeys.forEach(bk => unclusteredSums[bk] = 0);
+
+        unclustered.forEach(d => {
+          unclusteredTotal += (Number(d.total) || 0);
+          labels.forEach(l => {
+            unclusteredSums[l] += (Number(d[l]) || 0);
+          });
+          brandKeys.forEach(bk => {
+            unclusteredSums[bk] += (Number(d[bk]) || 0);
+          });
+        });
+
+        groupedData.push({
+          isClusterTotal: true,
+          clusterName: "UNCLUSTERED WAREHOUSES",
+          warehouse: "UNCLUSTERED Total",
+          total: unclusteredTotal,
+          ...unclusteredSums,
+          key: "total-unclustered"
+        });
+      }
+
+      return groupedData;
+    }
+
     return filtered;
-  }, [data, bondFilter, warehouseFilter, drilledBond, drilledWarehouse]);
+  }, [data, bondFilter, warehouseFilter, drilledBond, drilledWarehouse, mode, clusters, labels]);
 
   const uniqueBonds = useMemo(() => {
     const bonds = new Set();
@@ -201,7 +341,11 @@ export default function CumulativeWarehouseReport() {
       dataIndex: b,
       width: 120,
       align: "center",
-      render: v => v || 0
+      render: (v, record) => {
+        if (record.isClusterHeader) return "";
+        if (record.isClusterTotal) return <strong>{v || 0}</strong>;
+        return v || 0;
+      }
     }));
   }, [data]);
 
@@ -210,6 +354,8 @@ export default function CumulativeWarehouseReport() {
   const maxDate = minDate ? minDate.add(config.num_days - 1, "day") : null;
 
   const disabledDate = (current) => {
+    if (!current) return false;
+    if (current.isAfter(dayjs().add(1, "day"), "day")) return true;
     if (!minDate || !maxDate) return false;
     return current.isBefore(minDate, "day") || current.isAfter(maxDate, "day");
   };
@@ -234,14 +380,20 @@ export default function CumulativeWarehouseReport() {
   };
 
   const renderFirstCol = (text, record) => {
-    const displayText = formatName(text);
+    if (record.isClusterHeader) {
+      return <strong style={{ fontSize: "14px", color: "#1890ff" }}>{record.clusterName}</strong>;
+    }
+    if (record.isClusterTotal) {
+      return <strong>{record.warehouse}</strong>;
+    }
+    const displayText = formatName(text) || record.shop_code || "";
     if (mode === "warehouse" && !drilledWarehouse) {
       return <a onClick={() => setDrilledWarehouse(record.warehouse)}>{displayText}</a>;
     }
     if (mode === "bond" && !drilledBond) {
       return <a onClick={() => setDrilledBond(record.warehouse)}>{displayText}</a>;
     }
-    return <span>{record.shop_code ? `${displayText} (${record.shop_code})` : displayText}</span>;
+    return <span>{displayText}</span>;
   };
 
   // 🔹 columns
@@ -253,8 +405,28 @@ export default function CumulativeWarehouseReport() {
       width: 200,
       render: renderFirstCol
     },
-    ...labels.map(l => ({ title: l, dataIndex: l, width: 100, align: "center" })),
-    { title: "Total", dataIndex: "total", width: 100, fixed: "right" }
+    ...labels.map(l => ({
+      title: l,
+      dataIndex: l,
+      width: 100,
+      align: "center",
+      render: (v, record) => {
+        if (record.isClusterHeader) return "";
+        if (record.isClusterTotal) return <strong>{v || 0}</strong>;
+        return v || 0;
+      }
+    })),
+    {
+      title: "Total",
+      dataIndex: "total",
+      width: 100,
+      fixed: "right",
+      render: (v, record) => {
+        if (record.isClusterHeader) return "";
+        if (record.isClusterTotal) return <strong>{v || 0}</strong>;
+        return v || 0;
+      }
+    }
   ];
 
   const cumulativeColumns = [
@@ -265,34 +437,345 @@ export default function CumulativeWarehouseReport() {
       render: renderFirstCol
     },
     ...brandColumns,
-    { title: "Total Issues", dataIndex: "total", width: 150 },
+    {
+      title: "Total Issues",
+      dataIndex: "total",
+      width: 150,
+      render: (v, record) => {
+        if (record.isClusterHeader) return "";
+        if (record.isClusterTotal) return <strong>{v || 0}</strong>;
+        return v || 0;
+      }
+    },
   ];
 
+  const getPdfDataAndColumns = (sourceRows) => {
+    // 1. Resolve columns
+    const firstColTitle = getTitle();
+    const firstColKey = getDataIndex();
+    
+    const pdfCols = [firstColTitle];
+    const mappingCols = [{ title: firstColTitle, key: firstColKey }];
+    
+    if (view === "daywise") {
+      labels.forEach(l => {
+        pdfCols.push(l);
+        mappingCols.push({ title: l, key: l });
+      });
+      pdfCols.push("Total");
+      mappingCols.push({ title: "Total", key: "total" });
+    } else {
+      brandColumns.forEach(bc => {
+        pdfCols.push(bc.title);
+        mappingCols.push({ title: bc.title, key: bc.dataIndex });
+      });
+      pdfCols.push("Total Issues");
+      mappingCols.push({ title: "Total Issues", key: "total" });
+    }
+    
+    // 2. Map data rows
+    const pdfData = sourceRows.map(row => {
+      const pdfRow = {};
+      mappingCols.forEach(col => {
+        let val = row[col.key];
+        if (row.isClusterHeader) {
+          val = "";
+        }
+        if (col.key === firstColKey) {
+          if (row.isClusterTotal) {
+            val = row.warehouse;
+          } else {
+            val = formatName(val);
+          }
+        }
+        pdfRow[col.title] = val !== undefined && val !== null ? val : 0;
+      });
+      return pdfRow;
+    });
+
+    // 3. Append Grand Total Row (since PDF export is static and doesn't use Ant Design's summary prop)
+    const grandTotalRow = {};
+    mappingCols.forEach(col => {
+      grandTotalRow[col.title] = "";
+    });
+    grandTotalRow[firstColTitle] = "Grand Total";
+    
+    // Compute grand totals
+    const actualRows = sourceRows.filter(r => !r.isClusterHeader && !r.isClusterTotal);
+    if (view === "daywise") {
+      labels.forEach(l => {
+        let sum = 0;
+        actualRows.forEach(r => sum += Number(r[l] || 0));
+        grandTotalRow[l] = sum;
+      });
+    } else {
+      brandColumns.forEach(bc => {
+        let sum = 0;
+        actualRows.forEach(r => sum += Number(r[bc.dataIndex] || 0));
+        grandTotalRow[bc.title] = sum;
+      });
+    }
+    let totalSum = 0;
+    actualRows.forEach(r => totalSum += Number(r.total || 0));
+    grandTotalRow[view === "daywise" ? "Total" : "Total Issues"] = totalSum;
+    
+    pdfData.push(grandTotalRow);
+    
+    return { columns: pdfCols, data: pdfData };
+  };
+
   // 🔥 DOWNLOAD
-  const downloadExcel = () => {
+  const handleDownload = async (format, modeType) => {
     const reportTitle = isDailyWiseType 
       ? "DailyWise Secondary Sales" 
-      : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "");
+      : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "Cumulative Warehouse Report");
 
-    const exportData = processedData.map(d => ({
-      ...d,
-      warehouse: formatName(d.warehouse)
-    }));
+    if (format === "xlsx") {
+      if (modeType === "unified") {
+        setLoading(true);
+        try {
+          const d1 = dateRange[0]?.format("YYYY-MM-DD");
+          const d2 = dateRange[1]?.format("YYYY-MM-DD");
+          
+          const isBondMode = mode === "bond";
+          const filterField = isBondMode ? "Bond" : "Warehouse";
+          
+          const params = {
+            mode: "shop" // Always query at shop level for detailed drilldown
+          };
+          if (d1 && d2) {
+            params.start_date = d1;
+            params.end_date = d2;
+          }
+          
+          // Fetch backend report data and load bond mapping content simultaneously
+          const [res, bondMappingRes] = await Promise.all([
+            getReport(id, null, view, params),
+            getJson("bond_mapping")
+          ]);
+          
+          const fullData = (res.data.data || []).filter(d => d.warehouse || d.shop_code || d.bond);
+          const bondMapping = bondMappingRes.data || {};
+          
+          // Build a lookup map of shop_code -> bond name
+          const shopToBondMap = {};
+          Object.entries(bondMapping).forEach(([bondName, bondData]) => {
+            const shops = bondData?.shops || [];
+            shops.forEach(s => {
+              const shopCode = typeof s === "object" ? s?.shop_code : s;
+              if (shopCode) {
+                shopToBondMap[String(shopCode)] = bondName;
+              }
+            });
+          });
 
-    exportToExcel(
-      exportData,
-      {
-        Mode: mode,
-        View: view,
-        Bond: bondFilter,
-        Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
-        "Date Range": dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
-        "Start Date": config.start_date ? dayjs(config.start_date).format("DD-MM-YYYY") : null,
-        "Total Days": config.num_days
-      },
-      `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}.xlsx`,
-      reportTitle
-    );
+          // Map rows to include readable fields and date/brand values
+          const exportData = fullData.map(d => {
+            const shopCodeStr = String(d.shop_code || "");
+            
+            // Core mapping resolution
+            const resolvedBond = shopToBondMap[shopCodeStr] || formatName(d.bond) || "UNKNOWN";
+
+            const rowItem = {
+              Bond: resolvedBond,
+              Warehouse: formatName(d.warehouse) || "",
+              "Shop Code": d.shop_code || "",
+              "Shop Name": formatName(d.shop_name) || ""
+            };
+
+            if (view === "daywise") {
+              labels.forEach(l => {
+                rowItem[l] = d[l] || 0;
+              });
+            } else {
+              brandColumns.forEach(bc => {
+                rowItem[bc.title] = d[bc.dataIndex] || 0;
+              });
+            }
+            rowItem["Total"] = d.total || 0;
+            return rowItem;
+          });
+
+          // Pull unique validation options list based on selected mode
+          const uniqueList = Array.from(new Set(
+            exportData.map(d => isBondMode ? d.Bond : d.Warehouse).filter(Boolean)
+          )).sort();
+
+          // Define summation keys matching the mapped columns
+          const sumKeys = ["Total"];
+          if (view === "daywise") {
+            sumKeys.push(...labels);
+          } else {
+            sumKeys.push(...brandColumns.map(bc => bc.title));
+          }
+
+          exportUnifiedWithDropdown({
+            data: exportData,
+            warehouses: uniqueList,
+            reportTitle: `${reportTitle} (Unified - Shop Drilldown)`,
+            periodLabel: dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
+            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_unified.xlsx`,
+            sheetName: "Shop Drilldown",
+            sumCols: sumKeys,
+            dropdownLabel: filterField,
+            filterColumnName: filterField // This matches the key in exportData ("Bond" or "Warehouse")
+          });
+        } catch (e) {
+          console.error("Error exporting unified excel:", e);
+          message.error("Failed to export unified report");
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        const exportData = processedData.map(d => ({
+          ...d,
+          warehouse: formatName(d.warehouse),
+          bond: formatName(d.bond)
+        }));
+
+        exportToExcel(
+          exportData,
+          {
+            Mode: mode,
+            View: view,
+            Bond: bondFilter,
+            Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
+            "Date Range": dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
+            "Start Date": config.start_date ? dayjs(config.start_date).format("DD-MM-YYYY") : null,
+            "Total Days": config.num_days
+          },
+          `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.xlsx`,
+          reportTitle
+        );
+      }
+    } else if (format === "pdf") {
+      setLoading(true);
+      try {
+        const period = dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All";
+        
+        // Sum cols for PDF (excluding First column and Spacer columns)
+        const sumCols = ["Total", "Total Issues"];
+        if (view === "daywise") {
+          sumCols.push(...labels);
+        } else {
+          sumCols.push(...brandColumns.map(bc => bc.title));
+        }
+
+        if (modeType === "current") {
+          const title = getTitle();
+          const { columns: pdfCols, data: pdfData } = getPdfDataAndColumns(processedData);
+          exportToPdf({
+            title: `${reportTitle} (Current View)`,
+            periodLabel: period,
+            columns: pdfCols,
+            data: pdfData,
+            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.pdf`
+          });
+        } else if (modeType === "unified" || modeType === "cluster") {
+          const params = {
+            mode: "shop" // Fetch detailed shop data for drilldown
+          };
+          const d1 = dateRange[0]?.format("YYYY-MM-DD");
+          const d2 = dateRange[1]?.format("YYYY-MM-DD");
+          if (d1 && d2) {
+            params.start_date = d1;
+            params.end_date = d2;
+          }
+
+          const isBondMode = mode === "bond";
+          const groupByField = isBondMode ? "Bond" : "Warehouse";
+
+          // Fetch backend report data and load bond mapping content simultaneously
+          const [res, bondMappingRes] = await Promise.all([
+            getReport(id, null, view, params),
+            getJson("bond_mapping")
+          ]);
+
+          const fullData = (res.data.data || []).filter(d => d.warehouse || d.shop_code || d.bond);
+          const bondMapping = bondMappingRes.data || {};
+          
+          // Build a lookup map of shop_code -> bond name
+          const shopToBondMap = {};
+          Object.entries(bondMapping).forEach(([bondName, bondData]) => {
+            const shops = bondData?.shops || [];
+            shops.forEach(s => {
+              const shopCode = typeof s === "object" ? s?.shop_code : s;
+              if (shopCode) {
+                shopToBondMap[String(shopCode)] = bondName;
+              }
+            });
+          });
+
+          // Define PDF columns using "Shop Name" as the row label
+          const pdfCols = ["Shop Name"];
+          if (view === "daywise") {
+            pdfCols.push(...labels);
+            pdfCols.push("Total");
+          } else {
+            pdfCols.push(...brandColumns.map(bc => bc.title));
+            pdfCols.push("Total Issues");
+          }
+
+          // Map full shop-level data
+          const pdfData = fullData.map(d => {
+            const shopCodeStr = String(d.shop_code || "");
+            const resolvedBond = shopToBondMap[shopCodeStr] || formatName(d.bond) || "UNKNOWN";
+            const resolvedWarehouse = formatName(d.warehouse) || "";
+
+            const rowItem = {
+              Bond: resolvedBond,
+              Warehouse: resolvedWarehouse,
+              "Shop Name": d.shop_name ? formatName(d.shop_name) : d.shop_code
+            };
+
+            if (view === "daywise") {
+              labels.forEach(l => {
+                rowItem[l] = d[l] || 0;
+              });
+              rowItem["Total"] = d.total || 0;
+            } else {
+              brandColumns.forEach(bc => {
+                rowItem[bc.title] = d[bc.dataIndex] || 0;
+              });
+              rowItem["Total Issues"] = d.total || 0;
+            }
+            return rowItem;
+          });
+
+          if (modeType === "unified") {
+            exportToPdf({
+              title: `${reportTitle} (Unified - Shop Drilldown)`,
+              periodLabel: period,
+              columns: pdfCols,
+              data: pdfData,
+              groupByField: groupByField,
+              sumCols: sumCols,
+              filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_unified.pdf`
+            });
+          } else if (modeType === "cluster") {
+            const clusterConfigName = isBondMode ? "clusters" : "warehouse_clusters";
+            const clusterRes = await getJson(clusterConfigName);
+            const clustersData = clusterRes.data || {};
+
+            exportClusterPdf({
+              title: `${reportTitle} (Shop Drilldown)`,
+              periodLabel: period,
+              columns: pdfCols,
+              data: pdfData,
+              groupByField: groupByField,
+              sumCols: sumCols,
+              clusters: clustersData,
+              filenamePrefix: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}`
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Error exporting PDF:", e);
+        message.error("Failed to export PDF report");
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   return (
@@ -306,23 +789,16 @@ export default function CumulativeWarehouseReport() {
         <h2>{isDailyWiseType ? "Daily Secondary Sales" : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "")}</h2>
         <Space>
           <Button onClick={handleRefresh}>Refresh Data</Button>
-          <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
+          <DownloadDropdown 
+            onDownload={handleDownload} 
+            loading={loading} 
+            disabled={processedData.length === 0} 
+            showPdf={true} 
+          />
         </Space>
       </div>
 
       <div style={{ marginBottom: 16 }}>
-        <Button
-          type={mode === "warehouse" && !drilledBond ? "primary" : "default"}
-          onClick={() => {
-            setMode("warehouse");
-            setWarehouseFilter(null);
-            setDrilledBond(null);
-            setDrilledWarehouse(null);
-          }}
-        >
-          Warehouse View
-        </Button>
-
         <Button
           type={mode === "bond" ? "primary" : "default"}
           onClick={() => {
@@ -331,9 +807,21 @@ export default function CumulativeWarehouseReport() {
             setDrilledBond(null);
             setDrilledWarehouse(null);
           }}
-          style={{ marginLeft: 8 }}
         >
           Bond View
+        </Button>
+
+        <Button
+          type={mode === "warehouse" && !drilledBond ? "primary" : "default"}
+          onClick={() => {
+            setMode("warehouse");
+            setWarehouseFilter(null);
+            setDrilledBond(null);
+            setDrilledWarehouse(null);
+          }}
+          style={{ marginLeft: 8 }}
+        >
+          Warehouse View
         </Button>
 
         <Button
@@ -441,11 +929,27 @@ export default function CumulativeWarehouseReport() {
         bordered
         columns={view === "cumulative" ? cumulativeColumns : daywiseColumns}
         dataSource={processedData}
-        rowKey={(record) => `${record.warehouse}-${record.shop_code || "none"}-${record.bond || "none"}`}
+        rowKey={(record) => record.key || `${record.warehouse}-${record.shop_code || "none"}-${record.bond || "none"}`}
         pagination={false}
         scroll={{ x: "max-content" }}
+        onRow={(record) => {
+          if (record.isClusterHeader) {
+            return {
+              style: { background: "#e6f7ff" }
+            };
+          }
+          if (record.isClusterTotal) {
+            return {
+              style: { background: "#fafafa" }
+            };
+          }
+          return {};
+        }}
         summary={(pageData) => {
           if (!pageData || pageData.length === 0) return null;
+
+          // Filter out cluster headers/totals to get actual data rows for Grand Total
+          const actualRows = pageData.filter(d => !d.isClusterHeader && !d.isClusterTotal);
 
           let totalSum = 0;
           let colSums = {};
@@ -454,7 +958,7 @@ export default function CumulativeWarehouseReport() {
             let brandSums = {};
             brandColumns.forEach(bc => brandSums[bc.dataIndex] = 0);
 
-            pageData.forEach((d) => {
+            actualRows.forEach((d) => {
               totalSum += (Number(d.total) || 0);
               brandColumns.forEach(bc => {
                 brandSums[bc.dataIndex] += (Number(d[bc.dataIndex]) || 0);
@@ -477,10 +981,10 @@ export default function CumulativeWarehouseReport() {
           } else {
             labels.forEach((l) => {
               let s = 0;
-              pageData.forEach((d) => (s += (Number(d[l]) || 0)));
+              actualRows.forEach((d) => (s += (Number(d[l]) || 0)));
               colSums[l] = s;
             });
-            pageData.forEach((d) => (totalSum += (Number(d.total) || 0)));
+            actualRows.forEach((d) => (totalSum += (Number(d.total) || 0)));
 
             return (
               <Table.Summary fixed="bottom">
