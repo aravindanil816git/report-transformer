@@ -64,16 +64,16 @@ export default function CleanupReport() {
       dataIndex: "product_code",
     },
     {
-      title: "WarehousePhysical Stock",
-      children: [{ title: "Case", dataIndex: "physical" }],
+      title: "Physical Stock",
+      dataIndex: "physical",
     },
     {
-      title: "Allotted Stock",
-      children: [{ title: "Case", dataIndex: "allotted" }],
+      title: "Allotable Stock",
+      dataIndex: "allotted",
     },
     {
       title: "Pending Stock",
-      children: [{ title: "Case", dataIndex: "pending" }],
+      dataIndex: "pending",
     },
     { 
       title: "WH Price", 
@@ -98,9 +98,9 @@ export default function CleanupReport() {
           Warehouse: item.warehouse_name,
           "Item Name": item.item_name,
           "Product Code": item.product_code,
-          "Physical Stock (Case)": item.physical,
-          "Allotted Stock (Case)": item.allotted,
-          "Pending Stock (Case)": item.pending,
+          "Physical Stock": item.physical,
+          "Allotable Stock": item.allotted,
+          "Pending Stock": item.pending,
           "WH Price": item.wh_price,
           "Landed Cost": item.landed_cost
         }));
@@ -112,16 +112,16 @@ export default function CleanupReport() {
           periodLabel: `Report Period: ${displayReportDate}`,
           filename: "cleanup_report_unified.xlsx",
           sheetName: "Cleanup Report",
-          sumCols: ["Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)", "WH Price", "Landed Cost"]
+          sumCols: ["Physical Stock", "Allotable Stock", "Pending Stock", "WH Price", "Landed Cost"]
         });
       } else {
         const exportData = filtered.map(item => ({
           Warehouse: item.warehouse_name,
           "Item Name": item.item_name,
           "Product Code": item.product_code,
-          "Physical Stock (Case)": item.physical,
-          "Allotted Stock (Case)": item.allotted,
-          "Pending Stock (Case)": item.pending,
+          "Physical Stock": item.physical,
+          "Allotable Stock": item.allotted,
+          "Pending Stock": item.pending,
           "WH Price": item.wh_price,
           "Landed Cost": item.landed_cost
         }));
@@ -136,9 +136,9 @@ export default function CleanupReport() {
           Warehouse: "Total",
           "Item Name": "",
           "Product Code": "",
-          "Physical Stock (Case)": totalPhysical,
-          "Allotted Stock (Case)": totalAllotted,
-          "Pending Stock (Case)": totalPending,
+          "Physical Stock": totalPhysical,
+          "Allotable Stock": totalAllotted,
+          "Pending Stock": totalPending,
           "WH Price": totalWhPrice,
           "Landed Cost": totalLandedCost
         });
@@ -156,16 +156,16 @@ export default function CleanupReport() {
         );
       }
     } else if (format === "pdf") {
-      const columns = ["Warehouse", "Item Name", "Product Code", "Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)", "WH Price", "Landed Cost"];
+      const columns = ["Item Name", "Product Code", "Physical Stock", "Allotable Stock", "Pending Stock", "WH Price", "Landed Cost"];
       
       if (mode === "current") {
         const exportData = filtered.map(item => ({
           Warehouse: item.warehouse_name,
           "Item Name": item.item_name,
           "Product Code": item.product_code,
-          "Physical Stock (Case)": item.physical,
-          "Allotted Stock (Case)": item.allotted,
-          "Pending Stock (Case)": item.pending,
+          "Physical Stock": item.physical,
+          "Allotable Stock": item.allotted,
+          "Pending Stock": item.pending,
           "WH Price": item.wh_price,
           "Landed Cost": item.landed_cost
         }));
@@ -180,9 +180,9 @@ export default function CleanupReport() {
           Warehouse: "Total",
           "Item Name": "",
           "Product Code": "",
-          "Physical Stock (Case)": totalPhysical,
-          "Allotted Stock (Case)": totalAllotted,
-          "Pending Stock (Case)": totalPending,
+          "Physical Stock": totalPhysical,
+          "Allotable Stock": totalAllotted,
+          "Pending Stock": totalPending,
           "WH Price": totalWhPrice,
           "Landed Cost": totalLandedCost
         });
@@ -200,9 +200,9 @@ export default function CleanupReport() {
           Warehouse: item.warehouse_name,
           "Item Name": item.item_name,
           "Product Code": item.product_code,
-          "Physical Stock (Case)": item.physical,
-          "Allotted Stock (Case)": item.allotted,
-          "Pending Stock (Case)": item.pending,
+          "Physical Stock": item.physical,
+          "Allotable Stock": item.allotted,
+          "Pending Stock": item.pending,
           "WH Price": item.wh_price,
           "Landed Cost": item.landed_cost
         }));
@@ -213,7 +213,7 @@ export default function CleanupReport() {
           columns,
           data: exportData,
           groupByField: "Warehouse",
-          sumCols: ["Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)", "WH Price", "Landed Cost"],
+          sumCols: ["Physical Stock", "Allotable Stock", "Pending Stock", "WH Price", "Landed Cost"],
           filename: "cleanup_report_unified.pdf"
         });
       } else if (mode === "cluster") {
@@ -224,9 +224,9 @@ export default function CleanupReport() {
               Warehouse: item.warehouse_name,
               "Item Name": item.item_name,
               "Product Code": item.product_code,
-              "Physical Stock (Case)": item.physical,
-              "Allotted Stock (Case)": item.allotted,
-              "Pending Stock (Case)": item.pending,
+              "Physical Stock": item.physical,
+              "Allotable Stock": item.allotted,
+              "Pending Stock": item.pending,
               "WH Price": item.wh_price,
               "Landed Cost": item.landed_cost
             }));
@@ -237,7 +237,7 @@ export default function CleanupReport() {
               columns,
               data: exportData,
               groupByField: "Warehouse",
-              sumCols: ["Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)", "WH Price", "Landed Cost"],
+              sumCols: ["Physical Stock", "Allotable Stock", "Pending Stock", "WH Price", "Landed Cost"],
               clusters,
               filenamePrefix: "cleanup_report"
             });

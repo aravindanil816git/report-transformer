@@ -8,6 +8,17 @@ import DownloadDropdown from "../../components/DownloadDropdown";
 
 const { RangePicker } = DatePicker;
 
+const PDF_REPLACEMENT_BRANDS = [
+  { title: "BCB NO.1", key: "BRAND_BCB NO.1 CLASSIC BRANDY" },
+  { title: "BLENDER'S CHOICE", key: "BRAND_BLENDERS CHOICE NO.1 BRANDY" },
+  { title: "CHAIRMAN'S CHOICE BRANDY", key: "BRAND_CHAIRMAN'S CHOICE XO BRANDY" },
+  { title: "K.S 99", key: "BRAND_K.S 99 LIFE TIME MATURED XXX RUM" },
+  { title: "MAGIC BLEND RESERVED", key: "BRAND_MAGIC BLEND RESERVED XXX RUM" },
+  { title: "MORNING WALKERS", key: "BRAND_MORNING WALKERS XO BRANDY" },
+  { title: "OLD PEARL RUM", key: "BRAND_OLD PEARL NO.1 MATURED XXX RUM" },
+  { title: "ROYAL OLD FORT RUM", key: "BRAND_ROYAL OLD FORT NO.1 XXX RUM" }
+];
+
 export default function CumulativeWarehouseReport() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -465,9 +476,9 @@ export default function CumulativeWarehouseReport() {
       pdfCols.push("Total");
       mappingCols.push({ title: "Total", key: "total" });
     } else {
-      brandColumns.forEach(bc => {
+      PDF_REPLACEMENT_BRANDS.forEach(bc => {
         pdfCols.push(bc.title);
-        mappingCols.push({ title: bc.title, key: bc.dataIndex });
+        mappingCols.push({ title: bc.title, key: bc.key });
       });
       pdfCols.push("Total Issues");
       mappingCols.push({ title: "Total Issues", key: "total" });
@@ -509,9 +520,9 @@ export default function CumulativeWarehouseReport() {
         grandTotalRow[l] = sum;
       });
     } else {
-      brandColumns.forEach(bc => {
+      PDF_REPLACEMENT_BRANDS.forEach(bc => {
         let sum = 0;
-        actualRows.forEach(r => sum += Number(r[bc.dataIndex] || 0));
+        actualRows.forEach(r => sum += Number(r[bc.key] || 0));
         grandTotalRow[bc.title] = sum;
       });
     }
@@ -651,14 +662,14 @@ export default function CumulativeWarehouseReport() {
     } else if (format === "pdf") {
       setLoading(true);
       try {
-        const period = dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All";
+        const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
         
         // Sum cols for PDF (excluding First column and Spacer columns)
         const sumCols = ["Total", "Total Issues"];
         if (view === "daywise") {
           sumCols.push(...labels);
         } else {
-          sumCols.push(...brandColumns.map(bc => bc.title));
+          sumCols.push(...PDF_REPLACEMENT_BRANDS.map(bc => bc.title));
         }
 
         if (modeType === "current") {
@@ -712,7 +723,9 @@ export default function CumulativeWarehouseReport() {
             pdfCols.push(...labels);
             pdfCols.push("Total");
           } else {
-            pdfCols.push(...brandColumns.map(bc => bc.title));
+            PDF_REPLACEMENT_BRANDS.forEach(bc => {
+              pdfCols.push(bc.title);
+            });
             pdfCols.push("Total Issues");
           }
 
@@ -734,8 +747,8 @@ export default function CumulativeWarehouseReport() {
               });
               rowItem["Total"] = d.total || 0;
             } else {
-              brandColumns.forEach(bc => {
-                rowItem[bc.title] = d[bc.dataIndex] || 0;
+              PDF_REPLACEMENT_BRANDS.forEach(bc => {
+                rowItem[bc.title] = d[bc.key] || 0;
               });
               rowItem["Total Issues"] = d.total || 0;
             }

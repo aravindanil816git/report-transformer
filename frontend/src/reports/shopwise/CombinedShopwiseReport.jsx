@@ -189,10 +189,10 @@ export default function CombinedShopwiseReport() {
     if (!dates.length) return "";
     
     if (dateRange && dateRange.length === 2) {
-        return `COMBINED PERIOD : ${dateRange[0].format("DD-MM-YYYY")} - ${dateRange[1].format("DD-MM-YYYY")}`;
+        return `COMBINED PERIOD : ${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}`;
     }
 
-    return `COMBINED PERIOD : ${dayjs(dates[0]).format("DD-MM-YYYY")} - ${dayjs(dates[dates.length - 1]).format("DD-MM-YYYY")}`;
+    return `COMBINED PERIOD : ${dayjs(dates[0]).format("D MMMM YYYY")} - ${dayjs(dates[dates.length - 1]).format("D MMMM YYYY")}`;
   }, [uploads, dateRange]);
 
   const disabledDate = (current) => {
@@ -514,7 +514,7 @@ export default function CombinedShopwiseReport() {
             exportData.map(d => filterMode === "bond" ? d.Bond : d.Warehouse).filter(Boolean)
           )).sort();
 
-          const period = dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All";
+          const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
 
           exportUnifiedWithDropdown({
             data: exportData,
@@ -539,10 +539,35 @@ export default function CombinedShopwiseReport() {
       }
     } else if (format === "pdf") {
       if (modeType === "current") {
-        const period = dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All";
+        const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
         const pdfCols = ["Row Labels", `Opening ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Receipt ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Sales ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Closing ${view === 'bottle' ? 'Bottles' : 'Cases'}`];
         
-        const pdfData = tableData.map(row => {
+        const pdfRows = [];
+        let currentBrandHeader = null;
+        tableData.forEach(row => {
+          if (row.isBrandHeader) {
+            currentBrandHeader = {
+              label: row.label,
+              isBrandHeader: true,
+              opening: 0,
+              inward: 0,
+              outward: 0,
+              closing: 0
+            };
+            pdfRows.push(currentBrandHeader);
+          } else if (row.isBrandTotal) {
+            if (currentBrandHeader) {
+              currentBrandHeader.opening = row.opening;
+              currentBrandHeader.inward = row.inward;
+              currentBrandHeader.outward = row.outward;
+              currentBrandHeader.closing = row.closing;
+            }
+          } else {
+            pdfRows.push(row);
+          }
+        });
+
+        const pdfData = pdfRows.map(row => {
           if (row.isSpacer) {
             return {
               "Row Labels": "",
@@ -554,10 +579,10 @@ export default function CombinedShopwiseReport() {
           }
           return {
             "Row Labels": row.label,
-            [`Opening ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: row.isBrandHeader ? "" : formatVal(row.opening),
-            [`Receipt ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: row.isBrandHeader ? "" : formatVal(row.inward),
-            [`Sales ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: row.isBrandHeader ? "" : formatVal(row.outward),
-            [`Closing ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: row.isBrandHeader ? "" : formatVal(row.closing)
+            [`Opening ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: formatVal(row.opening),
+            [`Receipt ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: formatVal(row.inward),
+            [`Sales ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: formatVal(row.outward),
+            [`Closing ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: formatVal(row.closing)
           };
         });
 
@@ -566,13 +591,33 @@ export default function CombinedShopwiseReport() {
           periodLabel: period,
           columns: pdfCols,
           data: pdfData,
-          filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_current.pdf`
+          filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_current.pdf`,
+          didParseCell: (cellData) => {
+            const rowIndex = cellData.row.index;
+            const rowObj = pdfRows[rowIndex];
+            if (rowObj) {
+              if (rowObj.isBrandHeader) {
+                cellData.cell.styles.fontStyle = "bold";
+                cellData.cell.styles.fillColor = [27, 54, 93]; // Navy blue background
+                cellData.cell.styles.textColor = [255, 255, 255]; // White text
+              } else if (rowObj.isShopHeader) {
+                cellData.cell.styles.fontStyle = "bold";
+                cellData.cell.styles.fillColor = [240, 240, 240];
+              } else if (rowObj.isShopTotal) {
+                cellData.cell.styles.fontStyle = "bold";
+                cellData.cell.styles.fillColor = [173, 201, 230];
+              } else if (rowObj.isGrandTotal) {
+                cellData.cell.styles.fontStyle = "bold";
+                cellData.cell.styles.fillColor = [173, 201, 230];
+              }
+            }
+          }
         });
       } else {
         // Download by bonds
         setLoading(true);
         try {
-          const period = dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All";
+          const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
           
           const sStr = dateRange[0]?.format("YYYY-MM-DD");
           const eStr = dateRange[1]?.format("YYYY-MM-DD");

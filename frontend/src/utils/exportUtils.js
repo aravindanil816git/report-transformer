@@ -281,7 +281,8 @@ export const exportToPdf = ({
   groupByField = null,
   sumCols = [],
   filename = "report.pdf",
-  metadataWarehouse = null
+  metadataWarehouse = null,
+  didParseCell = null
 }) => {
   const doc = new jsPDF({
     orientation: "portrait",
@@ -290,17 +291,25 @@ export const exportToPdf = ({
   });
 
   const drawHeader = (doc, currentTitle, currentPeriod, subHeader = null) => {
-    // Header must be a navy blue background, with title in orange font
+    // Row 1: KS Distillery (Navy blue background, yellow/orange text)
     doc.setFillColor(27, 54, 93); // Navy blue
-    doc.rect(15, 12, 180, 10, "F");
+    doc.rect(15, 12, 180, 8, "F");
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(255, 189, 49); // Orange font (#ffbd31)
-    doc.text(currentTitle, 20, 18.5, { align: "left" });
+    doc.setTextColor(255, 189, 49); // Yellow/Orange
+    doc.text("KS Distillery", 20, 17.5, { align: "left" });
 
-    // Second row must be orange background, with navy blue text Period: {As_on_date}
+    // Row 2: Report Title (Navy blue background, yellow/orange text)
+    doc.setFillColor(27, 54, 93); // Navy blue
+    doc.rect(15, 20, 180, 8, "F");
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 189, 49); // Yellow/Orange
+    doc.text(currentTitle, 20, 25.5, { align: "left" });
+
+    // Row 3: Period (Orange background, navy blue text)
     doc.setFillColor(255, 189, 49); // Orange background (#ffbd31)
-    doc.rect(15, 22, 180, 8, "F");
+    doc.rect(15, 28, 180, 8, "F");
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(27, 54, 93); // Navy blue text
@@ -326,17 +335,16 @@ export const exportToPdf = ({
         }
       }
     }
-    
-    doc.text(`Period: ${formattedDate}`, 20, 27.5, { align: "left" });
+    doc.text(`Period: ${formattedDate}`, 20, 33.5, { align: "left" });
 
-    // After one row (leaving an empty row space of ~8mm, so start at 38), navy blue background row with black text {Warehouse Name}
+    // Row 4: Subheader (Navy blue background, orange/yellow text)
     const whName = subHeader ? subHeader.replace(/^Warehouse:\s*/i, "") : (metadataWarehouse || "All");
     doc.setFillColor(27, 54, 93); // Navy blue
-    doc.rect(15, 38, 180, 8, "F");
+    doc.rect(15, 40, 180, 8, "F");
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0); // Black text
-    doc.text(whName, 20, 43, { align: "left" });
+    doc.setTextColor(255, 189, 49); // Orange text
+    doc.text(whName, 20, 45.5, { align: "left" });
   };
 
   if (groupByField) {
@@ -374,8 +382,8 @@ export const exportToPdf = ({
       autoTable(doc, {
         head: [columns],
         body: tableRows,
-        startY: 50,
-        margin: { top: 50, bottom: 20, left: 15, right: 15 },
+        startY: 52,
+        margin: { top: 52, bottom: 20, left: 15, right: 15 },
         theme: "grid",
         styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
         headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
@@ -388,6 +396,18 @@ export const exportToPdf = ({
           if (isTotalRow && sumCols.length > 0) {
             cellData.cell.styles.fontStyle = "bold";
             cellData.cell.styles.fillColor = [241, 245, 249];
+          }
+          if (cellData.section === 'body') {
+            const rawVal = cellData.cell.raw;
+            if (rawVal !== "" && rawVal !== undefined && rawVal !== null) {
+              const cleanVal = String(rawVal).replace(/,/g, '').trim();
+              if (cleanVal !== '' && !isNaN(Number(cleanVal))) {
+                cellData.cell.styles.halign = 'center';
+              }
+            }
+          }
+          if (didParseCell) {
+            didParseCell(cellData);
           }
         }
       });
@@ -406,8 +426,8 @@ export const exportToPdf = ({
     autoTable(doc, {
       head: [columns],
       body: tableRows,
-      startY: 50,
-      margin: { top: 50, bottom: 20, left: 15, right: 15 },
+      startY: 52,
+      margin: { top: 52, bottom: 20, left: 15, right: 15 },
       theme: "grid",
       styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
       headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
@@ -420,6 +440,18 @@ export const exportToPdf = ({
         if (isTotalRow) {
           cellData.cell.styles.fontStyle = "bold";
           cellData.cell.styles.fillColor = [241, 245, 249];
+        }
+        if (cellData.section === 'body') {
+          const rawVal = cellData.cell.raw;
+          if (rawVal !== "" && rawVal !== undefined && rawVal !== null) {
+            const cleanVal = String(rawVal).replace(/,/g, '').trim();
+            if (cleanVal !== '' && !isNaN(Number(cleanVal))) {
+              cellData.cell.styles.halign = 'center';
+            }
+          }
+        }
+        if (didParseCell) {
+          didParseCell(cellData);
         }
       }
     });
@@ -519,19 +551,26 @@ export const exportShopDrilldownPdfByBond = async ({
     });
 
     Object.entries(brands).forEach(([brand, items]) => {
-      rows.push({
-        label: brand,
-        isBrandHeader: true
+      let bOpening = 0, bInward = 0, bOutward = 0, bClosing = 0;
+      items.forEach(item => {
+        const op = useWholeNumbers ? Math.round(item.opening || 0) : item.opening || 0;
+        const inward = useWholeNumbers ? Math.round(item.inward || 0) : item.inward || 0;
+        const outward = useWholeNumbers ? Math.round(item.outward || 0) : item.outward || 0;
+        const closing = useWholeNumbers ? Math.round(item.closing || 0) : item.closing || 0;
+        bOpening += op;
+        bInward += inward;
+        bOutward += outward;
+        bClosing += closing;
       });
 
-      const brandTotal = {
-        label: `${brand} Total`,
-        opening: 0,
-        inward: 0,
-        outward: 0,
-        closing: 0,
-        isBrandTotal: true
-      };
+      rows.push({
+        label: brand,
+        isBrandHeader: true,
+        opening: bOpening,
+        inward: bInward,
+        outward: bOutward,
+        closing: bClosing
+      });
 
       items.forEach(item => {
         const op = useWholeNumbers ? Math.round(item.opening || 0) : item.opening || 0;
@@ -545,13 +584,8 @@ export const exportShopDrilldownPdfByBond = async ({
           outward: outward,
           closing: closing
         });
-        brandTotal.opening += op;
-        brandTotal.inward += inward;
-        brandTotal.outward += outward;
-        brandTotal.closing += closing;
       });
 
-      rows.push(brandTotal);
       rows.push({ isSpacer: true });
     });
 
@@ -568,27 +602,38 @@ export const exportShopDrilldownPdfByBond = async ({
   };
 
   const drawHeader = (doc, currentTitle, currentPeriod, shopName) => {
+    // Row 1: KS Distillery (Navy blue, yellow text)
     doc.setFillColor(27, 54, 93); // Navy blue
-    doc.rect(15, 12, 180, 10, "F");
+    doc.rect(15, 12, 180, 8, "F");
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(255, 189, 49); // Orange font
-    doc.text(currentTitle, 20, 18.5, { align: "left" });
+    doc.setTextColor(255, 189, 49); // Orange/Yellow
+    doc.text("KS Distillery", 20, 17.5, { align: "left" });
 
+    // Row 2: Report Title (Navy blue, yellow text)
+    doc.setFillColor(27, 54, 93); // Navy blue
+    doc.rect(15, 20, 180, 8, "F");
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 189, 49); // Orange/Yellow
+    doc.text(currentTitle, 20, 25.5, { align: "left" });
+
+    // Row 3: Period (Orange, navy blue text)
     doc.setFillColor(255, 189, 49); // Orange background
-    doc.rect(15, 22, 180, 8, "F");
+    doc.rect(15, 28, 180, 8, "F");
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(27, 54, 93); // Navy blue text
     const cleanPeriod = (currentPeriod || "").replace(/^COMBINED PERIOD\s*:\s*/i, "").trim();
-    doc.text(`Period: ${cleanPeriod}`, 20, 27.5, { align: "left" });
+    doc.text(`Period: ${cleanPeriod}`, 20, 33.5, { align: "left" });
 
+    // Row 4: Subheader/Shop Name (Navy blue, yellow text)
     doc.setFillColor(27, 54, 93); // Navy blue
-    doc.rect(15, 38, 180, 8, "F");
+    doc.rect(15, 40, 180, 8, "F");
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0); // Black text
-    doc.text(shopName, 20, 43, { align: "left" });
+    doc.setTextColor(255, 189, 49); // Orange text
+    doc.text(shopName, 20, 45.5, { align: "left" });
   };
 
   let pageAdded = false;
@@ -614,10 +659,10 @@ export const exportShopDrilldownPdfByBond = async ({
       }
       return [
         row.label,
-        row.isBrandHeader ? "" : formatVal(row.opening),
-        row.isBrandHeader ? "" : formatVal(row.inward),
-        row.isBrandHeader ? "" : formatVal(row.outward),
-        row.isBrandHeader ? "" : formatVal(row.closing)
+        formatVal(row.opening),
+        formatVal(row.inward),
+        formatVal(row.outward),
+        formatVal(row.closing)
       ];
     });
 
@@ -626,8 +671,8 @@ export const exportShopDrilldownPdfByBond = async ({
     autoTable(doc, {
       head: [pdfCols],
       body: tableRows,
-      startY: 50,
-      margin: { top: 50, bottom: 20, left: 15, right: 15 },
+      startY: 52,
+      margin: { top: 52, bottom: 20, left: 15, right: 15 },
       theme: "grid",
       styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
       headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
@@ -641,10 +686,8 @@ export const exportShopDrilldownPdfByBond = async ({
         if (rowObj) {
           if (rowObj.isBrandHeader) {
             cellData.cell.styles.fontStyle = "bold";
-            cellData.cell.styles.fillColor = [240, 240, 240];
-          } else if (rowObj.isBrandTotal) {
-            cellData.cell.styles.fontStyle = "bold";
-            cellData.cell.styles.fillColor = [214, 233, 198];
+            cellData.cell.styles.fillColor = [27, 54, 93]; // Navy blue background
+            cellData.cell.styles.textColor = [255, 255, 255]; // White text
           } else if (rowObj.isShopTotal) {
             cellData.cell.styles.fontStyle = "bold";
             cellData.cell.styles.fillColor = [173, 201, 230];

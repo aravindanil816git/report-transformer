@@ -87,15 +87,15 @@ export default function CleanupReport() {
     },
     {
       title: "Physical Stock",
-      children: [{ title: "Case", dataIndex: "physical" }],
+      dataIndex: "physical",
     },
     {
-      title: "Allotted Stock",
-      children: [{ title: "Case", dataIndex: "allotted" }],
+      title: "Allotable Stock",
+      dataIndex: "allotted",
     },
     {
       title: "Pending Stock",
-      children: [{ title: "Case", dataIndex: "pending" }],
+      dataIndex: "pending",
     },
   ];
 
@@ -111,9 +111,9 @@ export default function CleanupReport() {
         const exportData = data.map(item => ({
           "Item Name": item.item_name,
           "Pack": item.pack,
-          "Physical Stock (Case)": item.physical,
-          "Allotted Stock (Case)": item.allotted,
-          "Pending Stock (Case)": item.pending,
+          "Physical Stock": item.physical,
+          "Allotable Stock": item.allotted,
+          "Pending Stock": item.pending,
         }));
 
         const totalPhysical = data.reduce((sum, item) => sum + (Number(item.physical) || 0), 0);
@@ -123,9 +123,9 @@ export default function CleanupReport() {
         exportData.push({
           "Item Name": "Total",
           "Pack": "",
-          "Physical Stock (Case)": totalPhysical,
-          "Allotted Stock (Case)": totalAllotted,
-          "Pending Stock (Case)": totalPending,
+          "Physical Stock": totalPhysical,
+          "Allotable Stock": totalAllotted,
+          "Pending Stock": totalPending,
         });
 
         exportToExcel(
@@ -146,9 +146,9 @@ export default function CleanupReport() {
             Warehouse: whData.warehouse,
             "Item Name": item.item_name,
             "Pack": item.pack,
-            "Physical Stock (Case)": item.physical,
-            "Allotted Stock (Case)": item.allotted,
-            "Pending Stock (Case)": item.pending,
+            "Physical Stock": item.physical,
+            "Allotable Stock": item.allotted,
+            "Pending Stock": item.pending,
           }))
         );
 
@@ -159,7 +159,7 @@ export default function CleanupReport() {
           periodLabel: periodLabel,
           filename: "physical_stock_report_unified.xlsx",
           sheetName: "Physical Stock",
-          sumCols: ["Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)"]
+          sumCols: ["Physical Stock", "Allotable Stock", "Pending Stock"]
         });
       }
     } else if (format === "pdf") {
@@ -169,13 +169,13 @@ export default function CleanupReport() {
           return;
         }
 
-        const columns = ["Item Name", "Pack", "Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)"];
+        const columns = ["Item Name", "Pack", "Physical Stock", "Allotable Stock", "Pending Stock"];
         const exportData = data.map(item => ({
           "Item Name": item.item_name,
           "Pack": item.pack,
-          "Physical Stock (Case)": item.physical,
-          "Allotted Stock (Case)": item.allotted,
-          "Pending Stock (Case)": item.pending,
+          "Physical Stock": item.physical,
+          "Allotable Stock": item.allotted,
+          "Pending Stock": item.pending,
         }));
 
         const totalPhysical = data.reduce((sum, item) => sum + (Number(item.physical) || 0), 0);
@@ -185,9 +185,9 @@ export default function CleanupReport() {
         exportData.push({
           "Item Name": "Total",
           "Pack": "",
-          "Physical Stock (Case)": totalPhysical,
-          "Allotted Stock (Case)": totalAllotted,
-          "Pending Stock (Case)": totalPending,
+          "Physical Stock": totalPhysical,
+          "Allotable Stock": totalAllotted,
+          "Pending Stock": totalPending,
         });
 
         exportToPdf({
@@ -201,15 +201,15 @@ export default function CleanupReport() {
       } else if (mode === "unified") {
         if (!report?.data) return;
 
-        const columns = ["Warehouse", "Item Name", "Pack", "Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)"];
+        const columns = ["Item Name", "Pack", "Physical Stock", "Allotable Stock", "Pending Stock"];
         const exportData = report.data.flatMap(whData =>
           (whData.items || []).map(item => ({
             Warehouse: whData.warehouse,
             "Item Name": item.item_name,
             "Pack": item.pack,
-            "Physical Stock (Case)": item.physical,
-            "Allotted Stock (Case)": item.allotted,
-            "Pending Stock (Case)": item.pending,
+            "Physical Stock": item.physical,
+            "Allotable Stock": item.allotted,
+            "Pending Stock": item.pending,
           }))
         );
 
@@ -219,7 +219,7 @@ export default function CleanupReport() {
           columns,
           data: exportData,
           groupByField: "Warehouse",
-          sumCols: ["Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)"],
+          sumCols: ["Physical Stock", "Allotable Stock", "Pending Stock"],
           filename: "physical_stock_report_unified.pdf"
         });
       } else if (mode === "cluster") {
@@ -228,15 +228,15 @@ export default function CleanupReport() {
         getJson("warehouse_clusters")
           .then(res => {
             const clusters = res.data;
-            const columns = ["Warehouse", "Item Name", "Pack", "Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)"];
+            const columns = ["Item Name", "Pack", "Physical Stock", "Allotable Stock", "Pending Stock"];
             const exportData = report.data.flatMap(whData =>
               (whData.items || []).map(item => ({
                 Warehouse: whData.warehouse,
                 "Item Name": item.item_name,
                 "Pack": item.pack,
-                "Physical Stock (Case)": item.physical,
-                "Allotted Stock (Case)": item.allotted,
-                "Pending Stock (Case)": item.pending,
+                "Physical Stock": item.physical,
+                "Allotable Stock": item.allotted,
+                "Pending Stock": item.pending,
               }))
             );
 
@@ -246,7 +246,7 @@ export default function CleanupReport() {
               columns,
               data: exportData,
               groupByField: "Warehouse",
-              sumCols: ["Physical Stock (Case)", "Allotted Stock (Case)", "Pending Stock (Case)"],
+              sumCols: ["Physical Stock", "Allotable Stock", "Pending Stock"],
               clusters,
               filenamePrefix: "physical_stock"
             });
