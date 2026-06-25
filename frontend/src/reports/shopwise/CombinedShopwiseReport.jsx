@@ -540,7 +540,7 @@ export default function CombinedShopwiseReport() {
     } else if (format === "pdf") {
       if (modeType === "current") {
         const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
-        const pdfCols = ["Row Labels", `Opening ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Receipt ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Sales ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Closing ${view === 'bottle' ? 'Bottles' : 'Cases'}`];
+        const pdfCols = ["Brand/Pack", "Opening", "Receipt", "Sales", "Closing"];
         
         const pdfRows = [];
         let currentBrandHeader = null;
@@ -570,19 +570,19 @@ export default function CombinedShopwiseReport() {
         const pdfData = pdfRows.map(row => {
           if (row.isSpacer) {
             return {
-              "Row Labels": "",
-              [`Opening ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: "",
-              [`Receipt ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: "",
-              [`Sales ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: "",
-              [`Closing ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: ""
+              "Brand/Pack": "",
+              "Opening": "",
+              "Receipt": "",
+              "Sales": "",
+              "Closing": ""
             };
           }
           return {
-            "Row Labels": row.label,
-            [`Opening ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: formatVal(row.opening),
-            [`Receipt ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: formatVal(row.inward),
-            [`Sales ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: formatVal(row.outward),
-            [`Closing ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: formatVal(row.closing)
+            "Brand/Pack": row.label,
+            "Opening": formatVal(row.opening),
+            "Receipt": formatVal(row.inward),
+            "Sales": formatVal(row.outward),
+            "Closing": formatVal(row.closing)
           };
         });
 
@@ -592,23 +592,47 @@ export default function CombinedShopwiseReport() {
           columns: pdfCols,
           data: pdfData,
           filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_current.pdf`,
+          zeroMargin: true,
+          didDrawCell: (data) => {
+            const rowIndex = data.row.index;
+            const rowObj = pdfRows[rowIndex];
+            if ((rowObj?.isShopTotal || rowObj?.isGrandTotal) && data.section === 'body') {
+              const doc = data.doc;
+              doc.setDrawColor(255, 189, 49); // Orange
+              doc.setLineWidth(0.5);
+              doc.line(data.cell.x, data.cell.y, data.cell.x + data.cell.width, data.cell.y);
+            }
+          },
           didParseCell: (cellData) => {
+            if (cellData.section !== 'body') return;
+
+            const rawVal = cellData.cell.raw;
+            if (rawVal !== "" && rawVal !== undefined && rawVal !== null) {
+              const cleanVal = String(rawVal).replace(/,/g, '').trim();
+              if (cleanVal !== '' && !isNaN(Number(cleanVal))) {
+                cellData.cell.styles.halign = 'center';
+              }
+            }
+
             const rowIndex = cellData.row.index;
             const rowObj = pdfRows[rowIndex];
+
             if (rowObj) {
               if (rowObj.isBrandHeader) {
                 cellData.cell.styles.fontStyle = "bold";
                 cellData.cell.styles.fillColor = [27, 54, 93]; // Navy blue background
                 cellData.cell.styles.textColor = [255, 255, 255]; // White text
               } else if (rowObj.isShopHeader) {
+                if (cellData.column.index === 0) {
+                  cellData.cell.styles.fontStyle = "bold";
+                  cellData.cell.styles.fillColor = [240, 240, 240];
+                  cellData.cell.colSpan = 5;
+                }
+              } else if (rowObj.isShopTotal || rowObj.isGrandTotal) {
                 cellData.cell.styles.fontStyle = "bold";
-                cellData.cell.styles.fillColor = [240, 240, 240];
-              } else if (rowObj.isShopTotal) {
-                cellData.cell.styles.fontStyle = "bold";
-                cellData.cell.styles.fillColor = [173, 201, 230];
-              } else if (rowObj.isGrandTotal) {
-                cellData.cell.styles.fontStyle = "bold";
-                cellData.cell.styles.fillColor = [173, 201, 230];
+                cellData.cell.styles.fillColor = [27, 54, 93]; // Navy blue background
+                cellData.cell.styles.textColor = [255, 189, 49]; // Orange text
+                cellData.cell.styles.lineColor = [27, 54, 93]; // Same color as background
               }
             }
           }

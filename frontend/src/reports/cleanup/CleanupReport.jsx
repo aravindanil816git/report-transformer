@@ -193,7 +193,8 @@ export default function CleanupReport() {
           columns,
           data: exportData,
           filename: "cleanup_report_current.pdf",
-          metadataWarehouse: warehouse || "All"
+          metadataWarehouse: warehouse || "All",
+          zeroMargin: true
         });
       } else if (mode === "unified") {
         const exportData = flattened.map(item => ({
@@ -214,7 +215,8 @@ export default function CleanupReport() {
           data: exportData,
           groupByField: "Warehouse",
           sumCols: ["Physical Stock", "Allotable Stock", "Pending Stock", "WH Price", "Landed Cost"],
-          filename: "cleanup_report_unified.pdf"
+          filename: "cleanup_report_unified.pdf",
+          zeroMargin: true
         });
       } else if (mode === "cluster") {
         getJson("warehouse_clusters")
@@ -239,7 +241,8 @@ export default function CleanupReport() {
               groupByField: "Warehouse",
               sumCols: ["Physical Stock", "Allotable Stock", "Pending Stock", "WH Price", "Landed Cost"],
               clusters,
-              filenamePrefix: "cleanup_report"
+              filenamePrefix: "cleanup_report",
+              zeroMargin: true
             });
           })
           .catch(err => {

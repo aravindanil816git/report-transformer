@@ -282,34 +282,44 @@ export const exportToPdf = ({
   sumCols = [],
   filename = "report.pdf",
   metadataWarehouse = null,
-  didParseCell = null
+  didParseCell = null,
+  didDrawCell = null,
+  zeroMargin = false
 }) => {
-  const doc = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: "a4"
-  });
+  let doc;
 
   const drawHeader = (doc, currentTitle, currentPeriod, subHeader = null) => {
-    // Row 1: KS Distillery (Navy blue background, yellow/orange text)
-    doc.setFillColor(27, 54, 93); // Navy blue
-    doc.rect(15, 12, 180, 8, "F");
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(255, 189, 49); // Yellow/Orange
-    doc.text("KS Distillery", 20, 17.5, { align: "left" });
+    const startX = zeroMargin ? 0 : 10;
+    const width = zeroMargin ? 210 : 190;
+    const paddingLeft = zeroMargin ? 5 : 15;
 
-    // Row 2: Report Title (Navy blue background, yellow/orange text)
+    // Draw background rectangles for both rows first
     doc.setFillColor(27, 54, 93); // Navy blue
-    doc.rect(15, 20, 180, 8, "F");
+    doc.rect(startX, zeroMargin ? 0 : 12, width, 8, "F");
+
+    doc.setFillColor(27, 54, 93); // Navy blue
+    doc.rect(startX, zeroMargin ? 8 : 20, width, 8, "F");
+
+    // Draw orange divider line
+    doc.setDrawColor(255, 189, 49); // Orange/Yellow (#ffbd31)
+    doc.setLineWidth(0.5);
+    doc.line(startX, zeroMargin ? 8 : 20, startX + width, zeroMargin ? 8 : 20);
+
+    // Row 1: K.S DISTILLERY Text (size 16, centered)
+    doc.setFontSize(16);
+    doc.setFont("times", "bold");
+    doc.setTextColor(255, 189, 49); // Yellow/Orange
+    doc.text("K.S DISTILLERY", 105, zeroMargin ? 6 : 17.5, { align: "center" });
+
+    // Row 2: Report Title Text
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(255, 189, 49); // Yellow/Orange
-    doc.text(currentTitle, 20, 25.5, { align: "left" });
+    doc.text(currentTitle, paddingLeft, zeroMargin ? 13.5 : 25.5, { align: "left" });
 
     // Row 3: Period (Orange background, navy blue text)
     doc.setFillColor(255, 189, 49); // Orange background (#ffbd31)
-    doc.rect(15, 28, 180, 8, "F");
+    doc.rect(startX, zeroMargin ? 16 : 28, width, 8, "F");
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(27, 54, 93); // Navy blue text
@@ -335,16 +345,74 @@ export const exportToPdf = ({
         }
       }
     }
-    doc.text(`Period: ${formattedDate}`, 20, 33.5, { align: "left" });
+    doc.text(`Period: ${formattedDate}`, paddingLeft, zeroMargin ? 21.5 : 33.5, { align: "left" });
 
     // Row 4: Subheader (Navy blue background, orange/yellow text)
     const whName = subHeader ? subHeader.replace(/^Warehouse:\s*/i, "") : (metadataWarehouse || "All");
     doc.setFillColor(27, 54, 93); // Navy blue
-    doc.rect(15, 40, 180, 8, "F");
+    doc.rect(startX, zeroMargin ? 24 : 40, width, 8, "F");
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(255, 189, 49); // Orange text
-    doc.text(whName, 20, 45.5, { align: "left" });
+    doc.text(whName, paddingLeft, zeroMargin ? 29.5 : 45.5, { align: "left" });
+  };
+
+  const getTableHeight = (cols, rows) => {
+    const dummyDoc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: [210, 2000]
+    });
+    autoTable(dummyDoc, {
+      head: [cols],
+      body: rows,
+      startY: 32,
+      margin: { top: 32, bottom: 0, left: 0, right: 0 },
+      theme: "grid",
+      styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
+      headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      didParseCell: (cellData) => {
+        if (didParseCell) didParseCell(cellData);
+      }
+    });
+    return (dummyDoc.lastAutoTable?.finalY || 32) + 2;
+  };
+
+  const columnStyles = {};
+  if (columns[columns.length - 1] === "Total Issues") {
+    const totalWidth = zeroMargin ? 210 : 190;
+    const firstColWidth = zeroMargin ? 40 : 50;
+    const lastColWidth = zeroMargin ? 15 : 20;
+    const remainingWidth = totalWidth - firstColWidth - lastColWidth;
+    const colWidth = remainingWidth / (columns.length - 2);
+
+    columnStyles[0] = { cellWidth: firstColWidth };
+    for (let i = 1; i <= columns.length - 2; i++) {
+      columnStyles[i] = { cellWidth: colWidth };
+    }
+    columnStyles[columns.length - 1] = { cellWidth: lastColWidth };
+  }
+
+  const handleGrandTotalBorders = (cellData) => {
+    const firstCellRaw = cellData.row.cells[0]?.raw;
+    const isGrandTotal = String(firstCellRaw).trim() === "Grand Total" || String(firstCellRaw).trim() === "Grandtotal";
+    if (isGrandTotal) {
+      cellData.cell.styles.fontStyle = "bold";
+      cellData.cell.styles.fillColor = [27, 54, 93]; // Navy blue background
+      cellData.cell.styles.textColor = [255, 189, 49]; // Orange text
+      cellData.cell.styles.lineColor = [27, 54, 93]; // Same color as background
+    }
+  };
+
+  const drawGrandTotalTopBorder = (data) => {
+    const firstCellRaw = data.row.cells[0]?.raw;
+    const isGrandTotal = String(firstCellRaw).trim() === "Grand Total" || String(firstCellRaw).trim() === "Grandtotal";
+    if (isGrandTotal && data.section === 'body') {
+      doc.setDrawColor(255, 189, 49); // Orange
+      doc.setLineWidth(0.5);
+      doc.line(data.cell.x, data.cell.y, data.cell.x + data.cell.width, data.cell.y);
+    }
   };
 
   if (groupByField) {
@@ -357,43 +425,217 @@ export const exportToPdf = ({
     });
 
     const groupNames = Object.keys(groups).sort();
-    groupNames.forEach((groupName, idx) => {
-      if (idx > 0) doc.addPage();
 
-      const groupRows = groups[groupName];
-      const tableRows = groupRows.map(row => 
-        columns.map(col => row[col] !== undefined ? row[col] : "")
-      );
+    if (zeroMargin) {
+      groupNames.forEach((groupName, idx) => {
+        const groupRows = groups[groupName];
+        const tableRows = groupRows.map(row => 
+          columns.map(col => row[col] !== undefined ? row[col] : "")
+        );
 
-      // Append Totals row for this group if there are sum columns
-      if (sumCols.length > 0) {
-        const totalsRow = columns.map(col => {
-          if (col === groupByField || col === columns[0]) return "Total";
-          if (sumCols.includes(col)) {
-            const sum = groupRows.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
-            const isPrice = col.toLowerCase().includes("price") || col.toLowerCase().includes("cost");
-            return isPrice ? sum.toFixed(2) : sum;
+        if (sumCols.length > 0) {
+          const totalsRow = columns.map(col => {
+            if (col === groupByField || col === columns[0]) return "Total";
+            if (sumCols.includes(col)) {
+              const sum = groupRows.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
+              const isPrice = col.toLowerCase().includes("price") || col.toLowerCase().includes("cost");
+              return isPrice ? sum.toFixed(2) : sum;
+            }
+            return "";
+          });
+          tableRows.push(totalsRow);
+        }
+
+        const pageHeight = Math.max(210, getTableHeight(columns, tableRows));
+
+        if (idx === 0) {
+          doc = new jsPDF({
+            orientation: "portrait",
+            unit: "mm",
+            format: [210, pageHeight]
+          });
+        } else {
+          doc.addPage([210, pageHeight], "portrait");
+        }
+
+        autoTable(doc, {
+          head: [columns],
+          body: tableRows,
+          startY: 32,
+          margin: { top: 32, bottom: 0, left: 0, right: 0 },
+          theme: "grid",
+          styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
+          columnStyles: columnStyles,
+          headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          didDrawPage: (cellData) => {
+            drawHeader(doc, title, periodLabel, `Warehouse: ${groupName}`);
+          },
+          didDrawCell: didDrawCell,
+          didParseCell: (cellData) => {
+            const isTotalRow = cellData.row.index === tableRows.length - 1;
+            if (isTotalRow && sumCols.length > 0) {
+              cellData.cell.styles.fontStyle = "bold";
+              cellData.cell.styles.fillColor = [241, 245, 249];
+            }
+            if (cellData.section === 'body') {
+              const rawVal = cellData.cell.raw;
+              if (rawVal !== "" && rawVal !== undefined && rawVal !== null) {
+                const cleanVal = String(rawVal).replace(/,/g, '').trim();
+                if (cleanVal !== '' && !isNaN(Number(cleanVal))) {
+                  cellData.cell.styles.halign = 'center';
+                }
+              }
+            }
+            if (didParseCell) {
+              didParseCell(cellData);
+            }
           }
-          return "";
         });
-        tableRows.push(totalsRow);
-      }
+      });
+    } else {
+      doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4"
+      });
+
+      groupNames.forEach((groupName, idx) => {
+        if (idx > 0) doc.addPage();
+
+        const groupRows = groups[groupName];
+        const tableRows = groupRows.map(row => 
+          columns.map(col => row[col] !== undefined ? row[col] : "")
+        );
+
+        if (sumCols.length > 0) {
+          const totalsRow = columns.map(col => {
+            if (col === groupByField || col === columns[0]) return "Total";
+            if (sumCols.includes(col)) {
+              const sum = groupRows.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
+              const isPrice = col.toLowerCase().includes("price") || col.toLowerCase().includes("cost");
+              return isPrice ? sum.toFixed(2) : sum;
+            }
+            return "";
+          });
+          tableRows.push(totalsRow);
+        }
+
+        autoTable(doc, {
+          head: [columns],
+          body: tableRows,
+          startY: 52,
+          margin: { top: 52, bottom: 20, left: 10, right: 10 },
+          theme: "grid",
+          styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
+          columnStyles: columnStyles,
+          headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          didDrawPage: (cellData) => {
+            drawHeader(doc, title, periodLabel, `Warehouse: ${groupName}`);
+          },
+          didDrawCell: didDrawCell,
+          didParseCell: (cellData) => {
+            const isTotalRow = cellData.row.index === tableRows.length - 1;
+            if (isTotalRow && sumCols.length > 0) {
+              cellData.cell.styles.fontStyle = "bold";
+              cellData.cell.styles.fillColor = [241, 245, 249];
+            }
+            if (cellData.section === 'body') {
+              const rawVal = cellData.cell.raw;
+              if (rawVal !== "" && rawVal !== undefined && rawVal !== null) {
+                const cleanVal = String(rawVal).replace(/,/g, '').trim();
+                if (cleanVal !== '' && !isNaN(Number(cleanVal))) {
+                  cellData.cell.styles.halign = 'center';
+                }
+              }
+            }
+            if (didParseCell) {
+              didParseCell(cellData);
+            }
+          }
+        });
+      });
+    }
+  } else {
+    // Single table render
+    const tableRows = data.map(row => 
+      columns.map(col => row[col] !== undefined ? row[col] : "")
+    );
+
+    const lastRow = data[data.length - 1];
+    const firstCellVal = lastRow ? String(Object.values(lastRow)[0] || "").trim().toLowerCase() : "";
+    const hasTotalRow = firstCellVal === "total";
+
+    if (zeroMargin) {
+      const pageHeight = Math.max(210, getTableHeight(columns, tableRows));
+      doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: [210, pageHeight]
+      });
+
+      autoTable(doc, {
+        head: [columns],
+        body: tableRows,
+        startY: 32,
+        margin: { top: 32, bottom: 0, left: 0, right: 0 },
+        theme: "grid",
+        styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
+        columnStyles: columnStyles,
+        headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        didDrawPage: (cellData) => {
+          drawHeader(doc, title, periodLabel, metadataWarehouse ? `Warehouse: ${metadataWarehouse}` : null);
+        },
+        didDrawCell: didDrawCell || drawGrandTotalTopBorder,
+        didParseCell: (cellData) => {
+          handleGrandTotalBorders(cellData);
+          const isTotalRow = hasTotalRow && (cellData.row.index === tableRows.length - 1);
+          if (isTotalRow && !cellData.cell.styles.fillColor) {
+            cellData.cell.styles.fontStyle = "bold";
+            cellData.cell.styles.fillColor = [241, 245, 249];
+          }
+          
+          if (cellData.section === 'body') {
+            const rawVal = cellData.cell.raw;
+            if (rawVal !== "" && rawVal !== undefined && rawVal !== null) {
+              const cleanVal = String(rawVal).replace(/,/g, '').trim();
+              if (cleanVal !== '' && !isNaN(Number(cleanVal))) {
+                cellData.cell.styles.halign = 'center';
+              }
+            }
+          }
+          if (didParseCell) {
+            didParseCell(cellData);
+          }
+        }
+      });
+    } else {
+      doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4"
+      });
 
       autoTable(doc, {
         head: [columns],
         body: tableRows,
         startY: 52,
-        margin: { top: 52, bottom: 20, left: 15, right: 15 },
+        margin: { top: 52, bottom: 20, left: 10, right: 10 },
         theme: "grid",
         styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
+        columnStyles: columnStyles,
         headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
         alternateRowStyles: { fillColor: [248, 250, 252] },
         didDrawPage: (cellData) => {
-          drawHeader(doc, title, periodLabel, `Warehouse: ${groupName}`);
+          drawHeader(doc, title, periodLabel, metadataWarehouse ? `Warehouse: ${metadataWarehouse}` : null);
         },
+        didDrawCell: didDrawCell || drawGrandTotalTopBorder,
         didParseCell: (cellData) => {
-          const isTotalRow = cellData.row.index === tableRows.length - 1;
-          if (isTotalRow && sumCols.length > 0) {
+          handleGrandTotalBorders(cellData);
+          const isTotalRow = hasTotalRow && (cellData.row.index === tableRows.length - 1);
+          if (isTotalRow && !cellData.cell.styles.fillColor) {
             cellData.cell.styles.fontStyle = "bold";
             cellData.cell.styles.fillColor = [241, 245, 249];
           }
@@ -411,59 +653,18 @@ export const exportToPdf = ({
           }
         }
       });
-    });
-  } else {
-    // Single table render
-    const tableRows = data.map(row => 
-      columns.map(col => row[col] !== undefined ? row[col] : "")
-    );
-
-    // Check if the last row is already a "Total" row (for Current View where parent might add totals)
-    const lastRow = data[data.length - 1];
-    const firstCellVal = lastRow ? String(Object.values(lastRow)[0] || "").trim().toLowerCase() : "";
-    const hasTotalRow = firstCellVal === "total";
-
-    autoTable(doc, {
-      head: [columns],
-      body: tableRows,
-      startY: 52,
-      margin: { top: 52, bottom: 20, left: 15, right: 15 },
-      theme: "grid",
-      styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
-      headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      didDrawPage: (cellData) => {
-        drawHeader(doc, title, periodLabel, metadataWarehouse ? `Warehouse: ${metadataWarehouse}` : null);
-      },
-      didParseCell: (cellData) => {
-        const isTotalRow = hasTotalRow && (cellData.row.index === tableRows.length - 1);
-        if (isTotalRow) {
-          cellData.cell.styles.fontStyle = "bold";
-          cellData.cell.styles.fillColor = [241, 245, 249];
-        }
-        if (cellData.section === 'body') {
-          const rawVal = cellData.cell.raw;
-          if (rawVal !== "" && rawVal !== undefined && rawVal !== null) {
-            const cleanVal = String(rawVal).replace(/,/g, '').trim();
-            if (cleanVal !== '' && !isNaN(Number(cleanVal))) {
-              cellData.cell.styles.halign = 'center';
-            }
-          }
-        }
-        if (didParseCell) {
-          didParseCell(cellData);
-        }
-      }
-    });
+    }
   }
 
-  // Draw Page Numbers
-  const pageCount = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setTextColor(140, 140, 140);
-    doc.text(`Page ${i} of ${pageCount}`, 105, 287, { align: "center" });
+  // Draw Page Numbers (only for standard A4 document layout)
+  if (!zeroMargin) {
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(140, 140, 140);
+      doc.text(`Page ${i} of ${pageCount}`, 105, 287, { align: "center" });
+    }
   }
 
   doc.save(filename);
@@ -477,7 +678,8 @@ export const exportClusterPdf = async ({
   groupByField,
   sumCols,
   clusters,
-  filenamePrefix = "report"
+  filenamePrefix = "report",
+  zeroMargin = false
 }) => {
   const entries = Object.entries(clusters);
   for (const [clusterName, whList] of entries) {
@@ -496,7 +698,8 @@ export const exportClusterPdf = async ({
         data: clusterData,
         groupByField,
         sumCols,
-        filename: `${filenamePrefix}_${cleanClusterName}.pdf`
+        filename: `${filenamePrefix}_${cleanClusterName}.pdf`,
+        zeroMargin
       });
       // Introduce a 300ms delay to prevent browser from blocking subsequent downloads
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -602,38 +805,46 @@ export const exportShopDrilldownPdfByBond = async ({
   };
 
   const drawHeader = (doc, currentTitle, currentPeriod, shopName) => {
-    // Row 1: KS Distillery (Navy blue, yellow text)
+    // Draw background rectangles for both rows first
     doc.setFillColor(27, 54, 93); // Navy blue
-    doc.rect(15, 12, 180, 8, "F");
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(255, 189, 49); // Orange/Yellow
-    doc.text("KS Distillery", 20, 17.5, { align: "left" });
+    doc.rect(0, 0, 210, 8, "F");
 
-    // Row 2: Report Title (Navy blue, yellow text)
     doc.setFillColor(27, 54, 93); // Navy blue
-    doc.rect(15, 20, 180, 8, "F");
+    doc.rect(0, 8, 210, 8, "F");
+
+    // Draw orange divider line at y = 8
+    doc.setDrawColor(255, 189, 49); // Orange/Yellow (#ffbd31)
+    doc.setLineWidth(0.5);
+    doc.line(0, 8, 210, 8);
+
+    // Row 1: K.S DISTILLERY Text (size 16, centered)
+    doc.setFontSize(16);
+    doc.setFont("times", "bold");
+    doc.setTextColor(255, 189, 49); // Orange/Yellow
+    doc.text("K.S DISTILLERY", 105, 6, { align: "center" });
+
+    // Row 2: Report Title Text
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(255, 189, 49); // Orange/Yellow
-    doc.text(currentTitle, 20, 25.5, { align: "left" });
+    doc.text(currentTitle, 5, 13.5, { align: "left" });
 
     // Row 3: Period (Orange, navy blue text)
     doc.setFillColor(255, 189, 49); // Orange background
-    doc.rect(15, 28, 180, 8, "F");
+    doc.rect(0, 16, 210, 8, "F");
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(27, 54, 93); // Navy blue text
     const cleanPeriod = (currentPeriod || "").replace(/^COMBINED PERIOD\s*:\s*/i, "").trim();
-    doc.text(`Period: ${cleanPeriod}`, 20, 33.5, { align: "left" });
+    doc.text(`Period: ${cleanPeriod}`, 5, 21.5, { align: "left" });
 
     // Row 4: Subheader/Shop Name (Navy blue, yellow text)
     doc.setFillColor(27, 54, 93); // Navy blue
-    doc.rect(15, 40, 180, 8, "F");
+    doc.rect(0, 24, 210, 8, "F");
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(255, 189, 49); // Orange text
-    doc.text(shopName, 20, 45.5, { align: "left" });
+    doc.text(shopName, 5, 29.5, { align: "left" });
   };
 
   let pageAdded = false;
@@ -651,7 +862,7 @@ export const exportShopDrilldownPdfByBond = async ({
 
     const shopRows = getShopTableRows(shopCode, shopData);
 
-    const pdfCols = ["Row Labels", `Opening ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Receipt ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Sales ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Closing ${view === 'bottle' ? 'Bottles' : 'Cases'}`];
+    const pdfCols = ["Brand/Pack", "Opening", "Receipt", "Sales", "Closing"];
 
     const tableRows = shopRows.map(row => {
       if (row.isSpacer) {
@@ -671,8 +882,8 @@ export const exportShopDrilldownPdfByBond = async ({
     autoTable(doc, {
       head: [pdfCols],
       body: tableRows,
-      startY: 52,
-      margin: { top: 52, bottom: 20, left: 15, right: 15 },
+      startY: 32,
+      margin: { top: 32, bottom: 8, left: 0, right: 0 },
       theme: "grid",
       styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
       headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
@@ -680,7 +891,26 @@ export const exportShopDrilldownPdfByBond = async ({
       didDrawPage: () => {
         drawHeader(doc, `${title} - ${bondName} Bond`, periodLabel, displayShopName);
       },
+      didDrawCell: (data) => {
+        const rowIndex = data.row.index;
+        const rowObj = shopRows[rowIndex];
+        if (rowObj?.isShopTotal && data.section === 'body') {
+          doc.setDrawColor(255, 189, 49); // Orange
+          doc.setLineWidth(0.5);
+          doc.line(data.cell.x, data.cell.y, data.cell.x + data.cell.width, data.cell.y);
+        }
+      },
       didParseCell: (cellData) => {
+        if (cellData.section !== 'body') return;
+
+        const rawVal = cellData.cell.raw;
+        if (rawVal !== "" && rawVal !== undefined && rawVal !== null) {
+          const cleanVal = String(rawVal).replace(/,/g, '').trim();
+          if (cleanVal !== '' && !isNaN(Number(cleanVal))) {
+            cellData.cell.styles.halign = 'center';
+          }
+        }
+
         const rowIndex = cellData.row.index;
         const rowObj = shopRows[rowIndex];
         if (rowObj) {
@@ -690,7 +920,9 @@ export const exportShopDrilldownPdfByBond = async ({
             cellData.cell.styles.textColor = [255, 255, 255]; // White text
           } else if (rowObj.isShopTotal) {
             cellData.cell.styles.fontStyle = "bold";
-            cellData.cell.styles.fillColor = [173, 201, 230];
+            cellData.cell.styles.fillColor = [27, 54, 93]; // Navy blue background
+            cellData.cell.styles.textColor = [255, 189, 49]; // Orange text
+            cellData.cell.styles.lineColor = [27, 54, 93]; // Same color as background
           }
         }
       }
@@ -703,7 +935,7 @@ export const exportShopDrilldownPdfByBond = async ({
       doc.setPage(i);
       doc.setFontSize(8);
       doc.setTextColor(140, 140, 140);
-      doc.text(`Page ${i} of ${pageCount}`, 105, 287, { align: "center" });
+      doc.text(`Page ${i} of ${pageCount}`, 105, 293, { align: "center" });
     }
     doc.save(filename);
   }

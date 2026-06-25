@@ -680,7 +680,8 @@ export default function CumulativeWarehouseReport() {
             periodLabel: period,
             columns: pdfCols,
             data: pdfData,
-            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.pdf`
+            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.pdf`,
+            zeroMargin: true
           });
         } else if (modeType === "unified" || modeType === "cluster") {
           const params = {
@@ -763,7 +764,8 @@ export default function CumulativeWarehouseReport() {
               data: pdfData,
               groupByField: groupByField,
               sumCols: sumCols,
-              filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_unified.pdf`
+              filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_unified.pdf`,
+              zeroMargin: true
             });
           } else if (modeType === "cluster") {
             const clusterConfigName = isBondMode ? "clusters" : "warehouse_clusters";
@@ -778,7 +780,8 @@ export default function CumulativeWarehouseReport() {
               groupByField: groupByField,
               sumCols: sumCols,
               clusters: clustersData,
-              filenamePrefix: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}`
+              filenamePrefix: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}`,
+              zeroMargin: true
             });
           }
         }
@@ -980,14 +983,14 @@ export default function CumulativeWarehouseReport() {
 
             return (
               <Table.Summary fixed="bottom">
-                <Table.Summary.Row style={{ background: "#fafafa" }}>
-                  <Table.Summary.Cell index={0} width={250}><b>Grand Total</b></Table.Summary.Cell>
+                <Table.Summary.Row style={{ backgroundColor: "#1b365d", borderTop: "2px solid #ffbd31" }}>
+                  <Table.Summary.Cell index={0} width={250}><b style={{ color: "#ffbd31" }}>Grand Total</b></Table.Summary.Cell>
                   {brandColumns.map((bc, idx) => (
                     <Table.Summary.Cell index={idx + 1} key={bc.dataIndex} width={120} align="center">
-                      <b>{brandSums[bc.dataIndex]}</b>
+                      <b style={{ color: "#ffbd31" }}>{brandSums[bc.dataIndex]}</b>
                     </Table.Summary.Cell>
                   ))}
-                  <Table.Summary.Cell index={brandColumns.length + 1} width={150}><b>{totalSum}</b></Table.Summary.Cell>
+                  <Table.Summary.Cell index={brandColumns.length + 1} width={150}><b style={{ color: "#ffbd31" }}>{totalSum}</b></Table.Summary.Cell>
                 </Table.Summary.Row>
               </Table.Summary>
             );
@@ -1001,15 +1004,15 @@ export default function CumulativeWarehouseReport() {
 
             return (
               <Table.Summary fixed="bottom">
-                <Table.Summary.Row style={{ background: "#fafafa" }}>
-                  <Table.Summary.Cell index={0} fixed="left" width={200}><b>Grand Total</b></Table.Summary.Cell>
+                <Table.Summary.Row style={{ backgroundColor: "#1b365d", borderTop: "2px solid #ffbd31" }}>
+                  <Table.Summary.Cell index={0} fixed="left" width={200}><b style={{ color: "#ffbd31" }}>Grand Total</b></Table.Summary.Cell>
                   {labels.map((l, idx) => (
                     <Table.Summary.Cell index={idx + 1} key={l} width={100} align="center">
-                      <b>{colSums[l]}</b>
+                      <b style={{ color: "#ffbd31" }}>{colSums[l]}</b>
                     </Table.Summary.Cell>
                   ))}
                   <Table.Summary.Cell index={labels.length + 1} width={100}>
-                    <b>{totalSum}</b>
+                    <b style={{ color: "#ffbd31" }}>{totalSum}</b>
                   </Table.Summary.Cell>
                 </Table.Summary.Row>
               </Table.Summary>

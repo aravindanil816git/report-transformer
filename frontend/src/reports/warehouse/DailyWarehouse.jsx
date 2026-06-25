@@ -196,7 +196,8 @@ export default function CleanupReport() {
           columns,
           data: exportData,
           filename: `physical_stock_report_${selectedWarehouse}.pdf`,
-          metadataWarehouse: selectedWarehouse
+          metadataWarehouse: selectedWarehouse,
+          zeroMargin: true
         });
       } else if (mode === "unified") {
         if (!report?.data) return;
@@ -220,7 +221,8 @@ export default function CleanupReport() {
           data: exportData,
           groupByField: "Warehouse",
           sumCols: ["Physical Stock", "Allotable Stock", "Pending Stock"],
-          filename: "physical_stock_report_unified.pdf"
+          filename: "physical_stock_report_unified.pdf",
+          zeroMargin: true
         });
       } else if (mode === "cluster") {
         if (!report?.data) return;
@@ -248,7 +250,8 @@ export default function CleanupReport() {
               groupByField: "Warehouse",
               sumCols: ["Physical Stock", "Allotable Stock", "Pending Stock"],
               clusters,
-              filenamePrefix: "physical_stock"
+              filenamePrefix: "physical_stock",
+              zeroMargin: true
             });
           })
           .catch(err => {
