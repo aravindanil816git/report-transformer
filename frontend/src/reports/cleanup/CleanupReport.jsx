@@ -209,7 +209,7 @@ export default function CleanupReport() {
         }));
 
         exportToPdf({
-          title: "Warehouse Physical Stock Report (Unified)",
+          title: "Warehouse Physical Stock Report",
           periodLabel: `Report Period: ${displayReportDate}`,
           columns,
           data: exportData,

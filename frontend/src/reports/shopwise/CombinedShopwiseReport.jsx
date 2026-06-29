@@ -539,104 +539,30 @@ export default function CombinedShopwiseReport() {
       }
     } else if (format === "pdf") {
       if (modeType === "current") {
-        const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
-        const pdfCols = ["Brand/Pack", "Opening", "Receipt", "Sales", "Closing"];
-        
-        const pdfRows = [];
-        let currentBrandHeader = null;
-        tableData.forEach(row => {
-          if (row.isBrandHeader) {
-            currentBrandHeader = {
-              label: row.label,
-              isBrandHeader: true,
-              opening: 0,
-              inward: 0,
-              outward: 0,
-              closing: 0
-            };
-            pdfRows.push(currentBrandHeader);
-          } else if (row.isBrandTotal) {
-            if (currentBrandHeader) {
-              currentBrandHeader.opening = row.opening;
-              currentBrandHeader.inward = row.inward;
-              currentBrandHeader.outward = row.outward;
-              currentBrandHeader.closing = row.closing;
-            }
-          } else {
-            pdfRows.push(row);
-          }
-        });
+        setLoading(true);
+        try {
+          const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
+          
+          const bondName = bond || "Current View";
+          const shopsForPdf = shop ? [allShops.find(s => s.value === shop)] : shopOptions;
 
-        const pdfData = pdfRows.map(row => {
-          if (row.isSpacer) {
-            return {
-              "Brand/Pack": "",
-              "Opening": "",
-              "Receipt": "",
-              "Sales": "",
-              "Closing": ""
-            };
-          }
-          return {
-            "Brand/Pack": row.label,
-            "Opening": formatVal(row.opening),
-            "Receipt": formatVal(row.inward),
-            "Sales": formatVal(row.outward),
-            "Closing": formatVal(row.closing)
-          };
-        });
-
-        exportToPdf({
-          title: `${reportTitle} (Current View)`,
-          periodLabel: period,
-          columns: pdfCols,
-          data: pdfData,
-          filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_current.pdf`,
-          zeroMargin: true,
-          didDrawCell: (data) => {
-            const rowIndex = data.row.index;
-            const rowObj = pdfRows[rowIndex];
-            if ((rowObj?.isShopTotal || rowObj?.isGrandTotal) && data.section === 'body') {
-              const doc = data.doc;
-              doc.setDrawColor(255, 189, 49); // Orange
-              doc.setLineWidth(0.5);
-              doc.line(data.cell.x, data.cell.y, data.cell.x + data.cell.width, data.cell.y);
-            }
-          },
-          didParseCell: (cellData) => {
-            if (cellData.section !== 'body') return;
-
-            const rawVal = cellData.cell.raw;
-            if (rawVal !== "" && rawVal !== undefined && rawVal !== null) {
-              const cleanVal = String(rawVal).replace(/,/g, '').trim();
-              if (cleanVal !== '' && !isNaN(Number(cleanVal))) {
-                cellData.cell.styles.halign = 'center';
-              }
-            }
-
-            const rowIndex = cellData.row.index;
-            const rowObj = pdfRows[rowIndex];
-
-            if (rowObj) {
-              if (rowObj.isBrandHeader) {
-                cellData.cell.styles.fontStyle = "bold";
-                cellData.cell.styles.fillColor = [27, 54, 93]; // Navy blue background
-                cellData.cell.styles.textColor = [255, 255, 255]; // White text
-              } else if (rowObj.isShopHeader) {
-                if (cellData.column.index === 0) {
-                  cellData.cell.styles.fontStyle = "bold";
-                  cellData.cell.styles.fillColor = [240, 240, 240];
-                  cellData.cell.colSpan = 5;
-                }
-              } else if (rowObj.isShopTotal || rowObj.isGrandTotal) {
-                cellData.cell.styles.fontStyle = "bold";
-                cellData.cell.styles.fillColor = [27, 54, 93]; // Navy blue background
-                cellData.cell.styles.textColor = [255, 189, 49]; // Orange text
-                cellData.cell.styles.lineColor = [27, 54, 93]; // Same color as background
-              }
-            }
-          }
-        });
+          exportShopDrilldownPdfByBond({
+            title: reportTitle,
+            periodLabel: period,
+            data: data,
+            bondName: bondName,
+            bondShops: shopsForPdf,
+            allShops: allShops,
+            useWholeNumbers: useWholeNumbers,
+            view: view,
+            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_current.pdf`
+          });
+        } catch (e) {
+          console.error("Error exporting current view PDF:", e);
+          message.error("Failed to export current view PDF");
+        } finally {
+          setLoading(false);
+        }
       } else {
         // Download by bonds
         setLoading(true);

@@ -155,7 +155,7 @@ export default function CleanupReport() {
         exportUnifiedWithDropdown({
           data: exportData,
           warehouses: warehouses,
-          reportTitle: "Warehouse Physical Stock Report (Unified)",
+          reportTitle: "Warehouse Physical Stock Report",
           periodLabel: periodLabel,
           filename: "physical_stock_report_unified.xlsx",
           sheetName: "Physical Stock",
@@ -215,7 +215,7 @@ export default function CleanupReport() {
         );
 
         exportToPdf({
-          title: "Warehouse Physical Stock Report (Unified)",
+          title: "Warehouse Physical Stock Report",
           periodLabel: periodLabel,
           columns,
           data: exportData,

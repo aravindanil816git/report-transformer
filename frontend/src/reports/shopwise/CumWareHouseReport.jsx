@@ -9,14 +9,14 @@ import DownloadDropdown from "../../components/DownloadDropdown";
 const { RangePicker } = DatePicker;
 
 const PDF_REPLACEMENT_BRANDS = [
-  { title: "BCB NO.1", key: "BRAND_BCB NO.1 CLASSIC BRANDY" },
-  { title: "BLENDER'S CHOICE", key: "BRAND_BLENDERS CHOICE NO.1 BRANDY" },
-  { title: "CHAIRMAN'S CHOICE BRANDY", key: "BRAND_CHAIRMAN'S CHOICE XO BRANDY" },
-  { title: "K.S 99", key: "BRAND_K.S 99 LIFE TIME MATURED XXX RUM" },
-  { title: "MAGIC BLEND RESERVED", key: "BRAND_MAGIC BLEND RESERVED XXX RUM" },
-  { title: "MORNING WALKERS", key: "BRAND_MORNING WALKERS XO BRANDY" },
-  { title: "OLD PEARL RUM", key: "BRAND_OLD PEARL NO.1 MATURED XXX RUM" },
-  { title: "ROYAL OLD FORT RUM", key: "BRAND_ROYAL OLD FORT NO.1 XXX RUM" }
+  { title: "BCB", key: "BRAND_BCB NO.1 CLASSIC BRANDY" },
+  { title: "BLN", key: "BRAND_BLENDERS CHOICE NO.1 BRANDY" },
+  { title: "CCB", key: "BRAND_CHAIRMAN'S CHOICE XO BRANDY" },
+  { title: "K99", key: "BRAND_K.S 99 LIFE TIME MATURED XXX RUM" },
+  { title: "MBR", key: "BRAND_MAGIC BLEND RESERVED XXX RUM" },
+  { title: "MWB", key: "BRAND_MORNING WALKERS XO BRANDY" },
+  { title: "OPR", key: "BRAND_OLD PEARL NO.1 MATURED XXX RUM" },
+  { title: "ROF", key: "BRAND_ROYAL OLD FORT NO.1 XXX RUM" }
 ];
 
 export default function CumulativeWarehouseReport() {
@@ -480,8 +480,8 @@ export default function CumulativeWarehouseReport() {
         pdfCols.push(bc.title);
         mappingCols.push({ title: bc.title, key: bc.key });
       });
-      pdfCols.push("Total Issues");
-      mappingCols.push({ title: "Total Issues", key: "total" });
+      pdfCols.push("TOT");
+      mappingCols.push({ title: "TOT", key: "total" });
     }
     
     // 2. Map data rows
@@ -528,7 +528,7 @@ export default function CumulativeWarehouseReport() {
     }
     let totalSum = 0;
     actualRows.forEach(r => totalSum += Number(r.total || 0));
-    grandTotalRow[view === "daywise" ? "Total" : "Total Issues"] = totalSum;
+    grandTotalRow[view === "daywise" ? "Total" : "TOT"] = totalSum;
     
     pdfData.push(grandTotalRow);
     
@@ -662,10 +662,10 @@ export default function CumulativeWarehouseReport() {
     } else if (format === "pdf") {
       setLoading(true);
       try {
-        const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
+        const period = dateRange.length === 2 ? `Period: ${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "Period: All";
         
         // Sum cols for PDF (excluding First column and Spacer columns)
-        const sumCols = ["Total", "Total Issues"];
+        const sumCols = ["Total", "TOT"];
         if (view === "daywise") {
           sumCols.push(...labels);
         } else {
@@ -675,13 +675,20 @@ export default function CumulativeWarehouseReport() {
         if (modeType === "current") {
           const title = getTitle();
           const { columns: pdfCols, data: pdfData } = getPdfDataAndColumns(processedData);
+          const didParseCell = (cellData) => {
+            if (cellData.section === 'body' && cellData.column.dataKey === 'TOT') {
+              cellData.cell.styles.fillColor = [255, 255, 240]; // Ivory background
+            }
+          };
+
           exportToPdf({
-            title: `${reportTitle} (Current View)`,
+            title: reportTitle,
             periodLabel: period,
             columns: pdfCols,
             data: pdfData,
             filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.pdf`,
-            zeroMargin: true
+            zeroMargin: true,
+            didParseCell: view === "cumulative" ? didParseCell : null
           });
         } else if (modeType === "unified" || modeType === "cluster") {
           const params = {
@@ -727,7 +734,7 @@ export default function CumulativeWarehouseReport() {
             PDF_REPLACEMENT_BRANDS.forEach(bc => {
               pdfCols.push(bc.title);
             });
-            pdfCols.push("Total Issues");
+            pdfCols.push("TOT");
           }
 
           // Map full shop-level data
@@ -751,21 +758,28 @@ export default function CumulativeWarehouseReport() {
               PDF_REPLACEMENT_BRANDS.forEach(bc => {
                 rowItem[bc.title] = d[bc.key] || 0;
               });
-              rowItem["Total Issues"] = d.total || 0;
+              rowItem["TOT"] = d.total || 0;
             }
             return rowItem;
           });
 
+          const didParseCell = (cellData) => {
+            if (cellData.section === 'body' && cellData.column.dataKey === 'TOT') {
+              cellData.cell.styles.fillColor = [255, 255, 240]; // Ivory background
+            }
+          };
+
           if (modeType === "unified") {
             exportToPdf({
-              title: `${reportTitle} (Unified - Shop Drilldown)`,
+              title: reportTitle.replace(/\s*\(.*\)/, ""),
               periodLabel: period,
               columns: pdfCols,
               data: pdfData,
-              groupByField: groupByField,
+              groupByField,
               sumCols: sumCols,
               filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_unified.pdf`,
-              zeroMargin: true
+              zeroMargin: true,
+              didParseCell: view === "cumulative" ? didParseCell : null
             });
           } else if (modeType === "cluster") {
             const clusterConfigName = isBondMode ? "clusters" : "warehouse_clusters";
@@ -773,15 +787,16 @@ export default function CumulativeWarehouseReport() {
             const clustersData = clusterRes.data || {};
 
             exportClusterPdf({
-              title: `${reportTitle} (Shop Drilldown)`,
+              title: reportTitle.replace(/\s*\(.*\)/, ""),
               periodLabel: period,
               columns: pdfCols,
               data: pdfData,
-              groupByField: groupByField,
+              groupByField,
               sumCols: sumCols,
               clusters: clustersData,
               filenamePrefix: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}`,
-              zeroMargin: true
+              zeroMargin: true,
+              didParseCell: view === "cumulative" ? didParseCell : null
             });
           }
         }

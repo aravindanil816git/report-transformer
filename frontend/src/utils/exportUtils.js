@@ -6,15 +6,10 @@ import autoTable from "jspdf-autotable";
 
 /**
  * Exports data to Excel with optional metadata rows at the top.
- * @param {Array} data - The array of objects to export.
- * @param {Object|Array} metadata - Key-value pairs of filters/metadata, or an array of custom rows.
- * @param {string} filename - The name of the file to save.
- * @param {string} sheetName - The name of the worksheet.
  */
 export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", sheetName = "Report", options = {}) => {
   const wsData = [];
 
-  // Add metadata rows
   if (Array.isArray(metadata)) {
     metadata.forEach(row => wsData.push(row));
   } else {
@@ -25,17 +20,14 @@ export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", she
     });
   }
 
-  // Add a blank row if there was metadata
   if (wsData.length > 0) {
     wsData.push([]);
     wsData.push([]);
   }
 
-  // Add table headers
   let numCols = 1;
   let tableHeaderRowIdx = -1;
   if (data.length > 0) {
-    // Collect all unique keys from all rows to ensure no columns are missed
     const allKeys = new Set();
     data.forEach(row => {
       Object.keys(row).forEach(key => allKeys.add(key));
@@ -45,7 +37,6 @@ export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", she
     tableHeaderRowIdx = wsData.length;
     wsData.push(headers);
 
-    // Add table data
     data.forEach((row) => {
       wsData.push(headers.map((h) => row[h] !== undefined ? row[h] : ""));
     });
@@ -53,15 +44,13 @@ export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", she
 
   const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-  // Auto-size column widths so the text isn't squished
   if (data.length > 0) {
     const headers = Array.from(new Set(data.flatMap(r => Object.keys(r))));
     ws["!cols"] = headers.map(h => ({
-      wch: Math.max(h.length + 5, 12) // Minimum width of 12, or header length + padding
+      wch: Math.max(h.length + 5, 12)
     }));
   }
 
-  // Merge custom header rows so they span across the table and don't get cut off
   const isArrayMetadata = Array.isArray(metadata);
   if (isArrayMetadata && metadata.length > 0 && numCols > 1) {
     if (!ws["!merges"]) ws["!merges"] = [];
@@ -69,10 +58,8 @@ export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", she
     ws["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: numCols - 1 } });
   }
 
-  // Apply AutoFilter if requested
   if (options.autofilter && tableHeaderRowIdx !== -1) {
     const lastRowIndex = wsData.length - 1;
-    // Check if the last row is a Total row (contains 'Total' in the first column)
     const hasTotal = data.length > 0 && String(Object.values(data[data.length - 1])[0] || "").trim() === "Total";
     const endRow = hasTotal ? Math.max(tableHeaderRowIdx, lastRowIndex - 1) : lastRowIndex;
     
@@ -84,7 +71,6 @@ export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", she
     };
   }
 
-  // Apply borders to all cells
   if (ws["!ref"]) {
     const range = XLSX.utils.decode_range(ws["!ref"]);
     for (let R = range.s.r; R <= range.e.r; ++R) {
@@ -105,13 +91,11 @@ export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", she
           }
         };
         
-        // Bold and center the custom headers (Rows 0 and 1)
         if (isArrayMetadata && (R === 0 || R === 1)) {
            ws[cellRef].s.font.bold = true;
            ws[cellRef].s.alignment = { horizontal: "center", vertical: "center" };
         }
         
-        // Bold the table headers and any row that starts with "Total"
         const rowFirstCellRef = XLSX.utils.encode_cell({ c: 0, r: R });
         const rowFirstCellValue = ws[rowFirstCellRef] ? String(ws[rowFirstCellRef].v).trim() : "";
         if (R === tableHeaderRowIdx || rowFirstCellValue === "Total") {
@@ -139,7 +123,6 @@ export const exportUnifiedWithDropdown = async ({
   dropdownLabel = "Warehouse",
   filterColumnName = "Warehouse"
 }) => {
-  // Helper to convert 1-based column index to Excel column letter (e.g. 1 -> A, 27 -> AA)
   const getColLetter = (c) => {
     let temp = c;
     let letter = "";
@@ -162,21 +145,19 @@ export const exportUnifiedWithDropdown = async ({
   });
 
   const allWarehouses = ["All", ...warehouses];
-  const dropdownColIdx = columns.length + 5; // Put validation list 5 columns to the right of active columns
+  const dropdownColIdx = columns.length + 5; 
   const dropdownColLetter = getColLetter(dropdownColIdx);
   allWarehouses.forEach((wh, index) => {
     rawDataSheet.getCell(index + 1, dropdownColIdx).value = wh;
   });
   const warehousesRange = `RawData!$${dropdownColLetter}$1:$${dropdownColLetter}$${allWarehouses.length}`;
 
-  // Report Title
   reportSheet.mergeCells("A1:F1");
   const titleCell = reportSheet.getCell("A1");
   titleCell.value = reportTitle;
   titleCell.font = { name: "Arial", size: 14, bold: true, color: { argb: "FFD00000" } };
   titleCell.alignment = { horizontal: "center", vertical: "middle" };
 
-  // Selector
   reportSheet.getCell("A2").value = `${dropdownLabel}:`;
   reportSheet.getCell("A2").font = { bold: true };
   const dropdownCell = reportSheet.getCell("B2");
@@ -188,12 +169,10 @@ export const exportUnifiedWithDropdown = async ({
     formulae: [warehousesRange]
   };
 
-  // Period
   reportSheet.getCell("A3").value = periodLabel;
   reportSheet.getCell("A3").font = { italic: true };
   reportSheet.mergeCells("A3:F3");
 
-  // Sums (Totals) row
   reportSheet.getCell("A5").value = "Total (Filtered):";
   reportSheet.getCell("A5").font = { bold: true };
 
@@ -208,7 +187,6 @@ export const exportUnifiedWithDropdown = async ({
     }
   });
 
-  // Table Headers
   const headerRow = reportSheet.getRow(6);
   headerRow.values = columns;
   headerRow.font = { bold: true };
@@ -226,8 +204,6 @@ export const exportUnifiedWithDropdown = async ({
     };
   });
 
-  // getColLetter helper is defined at the top of function scope
-
   const lastColLetter = getColLetter(columns.length);
   const targetColLower = filterColumnName.toLowerCase();
   const foundIdx = columns.findIndex(col => col.toLowerCase() === targetColLower);
@@ -235,9 +211,8 @@ export const exportUnifiedWithDropdown = async ({
   const whColLetter = getColLetter(whColIdx);
   const lastRawRow = data.length + 1;
 
-  // Write cell-by-cell filter formulas using INDEX + SMALL + IF (fully compatible with Google Sheets & all Excel versions)
   for (let r = 7; r <= lastDataRow; r++) {
-    const k = r - 6; // 1-based match index
+    const k = r - 6; 
     for (let c = 1; c <= columns.length; c++) {
       const colLetter = getColLetter(c);
       const formula = `IFERROR(INDEX(RawData!${colLetter}:${colLetter}, SMALL(IF($B$2="All", ROW(RawData!$A$2:$A$${lastRawRow}), IF(RawData!$${whColLetter}$2:$${whColLetter}$${lastRawRow}=$B$2, ROW(RawData!$A$2:$A$${lastRawRow}))), ${k})), "")`;
@@ -254,7 +229,6 @@ export const exportUnifiedWithDropdown = async ({
     width: Math.max(col.length + 5, 15)
   }));
 
-  // Style thin borders for spilled cells (bounded to data size)
   for (let r = 7; r <= lastDataRow; r++) {
     for (let c = 1; c <= columns.length; c++) {
       const cell = reportSheet.getCell(r, c);
@@ -293,68 +267,34 @@ export const exportToPdf = ({
     const width = zeroMargin ? 210 : 190;
     const paddingLeft = zeroMargin ? 5 : 15;
 
-    // Draw background rectangles for both rows first
-    doc.setFillColor(27, 54, 93); // Navy blue
-    doc.rect(startX, zeroMargin ? 0 : 12, width, 8, "F");
+    // Row 1 & 2 Base Color block setup
+    doc.setFillColor(11, 41, 79); 
+    doc.rect(startX, zeroMargin ? 0 : 12, width, 16, "F");
 
-    doc.setFillColor(27, 54, 93); // Navy blue
-    doc.rect(startX, zeroMargin ? 8 : 20, width, 8, "F");
-
-    // Draw orange divider line
-    doc.setDrawColor(255, 189, 49); // Orange/Yellow (#ffbd31)
-    doc.setLineWidth(0.5);
-    doc.line(startX, zeroMargin ? 8 : 20, startX + width, zeroMargin ? 8 : 20);
-
-    // Row 1: K.S DISTILLERY Text (size 16, centered)
-    doc.setFontSize(16);
-    doc.setFont("times", "bold");
-    doc.setTextColor(255, 189, 49); // Yellow/Orange
-    doc.text("K.S DISTILLERY", 105, zeroMargin ? 6 : 17.5, { align: "center" });
-
-    // Row 2: Report Title Text
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(255, 189, 49); // Yellow/Orange
-    doc.text(currentTitle, paddingLeft, zeroMargin ? 13.5 : 25.5, { align: "left" });
-
-    // Row 3: Period (Orange background, navy blue text)
-    doc.setFillColor(255, 189, 49); // Orange background (#ffbd31)
+    // Divider accent belt rule line
+    doc.setFillColor(255, 189, 49); 
     doc.rect(startX, zeroMargin ? 16 : 28, width, 8, "F");
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(27, 54, 93); // Navy blue text
-    const cleanPeriod = (currentPeriod || "").replace(/^Report Period:\s*/i, "").replace(/^As\s+on\s*:\s*/i, "").replace(/^As\s+On\s*:\s*/i, "").trim();
-    
-    let formattedDate = cleanPeriod;
-    if (cleanPeriod) {
-      const parts = cleanPeriod.split("-");
-      if (parts.length === 3) {
-        let day, month, year;
-        if (parts[0].length === 4) {
-          year = parseInt(parts[0], 10);
-          month = parseInt(parts[1], 10) - 1;
-          day = parseInt(parts[2], 10);
-        } else {
-          day = parseInt(parts[0], 10);
-          month = parseInt(parts[1], 10) - 1;
-          year = parseInt(parts[2], 10);
-        }
-        const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-        if (!isNaN(day) && !isNaN(month) && !isNaN(year) && month >= 0 && month < 12) {
-          formattedDate = `${day} ${months[month]} ${year}`;
-        }
-      }
-    }
-    doc.text(`Period: ${formattedDate}`, paddingLeft, zeroMargin ? 21.5 : 33.5, { align: "left" });
 
-    // Row 4: Subheader (Navy blue background, orange/yellow text)
-    const whName = subHeader ? subHeader.replace(/^Warehouse:\s*/i, "") : (metadataWarehouse || "All");
-    doc.setFillColor(27, 54, 93); // Navy blue
-    doc.rect(startX, zeroMargin ? 24 : 40, width, 8, "F");
-    doc.setFontSize(10);
+    // Subtitle background track base
+    doc.setFillColor(11, 41, 79); 
+    doc.rect(startX, zeroMargin ? 24 : 36, width, 8, "F");
+
+    doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(255, 189, 49); // Orange text
-    doc.text(whName, paddingLeft, zeroMargin ? 29.5 : 45.5, { align: "left" });
+    doc.setTextColor(255, 189, 49); 
+    doc.text("K.S DISTILLERY", 105, zeroMargin ? 10 : 22, { align: "center" });
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(11, 41, 79); 
+    const cleanPeriod = (currentPeriod || "").replace(/^Report Period:\s*/i, "").replace(/^As\s+on\s*:\s*/i, "").replace(/^As\s+On\s*:\s*/i, "").trim();
+    doc.text(`Period: ${cleanPeriod}`, 105, zeroMargin ? 21.5 : 33.5, { align: "center" });
+
+    const whName = subHeader ? subHeader.replace(/^Warehouse:\s*/i, "") : (metadataWarehouse || "All");
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 189, 49); 
+    doc.text(`${currentTitle}  .  ${whName.toUpperCase()}`, paddingLeft, zeroMargin ? 30 : 42, { align: "left" });
   };
 
   const getTableHeight = (cols, rows) => {
@@ -368,55 +308,42 @@ export const exportToPdf = ({
       body: rows,
       startY: 32,
       margin: { top: 32, bottom: 0, left: 0, right: 0 },
-      theme: "grid",
-      styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
-      headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      didParseCell: (cellData) => {
-        if (didParseCell) didParseCell(cellData);
-      }
+      theme: "striped",
+      styles: { font: "helvetica", fontStyle: "normal", fontSize: 11, cellPadding: 3.5 },
+      headStyles: { fillColor: [11, 41, 79], textColor: [255, 189, 49], fontStyle: "bold", fontSize: 11 }
     });
     return (dummyDoc.lastAutoTable?.finalY || 32) + 2;
   };
 
-  const columnStyles = {};
-  if (columns[columns.length - 1] === "Total Issues") {
-    const totalWidth = zeroMargin ? 210 : 190;
-    const firstColWidth = zeroMargin ? 40 : 50;
-    const lastColWidth = zeroMargin ? 15 : 20;
-    const remainingWidth = totalWidth - firstColWidth - lastColWidth;
-    const colWidth = remainingWidth / (columns.length - 2);
-
-    columnStyles[0] = { cellWidth: firstColWidth };
-    for (let i = 1; i <= columns.length - 2; i++) {
-      columnStyles[i] = { cellWidth: colWidth };
+  // Dynamically resolve metrics alignment based on current data shape
+  const columnStyles = {
+    0: { cellWidth: 'auto', halign: 'left' }
+  };
+  
+  // If a column isn't the primary descriptor text column, align it center
+  for (let i = 1; i < columns.length; i++) {
+    const colName = String(columns[i]).toLowerCase();
+    if (colName === "pack" || colName === "package") {
+      columnStyles[i] = { cellWidth: 28, halign: 'center', textColor: [140, 150, 170] };
+    } else {
+      columnStyles[i] = { cellWidth: 'auto', halign: 'center' };
     }
-    columnStyles[columns.length - 1] = { cellWidth: lastColWidth };
   }
 
   const handleGrandTotalBorders = (cellData) => {
     const firstCellRaw = cellData.row.cells[0]?.raw;
-    const isGrandTotal = String(firstCellRaw).trim() === "Grand Total" || String(firstCellRaw).trim() === "Grandtotal";
+    const isGrandTotal = String(firstCellRaw).trim().toLowerCase().startsWith("total") || 
+                         String(firstCellRaw).trim().toLowerCase().startsWith("grand total") ||
+                         String(firstCellRaw).trim().toLowerCase().startsWith("grandtotal");
     if (isGrandTotal) {
       cellData.cell.styles.fontStyle = "bold";
-      cellData.cell.styles.fillColor = [27, 54, 93]; // Navy blue background
-      cellData.cell.styles.textColor = [255, 189, 49]; // Orange text
-      cellData.cell.styles.lineColor = [27, 54, 93]; // Same color as background
+      cellData.cell.styles.textColor = [255, 189, 49]; // Orangish-yellow text
+      cellData.cell.styles.fillColor = [11, 41, 79]; // Navy blue background
     }
   };
 
-  const drawGrandTotalTopBorder = (data) => {
-    const firstCellRaw = data.row.cells[0]?.raw;
-    const isGrandTotal = String(firstCellRaw).trim() === "Grand Total" || String(firstCellRaw).trim() === "Grandtotal";
-    if (isGrandTotal && data.section === 'body') {
-      doc.setDrawColor(255, 189, 49); // Orange
-      doc.setLineWidth(0.5);
-      doc.line(data.cell.x, data.cell.y, data.cell.x + data.cell.width, data.cell.y);
-    }
-  };
 
   if (groupByField) {
-    // Group rows by the groupByField
     const groups = {};
     data.forEach(row => {
       const groupVal = row[groupByField] || "Unknown";
@@ -426,245 +353,145 @@ export const exportToPdf = ({
 
     const groupNames = Object.keys(groups).sort();
 
-    if (zeroMargin) {
-      groupNames.forEach((groupName, idx) => {
-        const groupRows = groups[groupName];
-        const tableRows = groupRows.map(row => 
-          columns.map(col => row[col] !== undefined ? row[col] : "")
-        );
+    groupNames.forEach((groupName, idx) => {
+      const groupRows = groups[groupName];
+      const tableRows = groupRows.map(row => 
+        columns.map(col => row[col] !== undefined ? row[col] : "")
+      );
 
-        if (sumCols.length > 0) {
-          const totalsRow = columns.map(col => {
-            if (col === groupByField || col === columns[0]) return "Total";
-            if (sumCols.includes(col)) {
-              const sum = groupRows.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
-              const isPrice = col.toLowerCase().includes("price") || col.toLowerCase().includes("cost");
-              return isPrice ? sum.toFixed(2) : sum;
-            }
-            return "";
-          });
-          tableRows.push(totalsRow);
-        }
+      // Determine if a summary bottom row already exists in the view input stack
+      const lastRowFirstCell = tableRows.length > 0 ? String(tableRows[tableRows.length - 1][0]).trim().toLowerCase() : "";
+      const insideTotalExists = lastRowFirstCell.startsWith("total") || lastRowFirstCell.startsWith("grand");
 
-        const pageHeight = Math.max(210, getTableHeight(columns, tableRows));
+      if (sumCols.length > 0 && !insideTotalExists) {
+        const totalsRow = columns.map(col => {
+          if (col === groupByField || col === columns[0]) return "TOTAL";
+          if (sumCols.includes(col)) {
+            return groupRows.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
+          }
+          return "";
+        });
+        tableRows.push(totalsRow);
+      }
 
-        if (idx === 0) {
-          doc = new jsPDF({
-            orientation: "portrait",
-            unit: "mm",
-            format: [210, pageHeight]
-          });
-        } else {
-          doc.addPage([210, pageHeight], "portrait");
-        }
+      const pageHeight = Math.max(210, getTableHeight(columns, tableRows) + 20);
 
-        autoTable(doc, {
-          head: [columns],
-          body: tableRows,
-          startY: 32,
-          margin: { top: 32, bottom: 0, left: 0, right: 0 },
-          theme: "grid",
-          styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
-          columnStyles: columnStyles,
-          headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
-          alternateRowStyles: { fillColor: [248, 250, 252] },
-          didDrawPage: (cellData) => {
-            drawHeader(doc, title, periodLabel, `Warehouse: ${groupName}`);
-          },
-          didDrawCell: didDrawCell,
-          didParseCell: (cellData) => {
-            const isTotalRow = cellData.row.index === tableRows.length - 1;
-            if (isTotalRow && sumCols.length > 0) {
+      if (idx === 0) {
+        doc = new jsPDF({ orientation: "portrait", unit: "mm", format: [210, pageHeight] });
+      } else {
+        doc.addPage([210, pageHeight], "portrait");
+      }
+
+      autoTable(doc, {
+        head: [columns],
+        body: tableRows,
+        startY: 36,
+        margin: { top: 36, bottom: 0, left: 0, right: 0 },
+        theme: "striped",
+        styles: { font: "helvetica", fontStyle: "normal", fontSize: 11, cellPadding: 3.5, textColor: [40, 40, 40] },
+        columnStyles: columnStyles,
+        headStyles: { fillColor: [11, 41, 79], textColor: [255, 189, 49], font: "helvetica", fontStyle: "bold", fontSize: 11 },
+        alternateRowStyles: { fillColor: [244, 247, 252] },
+        didDrawPage: () => {
+          drawHeader(doc, title, periodLabel, `${groupName}`);
+        },
+        didDrawCell: (data) => { // Draw top border for Grand Total
+          const firstCellRaw = data.row.cells[0]?.raw;
+          const isGrandTotal = String(firstCellRaw).trim().toLowerCase().startsWith("total") || String(firstCellRaw).trim().toLowerCase().startsWith("grand");
+          if (data.section === 'body' && isGrandTotal) {
+            doc.setDrawColor(255, 189, 49); // Orangish color
+            doc.setLineWidth(0.7); // ~2px
+            doc.line(data.cell.x, data.cell.y, data.cell.x + data.cell.width, data.cell.y);
+          }
+          if (didDrawCell) didDrawCell(data);
+        },
+        didParseCell: (cellData) => {
+          if (cellData.section === 'head') {
+            doc.setFont("helvetica", "bold");
+          }
+          handleGrandTotalBorders(cellData);
+
+          if (cellData.section === 'body') {
+            const cellIndex = cellData.column.index;
+            const rawVal = String(cellData.cell.raw || "").trim();
+            const firstCellRaw = cellData.row.cells[0]?.raw;
+            const isGrandTotal = String(firstCellRaw).trim().toLowerCase().startsWith("total") || String(firstCellRaw).trim().toLowerCase().startsWith("grand");
+
+            if (cellIndex >= 1 && !isNaN(Number(rawVal)) && rawVal !== "") {
               cellData.cell.styles.fontStyle = "bold";
-              cellData.cell.styles.fillColor = [241, 245, 249];
-            }
-            if (cellData.section === 'body') {
-              const rawVal = cellData.cell.raw;
-              if (rawVal !== "" && rawVal !== undefined && rawVal !== null) {
-                const cleanVal = String(rawVal).replace(/,/g, '').trim();
-                if (cleanVal !== '' && !isNaN(Number(cleanVal))) {
-                  cellData.cell.styles.halign = 'center';
-                }
+              if (Number(rawVal) === 0) {
+                cellData.cell.styles.textColor = [200, 205, 215]; 
+              } else if (!isGrandTotal) { // Only set dark text for non-total rows
+                cellData.cell.styles.textColor = [15, 25, 45];
               }
-            }
-            if (didParseCell) {
-              didParseCell(cellData);
+            } else if (cellIndex >= 1 && (rawVal === "" || Number(rawVal) === 0)) {
+              cellData.cell.styles.textColor = [200, 205, 215];
             }
           }
-        });
-      });
-    } else {
-      doc = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4"
-      });
-
-      groupNames.forEach((groupName, idx) => {
-        if (idx > 0) doc.addPage();
-
-        const groupRows = groups[groupName];
-        const tableRows = groupRows.map(row => 
-          columns.map(col => row[col] !== undefined ? row[col] : "")
-        );
-
-        if (sumCols.length > 0) {
-          const totalsRow = columns.map(col => {
-            if (col === groupByField || col === columns[0]) return "Total";
-            if (sumCols.includes(col)) {
-              const sum = groupRows.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
-              const isPrice = col.toLowerCase().includes("price") || col.toLowerCase().includes("cost");
-              return isPrice ? sum.toFixed(2) : sum;
-            }
-            return "";
-          });
-          tableRows.push(totalsRow);
+          if (didParseCell) didParseCell(cellData);
         }
-
-        autoTable(doc, {
-          head: [columns],
-          body: tableRows,
-          startY: 52,
-          margin: { top: 52, bottom: 20, left: 10, right: 10 },
-          theme: "grid",
-          styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
-          columnStyles: columnStyles,
-          headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
-          alternateRowStyles: { fillColor: [248, 250, 252] },
-          didDrawPage: (cellData) => {
-            drawHeader(doc, title, periodLabel, `Warehouse: ${groupName}`);
-          },
-          didDrawCell: didDrawCell,
-          didParseCell: (cellData) => {
-            const isTotalRow = cellData.row.index === tableRows.length - 1;
-            if (isTotalRow && sumCols.length > 0) {
-              cellData.cell.styles.fontStyle = "bold";
-              cellData.cell.styles.fillColor = [241, 245, 249];
-            }
-            if (cellData.section === 'body') {
-              const rawVal = cellData.cell.raw;
-              if (rawVal !== "" && rawVal !== undefined && rawVal !== null) {
-                const cleanVal = String(rawVal).replace(/,/g, '').trim();
-                if (cleanVal !== '' && !isNaN(Number(cleanVal))) {
-                  cellData.cell.styles.halign = 'center';
-                }
-              }
-            }
-            if (didParseCell) {
-              didParseCell(cellData);
-            }
-          }
-        });
       });
-    }
+    });
   } else {
-    // Single table render
     const tableRows = data.map(row => 
       columns.map(col => row[col] !== undefined ? row[col] : "")
     );
 
-    const lastRow = data[data.length - 1];
-    const firstCellVal = lastRow ? String(Object.values(lastRow)[0] || "").trim().toLowerCase() : "";
-    const hasTotalRow = firstCellVal === "total";
+    const lastRowFirstCell = tableRows.length > 0 ? String(tableRows[tableRows.length - 1][0]).trim().toLowerCase() : "";
+    const hasTotalRow = lastRowFirstCell.startsWith("total") || lastRowFirstCell.startsWith("grand");
 
-    if (zeroMargin) {
-      const pageHeight = Math.max(210, getTableHeight(columns, tableRows));
-      doc = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: [210, pageHeight]
-      });
+    const pageHeight = Math.max(210, getTableHeight(columns, tableRows) + 20);
+    doc = new jsPDF({ orientation: "portrait", unit: "mm", format: [210, pageHeight] });
 
-      autoTable(doc, {
-        head: [columns],
-        body: tableRows,
-        startY: 32,
-        margin: { top: 32, bottom: 0, left: 0, right: 0 },
-        theme: "grid",
-        styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
-        columnStyles: columnStyles,
-        headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        didDrawPage: (cellData) => {
-          drawHeader(doc, title, periodLabel, metadataWarehouse ? `Warehouse: ${metadataWarehouse}` : null);
-        },
-        didDrawCell: didDrawCell || drawGrandTotalTopBorder,
-        didParseCell: (cellData) => {
-          handleGrandTotalBorders(cellData);
-          const isTotalRow = hasTotalRow && (cellData.row.index === tableRows.length - 1);
-          if (isTotalRow && !cellData.cell.styles.fillColor) {
+    autoTable(doc, {
+      head: [columns],
+      body: tableRows,
+      startY: 36,
+      margin: { top: 36, bottom: 0, left: 0, right: 0 },
+      theme: "striped",
+      styles: { font: "helvetica", fontStyle: "normal", fontSize: 11, cellPadding: 3.5, textColor: [40, 40, 40] },
+      columnStyles: columnStyles,
+      headStyles: { fillColor: [11, 41, 79], textColor: [255, 189, 49], font: "helvetica", fontStyle: "bold", fontSize: 11 },
+      alternateRowStyles: { fillColor: [244, 247, 252] },
+      didDrawPage: () => {
+        drawHeader(doc, title, periodLabel, metadataWarehouse ? `${metadataWarehouse}` : null);
+      },
+      didDrawCell: (data) => { // Draw top border for Grand Total
+        const firstCellRaw = data.row.cells[0]?.raw;
+        const isGrandTotal = String(firstCellRaw).trim().toLowerCase().startsWith("total") || String(firstCellRaw).trim().toLowerCase().startsWith("grand");
+        if (data.section === 'body' && isGrandTotal) {
+          doc.setDrawColor(255, 189, 49); // Orangish color
+          doc.setLineWidth(0.7); // ~2px
+          doc.line(data.cell.x, data.cell.y, data.cell.x + data.cell.width, data.cell.y);
+        }
+        if (didDrawCell) didDrawCell(data);
+      },
+      didParseCell: (cellData) => {
+        if (cellData.section === 'head') {
+          doc.setFont("helvetica", "bold");
+        }
+        handleGrandTotalBorders(cellData);
+
+        if (cellData.section === 'body') {
+          const cellIndex = cellData.column.index;
+          const rawVal = String(cellData.cell.raw || "").trim();
+          const firstCellRaw = cellData.row.cells[0]?.raw;
+          const isGrandTotal = String(firstCellRaw).trim().toLowerCase().startsWith("total") || String(firstCellRaw).trim().toLowerCase().startsWith("grand");
+
+          if (cellIndex >= 1 && !isNaN(Number(rawVal)) && rawVal !== "") {
             cellData.cell.styles.fontStyle = "bold";
-            cellData.cell.styles.fillColor = [241, 245, 249];
-          }
-          
-          if (cellData.section === 'body') {
-            const rawVal = cellData.cell.raw;
-            if (rawVal !== "" && rawVal !== undefined && rawVal !== null) {
-              const cleanVal = String(rawVal).replace(/,/g, '').trim();
-              if (cleanVal !== '' && !isNaN(Number(cleanVal))) {
-                cellData.cell.styles.halign = 'center';
-              }
+            if (Number(rawVal) === 0) {
+              cellData.cell.styles.textColor = [200, 205, 215]; 
+            } else if (!isGrandTotal) { // Only set dark text for non-total rows
+              cellData.cell.styles.textColor = [15, 25, 45];
             }
-          }
-          if (didParseCell) {
-            didParseCell(cellData);
+          } else if (cellIndex >= 1 && (rawVal === "" || Number(rawVal) === 0)) {
+            cellData.cell.styles.textColor = [200, 205, 215];
           }
         }
-      });
-    } else {
-      doc = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4"
-      });
-
-      autoTable(doc, {
-        head: [columns],
-        body: tableRows,
-        startY: 52,
-        margin: { top: 52, bottom: 20, left: 10, right: 10 },
-        theme: "grid",
-        styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
-        columnStyles: columnStyles,
-        headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        didDrawPage: (cellData) => {
-          drawHeader(doc, title, periodLabel, metadataWarehouse ? `Warehouse: ${metadataWarehouse}` : null);
-        },
-        didDrawCell: didDrawCell || drawGrandTotalTopBorder,
-        didParseCell: (cellData) => {
-          handleGrandTotalBorders(cellData);
-          const isTotalRow = hasTotalRow && (cellData.row.index === tableRows.length - 1);
-          if (isTotalRow && !cellData.cell.styles.fillColor) {
-            cellData.cell.styles.fontStyle = "bold";
-            cellData.cell.styles.fillColor = [241, 245, 249];
-          }
-          if (cellData.section === 'body') {
-            const rawVal = cellData.cell.raw;
-            if (rawVal !== "" && rawVal !== undefined && rawVal !== null) {
-              const cleanVal = String(rawVal).replace(/,/g, '').trim();
-              if (cleanVal !== '' && !isNaN(Number(cleanVal))) {
-                cellData.cell.styles.halign = 'center';
-              }
-            }
-          }
-          if (didParseCell) {
-            didParseCell(cellData);
-          }
-        }
-      });
-    }
-  }
-
-  // Draw Page Numbers (only for standard A4 document layout)
-  if (!zeroMargin) {
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(140, 140, 140);
-      doc.text(`Page ${i} of ${pageCount}`, 105, 287, { align: "center" });
-    }
+        if (didParseCell) didParseCell(cellData);
+      }
+    });
   }
 
   doc.save(filename);
@@ -683,7 +510,6 @@ export const exportClusterPdf = async ({
 }) => {
   const entries = Object.entries(clusters);
   for (const [clusterName, whList] of entries) {
-    // Filter data for warehouses belonging to this cluster
     const clusterData = data.filter(row => {
       const whVal = String(row[groupByField] || "").trim().toUpperCase().replace(/^WH-/i, "");
       return whList.some(wh => wh.trim().toUpperCase().replace(/^WH-/i, "") === whVal);
@@ -692,22 +518,21 @@ export const exportClusterPdf = async ({
     if (clusterData.length > 0) {
       const cleanClusterName = clusterName.replace(/\s+/g, "_").toLowerCase();
       exportToPdf({
-        title: `${title} (${clusterName})`,
+        title: `${title}`,
         periodLabel,
         columns,
         data: clusterData,
         groupByField,
         sumCols,
         filename: `${filenamePrefix}_${cleanClusterName}.pdf`,
-        zeroMargin
+        zeroMargin: true 
       });
-      // Introduce a 300ms delay to prevent browser from blocking subsequent downloads
       await new Promise(resolve => setTimeout(resolve, 300));
     }
   }
 };
 
-export const exportShopDrilldownPdfByBond = async ({
+export const exportShopDrilldownPdfByBond = ({
   title,
   periodLabel,
   data,
@@ -718,19 +543,12 @@ export const exportShopDrilldownPdfByBond = async ({
   view,
   filename
 }) => {
-  const doc = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: "a4"
-  });
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
   const formatVal = (val) => {
     if (val === undefined || val === null) return "";
     const num = Number(val);
-    if (useWholeNumbers) {
-      return Math.round(num);
-    }
-    return num.toFixed(2);
+    return useWholeNumbers ? Math.round(num) : num.toFixed(2);
   };
 
   const getShopTableRows = (shopCode, shopData) => {
@@ -805,46 +623,30 @@ export const exportShopDrilldownPdfByBond = async ({
   };
 
   const drawHeader = (doc, currentTitle, currentPeriod, shopName) => {
-    // Draw background rectangles for both rows first
-    doc.setFillColor(27, 54, 93); // Navy blue
-    doc.rect(0, 0, 210, 8, "F");
+    doc.setFillColor(11, 41, 79); 
+    doc.rect(0, 0, 210, 16, "F");
 
-    doc.setFillColor(27, 54, 93); // Navy blue
-    doc.rect(0, 8, 210, 8, "F");
-
-    // Draw orange divider line at y = 8
-    doc.setDrawColor(255, 189, 49); // Orange/Yellow (#ffbd31)
-    doc.setLineWidth(0.5);
-    doc.line(0, 8, 210, 8);
-
-    // Row 1: K.S DISTILLERY Text (size 16, centered)
-    doc.setFontSize(16);
-    doc.setFont("times", "bold");
-    doc.setTextColor(255, 189, 49); // Orange/Yellow
-    doc.text("K.S DISTILLERY", 105, 6, { align: "center" });
-
-    // Row 2: Report Title Text
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(255, 189, 49); // Orange/Yellow
-    doc.text(currentTitle, 5, 13.5, { align: "left" });
-
-    // Row 3: Period (Orange, navy blue text)
-    doc.setFillColor(255, 189, 49); // Orange background
+    doc.setFillColor(255, 189, 49); 
     doc.rect(0, 16, 210, 8, "F");
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(27, 54, 93); // Navy blue text
-    const cleanPeriod = (currentPeriod || "").replace(/^COMBINED PERIOD\s*:\s*/i, "").trim();
-    doc.text(`Period: ${cleanPeriod}`, 5, 21.5, { align: "left" });
 
-    // Row 4: Subheader/Shop Name (Navy blue, yellow text)
-    doc.setFillColor(27, 54, 93); // Navy blue
+    doc.setFillColor(11, 41, 79); 
     doc.rect(0, 24, 210, 8, "F");
-    doc.setFontSize(10);
+
+    doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(255, 189, 49); // Orange text
-    doc.text(shopName, 5, 29.5, { align: "left" });
+    doc.setTextColor(255, 189, 49); 
+    doc.text("K.S DISTILLERY", 105, 10, { align: "center" });
+
+    doc.setFontSize(10.5);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(11, 41, 79); 
+    const cleanPeriod = (currentPeriod || "").replace(/^COMBINED PERIOD\s*:\s*/i, "").trim();
+    doc.text(`Period: ${cleanPeriod}`, 105, 21.5, { align: "center" });
+
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 189, 49); 
+    doc.text(shopName.toUpperCase(), 5, 30, { align: "left" });
   };
 
   let pageAdded = false;
@@ -861,20 +663,11 @@ export const exportShopDrilldownPdfByBond = async ({
     }
 
     const shopRows = getShopTableRows(shopCode, shopData);
-
     const pdfCols = ["Brand/Pack", "Opening", "Receipt", "Sales", "Closing"];
 
     const tableRows = shopRows.map(row => {
-      if (row.isSpacer) {
-        return ["", "", "", "", ""];
-      }
-      return [
-        row.label,
-        formatVal(row.opening),
-        formatVal(row.inward),
-        formatVal(row.outward),
-        formatVal(row.closing)
-      ];
+      if (row.isSpacer) return ["", "", "", "", ""];
+      return [row.label, formatVal(row.opening), formatVal(row.inward), formatVal(row.outward), formatVal(row.closing)];
     });
 
     const displayShopName = shop.shop_name ? shop.shop_name : shop.shop_code;
@@ -884,10 +677,10 @@ export const exportShopDrilldownPdfByBond = async ({
       body: tableRows,
       startY: 32,
       margin: { top: 32, bottom: 8, left: 0, right: 0 },
-      theme: "grid",
-      styles: { fontSize: 8, cellPadding: 2, font: "helvetica", lineColor: [220, 220, 220], lineWidth: 0.15 },
-      headStyles: { fillColor: [27, 54, 93], textColor: [255, 255, 255], fontStyle: "bold" },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
+      theme: "striped",
+      styles: { font: "helvetica", fontStyle: "normal", fontSize: 11, cellPadding: 3.5, lineColor: [220, 220, 220], lineWidth: 0.15 },
+      headStyles: { fillColor: [11, 41, 79], textColor: [255, 189, 49], font: "helvetica", fontStyle: "bold", fontSize: 11 },
+      alternateRowStyles: { fillColor: [244, 247, 252] },
       didDrawPage: () => {
         drawHeader(doc, `${title} - ${bondName} Bond`, periodLabel, displayShopName);
       },
@@ -895,34 +688,47 @@ export const exportShopDrilldownPdfByBond = async ({
         const rowIndex = data.row.index;
         const rowObj = shopRows[rowIndex];
         if (rowObj?.isShopTotal && data.section === 'body') {
-          doc.setDrawColor(255, 189, 49); // Orange
+          doc.setDrawColor(11, 41, 79); 
           doc.setLineWidth(0.5);
           doc.line(data.cell.x, data.cell.y, data.cell.x + data.cell.width, data.cell.y);
         }
       },
       didParseCell: (cellData) => {
+        if (cellData.section === 'head') {
+          doc.setFont("helvetica", "bold");
+        }
         if (cellData.section !== 'body') return;
 
-        const rawVal = cellData.cell.raw;
-        if (rawVal !== "" && rawVal !== undefined && rawVal !== null) {
-          const cleanVal = String(rawVal).replace(/,/g, '').trim();
-          if (cleanVal !== '' && !isNaN(Number(cleanVal))) {
-            cellData.cell.styles.halign = 'center';
+        const rawVal = String(cellData.cell.raw || "").trim();
+        const cellIndex = cellData.column.index;
+
+        if (cellIndex >= 1 && !isNaN(Number(rawVal)) && rawVal !== "") {
+          cellData.cell.styles.fontStyle = "bold";
+          cellData.cell.styles.halign = 'center';
+          if (Number(rawVal) === 0) {
+            cellData.cell.styles.textColor = [200, 205, 215]; 
           }
         }
 
         const rowIndex = cellData.row.index;
         const rowObj = shopRows[rowIndex];
         if (rowObj) {
+          cellData.cell.styles.font = "helvetica";
           if (rowObj.isBrandHeader) {
             cellData.cell.styles.fontStyle = "bold";
-            cellData.cell.styles.fillColor = [27, 54, 93]; // Navy blue background
-            cellData.cell.styles.textColor = [255, 255, 255]; // White text
+            cellData.cell.styles.fillColor = [11, 41, 79]; 
+            cellData.cell.styles.textColor = [255, 255, 255]; 
+          } else if (rowObj.isShopHeader) {
+            cellData.cell.styles.fontStyle = "bold";
+            cellData.cell.styles.fillColor = [228, 233, 242]; // #E4E9F2
           } else if (rowObj.isShopTotal) {
             cellData.cell.styles.fontStyle = "bold";
-            cellData.cell.styles.fillColor = [27, 54, 93]; // Navy blue background
+            cellData.cell.styles.fillColor = [255, 255, 255]; 
+            cellData.cell.styles.textColor = [11, 41, 79]; 
+          } else if (rowObj.isGrandTotal) {
+            cellData.cell.styles.fontStyle = "bold";
+            cellData.cell.styles.fillColor = [11, 41, 79]; // Navy blue background
             cellData.cell.styles.textColor = [255, 189, 49]; // Orange text
-            cellData.cell.styles.lineColor = [27, 54, 93]; // Same color as background
           }
         }
       }
