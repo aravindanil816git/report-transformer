@@ -145,7 +145,7 @@ export default function ShopwiseReport() {
     if (val === undefined || val === null) return "";
     const num = Number(val);
     if (useWholeNumbers) {
-      return Math.floor(num);
+      return Math.round(num);
     }
     return num.toFixed(2);
   };
@@ -341,10 +341,10 @@ export default function ShopwiseReport() {
         exportData.push({ "Row Labels": brand });
         let bOpening = 0, bIn = 0, bOut = 0, bClosing = 0;
         items.forEach(item => {
-          const op = useWholeNumbers ? Math.floor(item.opening) : item.opening;
-          const i = useWholeNumbers ? Math.floor(item.inward) : item.inward;
-          const o = useWholeNumbers ? Math.floor(item.outward) : item.outward;
-          const c = useWholeNumbers ? Math.floor(item.closing) : item.closing;
+          const op = useWholeNumbers ? Math.round(item.opening || 0) : item.opening || 0;
+          const i = useWholeNumbers ? Math.round(item.inward || 0) : item.inward || 0;
+          const o = useWholeNumbers ? Math.round(item.outward || 0) : item.outward || 0;
+          const c = useWholeNumbers ? Math.round(item.closing || 0) : item.closing || 0;
           
           exportData.push({
             "Row Labels": "  " + item.pack,
@@ -367,10 +367,10 @@ export default function ShopwiseReport() {
       // Shop Total in Excel
       let sOpening = 0, sIn = 0, sOut = 0, sClosing = 0;
       Object.values(brands).flat().forEach(item => {
-        sOpening += useWholeNumbers ? Math.floor(item.opening) : item.opening;
-        sIn += useWholeNumbers ? Math.floor(item.inward) : item.inward;
-        sOut += useWholeNumbers ? Math.floor(item.outward) : item.outward;
-        sClosing += useWholeNumbers ? Math.floor(item.closing) : item.closing;
+        sOpening += useWholeNumbers ? Math.round(item.opening || 0) : item.opening || 0;
+        sIn += useWholeNumbers ? Math.round(item.inward || 0) : item.inward || 0;
+        sOut += useWholeNumbers ? Math.round(item.outward || 0) : item.outward || 0;
+        sClosing += useWholeNumbers ? Math.round(item.closing || 0) : item.closing || 0;
       });
       exportData.push({
         "Row Labels": `${displayLabel} Total`,
@@ -463,15 +463,6 @@ export default function ShopwiseReport() {
         </Col>
 
         <Col>
-          <Checkbox 
-            checked={useWholeNumbers} 
-            onChange={e => setUseWholeNumbers(e.target.checked)}
-          >
-            Whole Numbers
-          </Checkbox>
-        </Col>
-
-        <Col>
           <Button type="primary" onClick={load}>Apply</Button>
         </Col>
 
@@ -484,6 +475,9 @@ export default function ShopwiseReport() {
 
       <div style={{ marginBottom: 0, padding: "8px 12px", backgroundColor: "#ADC9E6", border: "1px solid #999", borderBottom: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{periodLabel}</span>
+        <Checkbox checked={useWholeNumbers} onChange={e => setUseWholeNumbers(e.target.checked)}>
+          Round off
+        </Checkbox>
         <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{uploadDateLabel}</span>
       </div>
       <Table

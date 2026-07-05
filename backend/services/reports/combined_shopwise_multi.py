@@ -41,6 +41,7 @@ class CombinedShopwiseMultiReportService(BaseReportService):
 
         # Determine the key for this upload and store exact start/end day bounds
         start_day, end_day = None, None
+        key = None
         lowered = file_name.lower()
         
         # 1. Parse start and end day from filename (e.g. "1-16", "17-30", "17-20")

@@ -98,7 +98,16 @@ export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", she
         
         const rowFirstCellRef = XLSX.utils.encode_cell({ c: 0, r: R });
         const rowFirstCellValue = ws[rowFirstCellRef] ? String(ws[rowFirstCellRef].v).trim() : "";
-        if (R === tableHeaderRowIdx || rowFirstCellValue === "Total") {
+        if (R === tableHeaderRowIdx) {
+          ws[cellRef].s.font.bold = true;
+          if (options.theme === "navy") {
+            ws[cellRef].s.font.color = { rgb: "FFBD31" };
+            ws[cellRef].s.fill = {
+              patternType: "solid",
+              fgColor: { rgb: "1B365D" }
+            };
+          }
+        } else if (rowFirstCellValue === "Total") {
            ws[cellRef].s.font.bold = true;
         }
       }
@@ -121,7 +130,8 @@ export const exportUnifiedWithDropdown = async ({
   sheetName = "Report",
   sumCols = [],
   dropdownLabel = "Warehouse",
-  filterColumnName = "Warehouse"
+  filterColumnName = "Warehouse",
+  theme = null
 }) => {
   const getColLetter = (c) => {
     let temp = c;
@@ -189,7 +199,11 @@ export const exportUnifiedWithDropdown = async ({
 
   const headerRow = reportSheet.getRow(6);
   headerRow.values = columns;
-  headerRow.font = { bold: true };
+  if (theme === "navy") {
+    headerRow.font = { bold: true, color: { argb: "FFFFBD31" } };
+  } else {
+    headerRow.font = { bold: true };
+  }
   headerRow.eachCell(cell => {
     cell.border = {
       top: { style: "thin" },
@@ -197,11 +211,19 @@ export const exportUnifiedWithDropdown = async ({
       bottom: { style: "medium" },
       right: { style: "thin" }
     };
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFE0E0E0" }
-    };
+    if (theme === "navy") {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF1B365D" }
+      };
+    } else {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFE0E0E0" }
+      };
+    }
   });
 
   const lastColLetter = getColLetter(columns.length);
@@ -258,13 +280,19 @@ export const exportToPdf = ({
   metadataWarehouse = null,
   didParseCell = null,
   didDrawCell = null,
-  zeroMargin = false
+  zeroMargin = false,
+  orientation = "portrait"
 }) => {
   let doc;
 
+  const getPageWidth = (cols) => {
+    return orientation === "landscape" ? Math.max(297, cols.length * 22 + 40) : 210;
+  };
+
   const drawHeader = (doc, currentTitle, currentPeriod, subHeader = null) => {
+    const pageWidth = getPageWidth(columns);
     const startX = zeroMargin ? 0 : 10;
-    const width = zeroMargin ? 210 : 190;
+    const width = zeroMargin ? pageWidth : pageWidth - 20;
     const paddingLeft = zeroMargin ? 5 : 15;
 
     // Row 1 & 2 Base Color block setup
@@ -282,13 +310,13 @@ export const exportToPdf = ({
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(255, 189, 49); 
-    doc.text("K.S DISTILLERY", 105, zeroMargin ? 10 : 22, { align: "center" });
+    doc.text("K.S DISTILLERY", pageWidth / 2, zeroMargin ? 10 : 22, { align: "center" });
 
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(11, 41, 79); 
     const cleanPeriod = (currentPeriod || "").replace(/^Report Period:\s*/i, "").replace(/^As\s+on\s*:\s*/i, "").replace(/^As\s+On\s*:\s*/i, "").trim();
-    doc.text(`Period: ${cleanPeriod}`, 105, zeroMargin ? 21.5 : 33.5, { align: "center" });
+    doc.text(`Period: ${cleanPeriod}`, pageWidth / 2, zeroMargin ? 21.5 : 33.5, { align: "center" });
 
     const whName = subHeader ? subHeader.replace(/^Warehouse:\s*/i, "") : (metadataWarehouse || "All");
     doc.setFontSize(14);
@@ -298,10 +326,11 @@ export const exportToPdf = ({
   };
 
   const getTableHeight = (cols, rows) => {
+    const pageWidth = getPageWidth(cols);
     const dummyDoc = new jsPDF({
-      orientation: "portrait",
+      orientation: orientation,
       unit: "mm",
-      format: [210, 2000]
+      format: [pageWidth, 2000]
     });
     autoTable(dummyDoc, {
       head: [cols],
@@ -374,12 +403,13 @@ export const exportToPdf = ({
         tableRows.push(totalsRow);
       }
 
-      const pageHeight = Math.max(210, getTableHeight(columns, tableRows) + 20);
+      const pageWidth = getPageWidth(columns);
+      const pageHeight = Math.max(orientation === "landscape" ? 210 : 297, getTableHeight(columns, tableRows) + 20);
 
       if (idx === 0) {
-        doc = new jsPDF({ orientation: "portrait", unit: "mm", format: [210, pageHeight] });
+        doc = new jsPDF({ orientation: orientation, unit: "mm", format: [pageWidth, pageHeight] });
       } else {
-        doc.addPage([210, pageHeight], "portrait");
+        doc.addPage([pageWidth, pageHeight], orientation);
       }
 
       autoTable(doc, {
@@ -440,8 +470,9 @@ export const exportToPdf = ({
     const lastRowFirstCell = tableRows.length > 0 ? String(tableRows[tableRows.length - 1][0]).trim().toLowerCase() : "";
     const hasTotalRow = lastRowFirstCell.startsWith("total") || lastRowFirstCell.startsWith("grand");
 
-    const pageHeight = Math.max(210, getTableHeight(columns, tableRows) + 20);
-    doc = new jsPDF({ orientation: "portrait", unit: "mm", format: [210, pageHeight] });
+    const pageWidth = getPageWidth(columns);
+    const pageHeight = Math.max(orientation === "landscape" ? 210 : 297, getTableHeight(columns, tableRows) + 20);
+    doc = new jsPDF({ orientation: orientation, unit: "mm", format: [pageWidth, pageHeight] });
 
     autoTable(doc, {
       head: [columns],
@@ -506,7 +537,8 @@ export const exportClusterPdf = async ({
   sumCols,
   clusters,
   filenamePrefix = "report",
-  zeroMargin = false
+  zeroMargin = false,
+  orientation = "portrait"
 }) => {
   const entries = Object.entries(clusters);
   for (const [clusterName, whList] of entries) {
@@ -525,7 +557,8 @@ export const exportClusterPdf = async ({
         groupByField,
         sumCols,
         filename: `${filenamePrefix}_${cleanClusterName}.pdf`,
-        zeroMargin: true 
+        zeroMargin: true,
+        orientation: orientation
       });
       await new Promise(resolve => setTimeout(resolve, 300));
     }

@@ -1078,7 +1078,6 @@ def process(rid: str):
     return {"status": "processed"}
 
 
-# ================= UPDATE CONFIG =================
 @router.put("/reports/{rid}/config")
 def update_report_config(rid: str, payload: dict = Body(...)):
     report = get_report_by_id(rid)
@@ -1086,7 +1085,11 @@ def update_report_config(rid: str, payload: dict = Body(...)):
         raise HTTPException(status_code=404, detail="Report not found")
     
     report.setdefault("config", {}).update(payload)
-    save_report(report)
+    
+    # 🔥 Optimization: Only update the config column instead of upserting the entire report (which contains massive arrays)
+    clean_config = clean_nan(report["config"])
+    supabase.table("reports").update({"config": clean_config}).eq("id", rid).execute()
+    
     return {"status": "success", "config": report["config"]}
 
 

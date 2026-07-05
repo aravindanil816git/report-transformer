@@ -21,8 +21,13 @@ export default function ItemIssueConsolidation() {
   const [hasSetDefaults, setHasSetDefaults] = useState(false);
 
   useEffect(() => {
-    listReports().then((res) => {
-      setReports(res.data?.items || res.data || []);
+    Promise.all([
+      listReports({ type: "daily_secondary_sales", limit: 1000 }),
+      listReports({ type: "item_issue_consolidation", limit: 1000 })
+    ]).then(([res1, res2]) => {
+      const reps1 = res1.data?.items || res1.data || [];
+      const reps2 = res2.data?.items || res2.data || [];
+      setReports([...reps1, ...reps2]);
     });
     // Get master list of warehouses
     getAllWarehouses().then(res => {

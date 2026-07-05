@@ -6,6 +6,8 @@ import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf
 import DownloadDropdown from "../../components/DownloadDropdown";
 import dayjs from "dayjs";
 
+/** Warehouse Physical Stock Report */
+
 export default function CleanupReport() {
   const { id } = useParams();
 
@@ -20,7 +22,7 @@ export default function CleanupReport() {
       setData(res.data.data || []);
       setConfig(res.data.config || {});
     });
-    
+
     getWarehouses(id).then(res => {
       setWarehouseOptions((res.data || []).map(wh => ({ value: wh, label: wh })));
     });
@@ -75,13 +77,13 @@ export default function CleanupReport() {
       title: "Pending Stock",
       dataIndex: "pending",
     },
-    { 
-      title: "WH Price", 
+    {
+      title: "WH Price",
       dataIndex: "wh_price",
       render: (v) => v?.toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
-    { 
-      title: "Landed Cost", 
+    {
+      title: "Landed Cost",
       dataIndex: "landed_cost",
       render: (v) => v?.toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
@@ -157,7 +159,7 @@ export default function CleanupReport() {
       }
     } else if (format === "pdf") {
       const columns = ["Item Name", "Product Code", "Physical Stock", "Allotable Stock", "Pending Stock", "WH Price", "Landed Cost"];
-      
+
       if (mode === "current") {
         const exportData = filtered.map(item => ({
           Warehouse: item.warehouse_name,

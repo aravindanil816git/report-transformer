@@ -39,8 +39,8 @@ export default function StatusCalendar() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await listReports();
-      setReports(res.data || []);
+      const res = await listReports({ limit: 10000 });
+      setReports(res.data?.items || res.data || []);
     } catch (e) {
       console.error("Failed to load reports", e);
     }

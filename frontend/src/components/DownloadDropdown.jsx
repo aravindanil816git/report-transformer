@@ -10,9 +10,9 @@ import { DownOutlined } from "@ant-design/icons";
  * @param {boolean} [props.loading] - Whether the button is in a loading/exporting state
  * @param {boolean} [props.disabled] - Whether the download buttons should be disabled
  */
-export default function DownloadDropdown({ onDownload, loading, disabled, showPdf = true, pdfOptions, clusterLabel = "Cluster" }) {
-  const excelItems = [
-    {
+export default function DownloadDropdown({ onDownload, loading, disabled, showPdf = true, excelOptions, pdfOptions, clusterLabel = "Cluster" }) {
+  const allExcelItems = {
+    current: {
       key: "xlsx-current",
       label: (
         <div style={{ padding: "4px 8px" }}>
@@ -21,7 +21,7 @@ export default function DownloadDropdown({ onDownload, loading, disabled, showPd
         </div>
       ),
     },
-    {
+    unified: {
       key: "xlsx-unified",
       label: (
         <div style={{ padding: "4px 8px" }}>
@@ -30,7 +30,11 @@ export default function DownloadDropdown({ onDownload, loading, disabled, showPd
         </div>
       ),
     },
-  ];
+  };
+
+  const excelItems = excelOptions
+    ? excelOptions.map(opt => allExcelItems[opt]).filter(Boolean)
+    : [allExcelItems.current, allExcelItems.unified];
 
   const allPdfItems = {
     current: {

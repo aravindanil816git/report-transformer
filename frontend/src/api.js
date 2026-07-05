@@ -68,6 +68,8 @@ export const getReport = (id, shop = null, view = null, extra = {}) => {
   });
 };
 
+export const updateReportConfig = (id, payload) => api.put(`/reports/${id}/config`, payload);
+
 // ================= FILTERS =================
 
 export const getShops = (id) => api.get(`/shops/${id}`);

@@ -629,7 +629,8 @@ export default function CumulativeWarehouseReport() {
             sheetName: "Shop Drilldown",
             sumCols: sumKeys,
             dropdownLabel: filterField,
-            filterColumnName: filterField // This matches the key in exportData ("Bond" or "Warehouse")
+            filterColumnName: filterField, // This matches the key in exportData ("Bond" or "Warehouse")
+            theme: "navy"
           });
         } catch (e) {
           console.error("Error exporting unified excel:", e);
@@ -656,7 +657,8 @@ export default function CumulativeWarehouseReport() {
             "Total Days": config.num_days
           },
           `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.xlsx`,
-          reportTitle
+          reportTitle,
+          { theme: "navy" }
         );
       }
     } else if (format === "pdf") {
