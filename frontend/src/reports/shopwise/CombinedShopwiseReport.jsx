@@ -196,12 +196,7 @@ export default function CombinedShopwiseReport() {
   }, [uploads, dateRange]);
 
   const disabledDate = (current) => {
-    if (!current) return false;
-    if (current.isAfter(dayjs().add(1, "day"), "day")) return true;
-    const minDate = config.start_date || config.date1 ? dayjs(config.start_date || config.date1) : null;
-    const maxDate = config.end_date || config.date2 ? dayjs(config.end_date || config.date2) : null;
-    if (!minDate || !maxDate) return false;
-    return current.isBefore(minDate, "day") || current.isAfter(maxDate, "day");
+    return disabledFutureMonthDates(current);
   };
 
   // const uploadDateLabel = useMemo(() => {

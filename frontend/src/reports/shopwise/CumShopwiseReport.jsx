@@ -7,6 +7,7 @@ import { getReport, processReport, getJson } from "../../api";
 import dayjs from "dayjs";
 import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf } from "../../utils/exportUtils";
 import DownloadDropdown from "../../components/DownloadDropdown";
+import { disabledFutureMonthDates } from "../../utils/dateUtils";
 
 const { RangePicker } = DatePicker;
 
@@ -224,15 +225,8 @@ export default function CumulativeShopwiseReport() {
     });
   }, [filteredData, netDays]);
 
-  // 🔒 strict date range
-  const minDate = config.start_date ? dayjs(config.start_date) : null;
-  const maxDate = minDate ? minDate.add(config.num_days - 1, "day") : null;
-
   const disabledDate = (current) => {
-    if (!current) return false;
-    if (current.isAfter(dayjs().add(1, "day"), "day")) return true;
-    if (!minDate || !maxDate) return false;
-    return current.isBefore(minDate, "day") || current.isAfter(maxDate, "day");
+    return disabledFutureMonthDates(current);
   };
 
   const getTitle = () => {

@@ -151,9 +151,9 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                     else:
                         u_start_day, u_end_day = 1, 31
             
-            # Filter strictly: only include if the upload's range is fully within the selected filter bounds
+            # Filter: include if the upload's range overlaps with the selected filter bounds
             if sel_start_day is not None and sel_end_day is not None:
-                if not (u_start_day >= sel_start_day and u_end_day <= sel_end_day):
+                if u_end_day < sel_start_day or u_start_day > sel_end_day:
                     continue
                 
             data = u.get("data")
