@@ -146,12 +146,13 @@ def ensure_local_file(storage_path, local_path):
 
 # ================= SYNC DATA =================
 def sync_cumulative_report(report, all_reports=None):
-    if report.get("type") not in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
+    if report.get("type") not in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "new_cumulative_report"]:
         return
     
     # Target to allowed source types
     source_map = {
         "cumulative_shopwise": ["shopwise", "cumulative_shopwise"],
+        "new_cumulative_report": ["shopwise", "new_cumulative_report"],
         "cumulative_warehouse": ["daily_warehouse_offtake", "cumulative_warehouse"],
         "dailywise_secondary_sales_cum": ["daily_warehouse_offtake", "dailywise_secondary_sales_cum"],
         "brandwise_cum_secondary_sales": ["daily_warehouse_offtake", "brandwise_cum_secondary_sales"],
@@ -184,6 +185,7 @@ def sync_cumulative_report(report, all_reports=None):
     # primary source mapping for daily reports
     primary_source_map = {
         "cumulative_shopwise": "shopwise",
+        "new_cumulative_report": "shopwise",
         "cumulative_warehouse": "daily_warehouse_offtake",
         "dailywise_secondary_sales_cum": "daily_warehouse_offtake",
         "brandwise_cum_secondary_sales": "daily_warehouse_offtake",
@@ -401,7 +403,7 @@ def create_report(
         config = {"date1": date1, "date2": date2}
 
     # 🔥 CUMULATIVE REPORTS
-    elif type in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
+    elif type in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "new_cumulative_report"]:
         from datetime import datetime, timedelta
         start = datetime.strptime(date1, "%Y-%m-%d")
         end = datetime.strptime(date2, "%Y-%m-%d")
@@ -905,11 +907,6 @@ async def upload(
         report["file"] = file.filename
         report["storage_path"] = storage_path
         report["status"] = "Ready"
-        
-        # 🔥 CRITICAL FIX: Do not store massive raw data dicts in the database payload to prevent OOM
-        for u in report.get("uploads", []):
-            u.pop("data", None)
-            
         save_report(report)
 
         # If a combined_shopwise report exists for the same date range, sync it immediately.
@@ -935,7 +932,7 @@ async def upload(
         save_report(report)
         return {"status": "uploaded"}
 
-    elif report["type"] in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
+    elif report["type"] in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "new_cumulative_report"]:
         for u in report["uploads"]:
             if u["date"] == key:
                 df = read_excel_robust(path)
@@ -978,7 +975,7 @@ def process(rid: str):
     original_num = None
     original_end = None
 
-    if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
+    if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "new_cumulative_report"]:
         sync_cumulative_report(report)
         
         # Enforce Lazy Processing limits universally for all cumulative reports
@@ -1077,7 +1074,7 @@ def process(rid: str):
         svc.process(report)
     finally:
         # Safely restore original bounds so the frontend DatePicker doesn't get trapped if an error occurs
-        if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
+        if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "new_cumulative_report"]:
             config = report.get("config", {})
             if original_start:
                 config["start_date"] = original_start
@@ -1182,7 +1179,7 @@ def get_report(
     if not report:
         return {"data": []}
 
-    if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
+    if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "new_cumulative_report"]:
         sync_cumulative_report(report)
         
         # Lazy processing on-the-fly if dates are provided via GET query

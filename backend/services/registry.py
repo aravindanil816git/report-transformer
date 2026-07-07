@@ -20,6 +20,7 @@ _registry = {
     "shopwise": ShopwiseReportService(),
     "daily_warehouse": WarehouseReportService(),
     "cumulative_shopwise": CumulativeShopwiseReportService(),
+    "new_cumulative_report": CumulativeShopwiseReportService(),
     "cumulative_warehouse": CumulativeWarehouseMatrixService(),
     "dailywise_secondary_sales_cum": CumulativeWarehouseMatrixService(),
     "brandwise_cum_secondary_sales": CumulativeWarehouseMatrixService(),

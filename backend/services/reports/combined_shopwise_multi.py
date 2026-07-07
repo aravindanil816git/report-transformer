@@ -165,7 +165,32 @@ class CombinedShopwiseMultiReportService(BaseReportService):
             else:
                 # 🔥 READ DIRECTLY FROM PATH IF DB PAYLOAD DROPPED THE DATA ARRAY
                 path = u.get("path")
-                if path and __import__("os").path.exists(path):
+                storage_path = u.get("storage_path")
+                # Fallback: Reconstruct storage_path if missing from legacy records
+                if not storage_path and u.get("file") and report.get("id"):
+                    storage_path = f"{report.get('id')}/{u.get('file')}"
+                
+                if path:
+                    import os
+                    filename = os.path.basename(path)
+                    temp_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "temp"))
+                    local_path = os.path.join(temp_dir, filename)
+                    
+                    if storage_path and not os.path.exists(local_path):
+                        try:
+                            from services.db import supabase
+                            res_bytes = supabase.storage.from_("raw-reports").download(storage_path)
+                            os.makedirs(os.path.dirname(local_path) or ".", exist_ok=True)
+                            with open(local_path, "wb") as f:
+                                f.write(res_bytes)
+                            print(f"[INFO] Downloaded {storage_path} from Supabase storage.")
+                        except Exception as e:
+                            print(f"[ERROR] Failed to download {storage_path} from storage: {e}")
+                    
+                    if os.path.exists(local_path):
+                        path = local_path
+                
+                if path and os.path.exists(path):
                     try:
                         df = read_excel_robust(path)
                         df = normalize(df)
