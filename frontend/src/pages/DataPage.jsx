@@ -43,6 +43,7 @@ const RAW_DATA_TYPES = [
 
 export default function DataPage() {
   const [data, setData] = useState([]);
+  const [dailyDates, setDailyDates] = useState([]);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -63,6 +64,21 @@ export default function DataPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
+
+  const loadDailyDates = () => {
+    Promise.all([
+      listReports({ type: "daily_secondary_sales", limit: 1000 }),
+      listReports({ type: "item_issue_consolidation", limit: 1000 })
+    ]).then(([res1, res2]) => {
+      const reps1 = res1.data?.items || res1.data || [];
+      const reps2 = res2.data?.items || res2.data || [];
+      const dates = [...reps1, ...reps2]
+        .filter((d) => d.status === "Processed" || d.status === "Ready" || d.status === "Uploaded")
+        .map((d) => d.config?.date)
+        .filter(Boolean);
+      setDailyDates(dates);
+    });
+  };
 
   const load = () => {
     let currentTypeFilter = typeFilter;
@@ -86,6 +102,7 @@ export default function DataPage() {
         return reports.find((x) => x.id === prev.id) || prev;
       });
     });
+    loadDailyDates();
   };
 
   useEffect(() => {
@@ -140,11 +157,7 @@ export default function DataPage() {
     }
   };
 
-  // 🔥 available dates for comparative (based on Item Issue Consolidation)
-  const dailyDates = data
-    .filter((d) => ["item_issue_consolidation", "daily_secondary_sales"].includes(d.type) && (d.status === "Processed" || d.status === "Ready" || d.status === "Uploaded"))
-    .map((d) => d.config?.date)
-    .filter(Boolean);
+
 
   const isDateAvailable = (date) => {
     if (!date) return false;

@@ -22,7 +22,7 @@ export default function CombinedShopwiseReport() {
   const [view, setView] = useState("case");
   const [useWholeNumbers, setUseWholeNumbers] = useState(false);
   const [collapsedShops, setCollapsedShops] = useState({});
-  
+
   const [filterMode, setFilterMode] = useState("bond"); // "bond" or "warehouse"
 
   const [warehouseOptions, setWarehouseOptions] = useState([]);
@@ -55,9 +55,9 @@ export default function CombinedShopwiseReport() {
       setWarehouseOptions(warehouseOpts);
 
       setBondOptions((bonds || []).map(b => ({ value: b, label: b })));
-      
-      const formattedShops = (shops || []).map(s => ({ 
-        value: s.shop_code, 
+
+      const formattedShops = (shops || []).map(s => ({
+        value: s.shop_code,
         label: `${s.shop_code} - ${s.shop_name}`,
         shopName: s.shop_name
       }));
@@ -78,14 +78,14 @@ export default function CombinedShopwiseReport() {
     } else if (filterMode === 'bond' && bond) {
       let shopsInBond = [];
       const bondData = bondMapping[bond];
-      
+
       if (Array.isArray(bondData)) {
         shopsInBond = bondData;
       } else if (bondData && Array.isArray(bondData.shops)) {
         // Handle both raw string arrays and resolved objects from mapping
         shopsInBond = bondData.shops.map(s => typeof s === 'object' ? s.shop_code : s);
       }
-      
+
       const uniqueShopCodes = [...new Set(shopsInBond)];
       filteredShops = allShops.filter(s => uniqueShopCodes.includes(s.value));
     } else {
@@ -99,7 +99,7 @@ export default function CombinedShopwiseReport() {
         filteredShops = allShops;
       }
     }
-    
+
     setShopOptions(filteredShops);
   }, [bond, warehouse, filterMode, filterMapping, allShops, bondMapping]);
 
@@ -123,9 +123,9 @@ export default function CombinedShopwiseReport() {
 
       const endDates = allDates.filter(d => d <= eStr);
       if (endDates.length > 0) {
-          endIdx = allDates.indexOf(endDates[endDates.length - 1]);
+        endIdx = allDates.indexOf(endDates[endDates.length - 1]);
       } else {
-          endIdx = null;
+        endIdx = null;
       }
     }
 
@@ -139,7 +139,7 @@ export default function CombinedShopwiseReport() {
       setData(res.data.data || []);
       setUploads(res.data.uploads || []);
       setConfig(res.data.config || {});
-      
+
       const initialCollapsed = {};
       const uniqueShops = [...new Set((res.data.data || []).map(r => r.shop_code))];
       uniqueShops.forEach(s => initialCollapsed[s] = true);
@@ -152,7 +152,7 @@ export default function CombinedShopwiseReport() {
   useEffect(() => {
     getReport(id, null, view, { limit: 1 }).then(res => {
       const reportConfig = res?.data?.config || {};
-      
+
       let defaultStart = dayjs().startOf("month");
       let defaultEnd = dayjs();
 
@@ -160,19 +160,19 @@ export default function CombinedShopwiseReport() {
       const endDateStr = reportConfig.end_date || reportConfig.date2;
 
       if (startDateStr && endDateStr) {
-         const configStart = dayjs(startDateStr);
-         const configEnd = dayjs(endDateStr);
-         
-         if (defaultEnd.isAfter(configEnd)) defaultEnd = configEnd;
-         if (defaultEnd.isBefore(configStart)) defaultEnd = configEnd;
-         
-         defaultStart = defaultEnd.startOf("month");
-         if (defaultStart.isBefore(configStart)) defaultStart = configStart;
+        const configStart = dayjs(startDateStr);
+        const configEnd = dayjs(endDateStr);
+
+        if (defaultEnd.isAfter(configEnd)) defaultEnd = configEnd;
+        if (defaultEnd.isBefore(configStart)) defaultEnd = configEnd;
+
+        defaultStart = defaultEnd.startOf("month");
+        if (defaultStart.isBefore(configStart)) defaultStart = configStart;
       }
 
       setDateRange([defaultStart, defaultEnd]);
       load(defaultStart.format("YYYY-MM-DD"), defaultEnd.format("YYYY-MM-DD"));
-    }).catch(() => {});
+    }).catch(() => { });
   }, [id]);
 
   const handleApply = () => {
@@ -187,12 +187,12 @@ export default function CombinedShopwiseReport() {
     if (!uploads.length) return "";
     const dates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
     if (!dates.length) return "";
-    
+
     if (dateRange && dateRange.length === 2) {
-        return `COMBINED PERIOD : ${dateRange[0].format("DD-MM-YYYY")} - ${dateRange[1].format("DD-MM-YYYY")}`;
+      return `COMBINED PERIOD : ${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}`;
     }
 
-    return `COMBINED PERIOD : ${dayjs(dates[0]).format("DD-MM-YYYY")} - ${dayjs(dates[dates.length - 1]).format("DD-MM-YYYY")}`;
+    return `COMBINED PERIOD : ${dayjs(dates[0]).format("D MMMM YYYY")} - ${dayjs(dates[dates.length - 1]).format("D MMMM YYYY")}`;
   }, [uploads, dateRange]);
 
   const disabledDate = (current) => {
@@ -400,7 +400,7 @@ export default function CombinedShopwiseReport() {
           const i = useWholeNumbers ? Math.round(item.inward || 0) : item.inward || 0;
           const o = useWholeNumbers ? Math.round(item.outward || 0) : item.outward || 0;
           const c = useWholeNumbers ? Math.round(item.closing || 0) : item.closing || 0;
-          
+
           exportData.push({
             "Row Labels": "  " + item.pack,
             "Opening": op,
@@ -429,11 +429,11 @@ export default function CombinedShopwiseReport() {
       exportData.push({});
     });
 
-    exportToExcel(exportData, { Period: periodLabel, Bond: bond, Warehouse: warehouse, Shop: shop, View: view, "Round off": useWholeNumbers ? "Yes" : "No" }, "combined_shopwise_report.xlsx", "Combined Shopwise");
+    exportToExcel(exportData, { Period: periodLabel, Bond: bond, Warehouse: warehouse, Shop: shop, View: view, "Round off": useWholeNumbers ? "Yes" : "No" }, "cum_shopsales_report.xlsx", "Shop Sales Cumulative", { theme: "navy" });
   };
 
   const handleDownload = async (format, modeType) => {
-    const reportTitle = "Combined Shopwise Report";
+    const reportTitle = "Shop Sales Cumulative";
 
     if (format === "xlsx") {
       if (modeType === "unified") {
@@ -449,7 +449,7 @@ export default function CombinedShopwiseReport() {
             startIdx = allDates.findIndex(d => d >= sStr);
             const endDates = allDates.filter(d => d <= eStr);
             if (endDates.length > 0) {
-                endIdx = allDates.indexOf(endDates[endDates.length - 1]);
+              endIdx = allDates.indexOf(endDates[endDates.length - 1]);
             }
           }
 
@@ -514,7 +514,7 @@ export default function CombinedShopwiseReport() {
             exportData.map(d => filterMode === "bond" ? d.Bond : d.Warehouse).filter(Boolean)
           )).sort();
 
-          const period = dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All";
+          const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
 
           exportUnifiedWithDropdown({
             data: exportData,
@@ -525,7 +525,8 @@ export default function CombinedShopwiseReport() {
             sheetName: "Shop Drilldown",
             sumCols: ["Opening", "Receipt", "Sales", "Closing"],
             dropdownLabel: filterMode === "bond" ? "Bond" : "Warehouse",
-            filterColumnName: filterMode === "bond" ? "Bond" : "Warehouse"
+            filterColumnName: filterMode === "bond" ? "Bond" : "Warehouse",
+            theme: "navy"
           });
         } catch (e) {
           console.error("Error exporting unified excel:", e);
@@ -539,41 +540,41 @@ export default function CombinedShopwiseReport() {
       }
     } else if (format === "pdf") {
       if (modeType === "current") {
-        const period = dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All";
-        const pdfCols = ["Row Labels", `Opening ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Receipt ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Sales ${view === 'bottle' ? 'Bottles' : 'Cases'}`, `Closing ${view === 'bottle' ? 'Bottles' : 'Cases'}`];
-        
-        const pdfData = tableData.map(row => {
-          if (row.isSpacer) {
-            return {
-              "Row Labels": "",
-              [`Opening ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: "",
-              [`Receipt ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: "",
-              [`Sales ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: "",
-              [`Closing ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: ""
-            };
-          }
-          return {
-            "Row Labels": row.label,
-            [`Opening ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: row.isBrandHeader ? "" : formatVal(row.opening),
-            [`Receipt ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: row.isBrandHeader ? "" : formatVal(row.inward),
-            [`Sales ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: row.isBrandHeader ? "" : formatVal(row.outward),
-            [`Closing ${view === 'bottle' ? 'Bottles' : 'Cases'}`]: row.isBrandHeader ? "" : formatVal(row.closing)
-          };
-        });
+        setLoading(true);
+        try {
+          const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
 
-        exportToPdf({
-          title: `${reportTitle} (Current View)`,
-          periodLabel: period,
-          columns: pdfCols,
-          data: pdfData,
-          filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_current.pdf`
-        });
+          const bondName = bond || "Current View";
+          const shopsForPdf = (shop ? [allShops.find(s => s.value === shop)] : shopOptions)
+            .filter(Boolean)
+            .map(s => ({
+              shop_code: s.value,
+              shop_name: s.shopName
+            }));
+
+          exportShopDrilldownPdfByBond({
+            title: reportTitle,
+            periodLabel: period,
+            data: data,
+            bondName: bondName,
+            bondShops: shopsForPdf,
+            allShops: allShops,
+            useWholeNumbers: useWholeNumbers,
+            view: view,
+            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_current.pdf`
+          });
+        } catch (e) {
+          console.error("Error exporting current view PDF:", e);
+          message.error("Failed to export current view PDF");
+        } finally {
+          setLoading(false);
+        }
       } else {
         // Download by bonds
         setLoading(true);
         try {
-          const period = dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All";
-          
+          const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
+
           const sStr = dateRange[0]?.format("YYYY-MM-DD");
           const eStr = dateRange[1]?.format("YYYY-MM-DD");
           let startIdx = null;
@@ -584,7 +585,7 @@ export default function CombinedShopwiseReport() {
             startIdx = allDates.findIndex(d => d >= sStr);
             const endDates = allDates.filter(d => d <= eStr);
             if (endDates.length > 0) {
-                endIdx = allDates.indexOf(endDates[endDates.length - 1]);
+              endIdx = allDates.indexOf(endDates[endDates.length - 1]);
             }
           }
 
@@ -601,11 +602,11 @@ export default function CombinedShopwiseReport() {
           const activeBonds = bond ? [bond] : Object.keys(shopcodeMapping);
           for (const bondName of activeBonds) {
             const bondShops = shopcodeMapping[bondName] || [];
-            
+
             // Check if there is any data for shops in this bond
             const bondShopCodes = bondShops.map(s => String(s.shop_code));
             const bondHasData = fullData.some(d => bondShopCodes.includes(String(d.shop_code)));
-            
+
             if (bondHasData) {
               await exportShopDrilldownPdfByBond({
                 title: reportTitle,
@@ -640,7 +641,7 @@ export default function CombinedShopwiseReport() {
         </Button>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h2>Combined Shopwise Report</h2>
+        <h2>Shop sales - Cumulative</h2>
       </div>
       <div style={{ marginBottom: 16 }}>
         {/* Date Filter Row */}
@@ -728,11 +729,11 @@ export default function CombinedShopwiseReport() {
         {/* Download Button Row */}
         <Row gutter={[16, 16]}>
           <Col>
-            <DownloadDropdown 
-              onDownload={handleDownload} 
-              loading={loading} 
-              disabled={tableData.length === 0} 
-              showPdf={true} 
+            <DownloadDropdown
+              onDownload={handleDownload}
+              loading={loading}
+              disabled={tableData.length === 0}
+              showPdf={true}
               pdfOptions={["current", "cluster"]}
               clusterLabel="Bond"
             />
@@ -742,9 +743,9 @@ export default function CombinedShopwiseReport() {
 
       <div style={{ marginBottom: 0, padding: "8px 12px", backgroundColor: "#ADC9E6", border: "1px solid #999", borderBottom: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{periodLabel}</span>
-         <Checkbox checked={useWholeNumbers} onChange={e => setUseWholeNumbers(e.target.checked)}>
-            Round off
-          </Checkbox>
+        <Checkbox checked={useWholeNumbers} onChange={e => setUseWholeNumbers(e.target.checked)}>
+          Round off
+        </Checkbox>
         {/* <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>{uploadDateLabel}</span> */}
       </div>
       <Table

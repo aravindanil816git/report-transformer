@@ -1,7 +1,7 @@
 import { Modal, Table, Upload, Button, message, Space } from "antd";
 import { DownloadOutlined } from "@ant-design/icons";
 import { useState } from "react";
-import { uploadFile, processReport, downloadRaw } from "../api";
+import { uploadFile, processReport, downloadRaw, listReports } from "../api";
 
 export default function CumulativeUploadModal({ report, onClose, reload }) {
   const [uploading, setUploading] = useState(false);
@@ -26,7 +26,10 @@ export default function CumulativeUploadModal({ report, onClose, reload }) {
         message.success(`${date}: ${file.name} uploaded`);
         
         // Auto-process if all files uploaded
-        const updatedReport = await listReports().then(r => r.data.find(x => x.id === report.id));
+        const updatedReport = await listReports({ limit: 1000 }).then(r => {
+          const items = r.data?.items || r.data || [];
+          return items.find(x => x.id === report.id);
+        });
         const allUploaded = updatedReport?.uploads.every(u => u.status === "uploaded");
         
         if (allUploaded) {

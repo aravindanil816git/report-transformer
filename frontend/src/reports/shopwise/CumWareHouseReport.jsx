@@ -8,6 +8,17 @@ import DownloadDropdown from "../../components/DownloadDropdown";
 
 const { RangePicker } = DatePicker;
 
+const PDF_REPLACEMENT_BRANDS = [
+  { title: "BCB", key: "BRAND_BCB NO.1 CLASSIC BRANDY" },
+  { title: "BLN", key: "BRAND_BLENDERS CHOICE NO.1 BRANDY" },
+  { title: "CCB", key: "BRAND_CHAIRMAN'S CHOICE XO BRANDY" },
+  { title: "K99", key: "BRAND_K.S 99 LIFE TIME MATURED XXX RUM" },
+  { title: "MBR", key: "BRAND_MAGIC BLEND RESERVED XXX RUM" },
+  { title: "MWB", key: "BRAND_MORNING WALKERS XO BRANDY" },
+  { title: "OPR", key: "BRAND_OLD PEARL NO.1 MATURED XXX RUM" },
+  { title: "ROF", key: "BRAND_ROYAL OLD FORT NO.1 XXX RUM" }
+];
+
 export default function CumulativeWarehouseReport() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -465,12 +476,12 @@ export default function CumulativeWarehouseReport() {
       pdfCols.push("Total");
       mappingCols.push({ title: "Total", key: "total" });
     } else {
-      brandColumns.forEach(bc => {
+      PDF_REPLACEMENT_BRANDS.forEach(bc => {
         pdfCols.push(bc.title);
-        mappingCols.push({ title: bc.title, key: bc.dataIndex });
+        mappingCols.push({ title: bc.title, key: bc.key });
       });
-      pdfCols.push("Total Issues");
-      mappingCols.push({ title: "Total Issues", key: "total" });
+      pdfCols.push("TOT");
+      mappingCols.push({ title: "TOT", key: "total" });
     }
     
     // 2. Map data rows
@@ -509,15 +520,15 @@ export default function CumulativeWarehouseReport() {
         grandTotalRow[l] = sum;
       });
     } else {
-      brandColumns.forEach(bc => {
+      PDF_REPLACEMENT_BRANDS.forEach(bc => {
         let sum = 0;
-        actualRows.forEach(r => sum += Number(r[bc.dataIndex] || 0));
+        actualRows.forEach(r => sum += Number(r[bc.key] || 0));
         grandTotalRow[bc.title] = sum;
       });
     }
     let totalSum = 0;
     actualRows.forEach(r => totalSum += Number(r.total || 0));
-    grandTotalRow[view === "daywise" ? "Total" : "Total Issues"] = totalSum;
+    grandTotalRow[view === "daywise" ? "Total" : "TOT"] = totalSum;
     
     pdfData.push(grandTotalRow);
     
@@ -618,7 +629,8 @@ export default function CumulativeWarehouseReport() {
             sheetName: "Shop Drilldown",
             sumCols: sumKeys,
             dropdownLabel: filterField,
-            filterColumnName: filterField // This matches the key in exportData ("Bond" or "Warehouse")
+            filterColumnName: filterField, // This matches the key in exportData ("Bond" or "Warehouse")
+            theme: "navy"
           });
         } catch (e) {
           console.error("Error exporting unified excel:", e);
@@ -645,31 +657,40 @@ export default function CumulativeWarehouseReport() {
             "Total Days": config.num_days
           },
           `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.xlsx`,
-          reportTitle
+          reportTitle,
+          { theme: "navy" }
         );
       }
     } else if (format === "pdf") {
       setLoading(true);
       try {
-        const period = dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All";
+        const period = dateRange.length === 2 ? `Period: ${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "Period: All";
         
         // Sum cols for PDF (excluding First column and Spacer columns)
-        const sumCols = ["Total", "Total Issues"];
+        const sumCols = ["Total", "TOT"];
         if (view === "daywise") {
           sumCols.push(...labels);
         } else {
-          sumCols.push(...brandColumns.map(bc => bc.title));
+          sumCols.push(...PDF_REPLACEMENT_BRANDS.map(bc => bc.title));
         }
 
         if (modeType === "current") {
           const title = getTitle();
           const { columns: pdfCols, data: pdfData } = getPdfDataAndColumns(processedData);
+          const didParseCell = (cellData) => {
+            if (cellData.section === 'body' && cellData.column.dataKey === 'TOT') {
+              cellData.cell.styles.fillColor = [255, 255, 240]; // Ivory background
+            }
+          };
+
           exportToPdf({
-            title: `${reportTitle} (Current View)`,
+            title: reportTitle,
             periodLabel: period,
             columns: pdfCols,
             data: pdfData,
-            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.pdf`
+            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.pdf`,
+            zeroMargin: true,
+            didParseCell: view === "cumulative" ? didParseCell : null
           });
         } else if (modeType === "unified" || modeType === "cluster") {
           const params = {
@@ -712,8 +733,10 @@ export default function CumulativeWarehouseReport() {
             pdfCols.push(...labels);
             pdfCols.push("Total");
           } else {
-            pdfCols.push(...brandColumns.map(bc => bc.title));
-            pdfCols.push("Total Issues");
+            PDF_REPLACEMENT_BRANDS.forEach(bc => {
+              pdfCols.push(bc.title);
+            });
+            pdfCols.push("TOT");
           }
 
           // Map full shop-level data
@@ -734,23 +757,31 @@ export default function CumulativeWarehouseReport() {
               });
               rowItem["Total"] = d.total || 0;
             } else {
-              brandColumns.forEach(bc => {
-                rowItem[bc.title] = d[bc.dataIndex] || 0;
+              PDF_REPLACEMENT_BRANDS.forEach(bc => {
+                rowItem[bc.title] = d[bc.key] || 0;
               });
-              rowItem["Total Issues"] = d.total || 0;
+              rowItem["TOT"] = d.total || 0;
             }
             return rowItem;
           });
 
+          const didParseCell = (cellData) => {
+            if (cellData.section === 'body' && cellData.column.dataKey === 'TOT') {
+              cellData.cell.styles.fillColor = [255, 255, 240]; // Ivory background
+            }
+          };
+
           if (modeType === "unified") {
             exportToPdf({
-              title: `${reportTitle} (Unified - Shop Drilldown)`,
+              title: reportTitle.replace(/\s*\(.*\)/, ""),
               periodLabel: period,
               columns: pdfCols,
               data: pdfData,
-              groupByField: groupByField,
+              groupByField,
               sumCols: sumCols,
-              filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_unified.pdf`
+              filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_unified.pdf`,
+              zeroMargin: true,
+              didParseCell: view === "cumulative" ? didParseCell : null
             });
           } else if (modeType === "cluster") {
             const clusterConfigName = isBondMode ? "clusters" : "warehouse_clusters";
@@ -758,14 +789,16 @@ export default function CumulativeWarehouseReport() {
             const clustersData = clusterRes.data || {};
 
             exportClusterPdf({
-              title: `${reportTitle} (Shop Drilldown)`,
+              title: reportTitle.replace(/\s*\(.*\)/, ""),
               periodLabel: period,
               columns: pdfCols,
               data: pdfData,
-              groupByField: groupByField,
+              groupByField,
               sumCols: sumCols,
               clusters: clustersData,
-              filenamePrefix: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}`
+              filenamePrefix: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}`,
+              zeroMargin: true,
+              didParseCell: view === "cumulative" ? didParseCell : null
             });
           }
         }
@@ -967,14 +1000,14 @@ export default function CumulativeWarehouseReport() {
 
             return (
               <Table.Summary fixed="bottom">
-                <Table.Summary.Row style={{ background: "#fafafa" }}>
-                  <Table.Summary.Cell index={0} width={250}><b>Grand Total</b></Table.Summary.Cell>
+                <Table.Summary.Row style={{ backgroundColor: "#1b365d", borderTop: "2px solid #ffbd31" }}>
+                  <Table.Summary.Cell index={0} width={250}><b style={{ color: "#ffbd31" }}>Grand Total</b></Table.Summary.Cell>
                   {brandColumns.map((bc, idx) => (
                     <Table.Summary.Cell index={idx + 1} key={bc.dataIndex} width={120} align="center">
-                      <b>{brandSums[bc.dataIndex]}</b>
+                      <b style={{ color: "#ffbd31" }}>{brandSums[bc.dataIndex]}</b>
                     </Table.Summary.Cell>
                   ))}
-                  <Table.Summary.Cell index={brandColumns.length + 1} width={150}><b>{totalSum}</b></Table.Summary.Cell>
+                  <Table.Summary.Cell index={brandColumns.length + 1} width={150}><b style={{ color: "#ffbd31" }}>{totalSum}</b></Table.Summary.Cell>
                 </Table.Summary.Row>
               </Table.Summary>
             );
@@ -988,15 +1021,15 @@ export default function CumulativeWarehouseReport() {
 
             return (
               <Table.Summary fixed="bottom">
-                <Table.Summary.Row style={{ background: "#fafafa" }}>
-                  <Table.Summary.Cell index={0} fixed="left" width={200}><b>Grand Total</b></Table.Summary.Cell>
+                <Table.Summary.Row style={{ backgroundColor: "#1b365d", borderTop: "2px solid #ffbd31" }}>
+                  <Table.Summary.Cell index={0} fixed="left" width={200}><b style={{ color: "#ffbd31" }}>Grand Total</b></Table.Summary.Cell>
                   {labels.map((l, idx) => (
                     <Table.Summary.Cell index={idx + 1} key={l} width={100} align="center">
-                      <b>{colSums[l]}</b>
+                      <b style={{ color: "#ffbd31" }}>{colSums[l]}</b>
                     </Table.Summary.Cell>
                   ))}
                   <Table.Summary.Cell index={labels.length + 1} width={100}>
-                    <b>{totalSum}</b>
+                    <b style={{ color: "#ffbd31" }}>{totalSum}</b>
                   </Table.Summary.Cell>
                 </Table.Summary.Row>
               </Table.Summary>

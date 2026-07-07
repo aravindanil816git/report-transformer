@@ -82,22 +82,24 @@ export default function PiVarianceReport() {
       return acc;
     }, {});
 
-    const grandTotal = {};
+    const initialTotalTemplate = {};
     meta.brands.forEach(brand => {
       METRICS.forEach(metric => {
         if (metric === 'l3ms') {
-          grandTotal[`${brand}_${metric}_cm`] = 0;
+          initialTotalTemplate[`${brand}_${metric}_cm`] = 0;
         } else {
           ['cm', 'lm', 'var'].forEach(type => {
-            grandTotal[`${brand}_${metric}_${type}`] = 0;
+            initialTotalTemplate[`${brand}_${metric}_${type}`] = 0;
           });
         }
       });
     });
 
+    const grandTotal = { ...initialTotalTemplate };
+
     Object.entries(groupedByMode).sort(([a], [b]) => a.localeCompare(b)).forEach(([key, items]) => {
       const isCollapsed = collapsedGroups[key];
-      const groupTotal = { ...grandTotal }; // Initialize with 0s for keys
+      const groupTotal = { ...initialTotalTemplate }; // Initialize with 0s for keys
 
       items.forEach(item => {
         Object.keys(groupTotal).forEach(totalKey => {

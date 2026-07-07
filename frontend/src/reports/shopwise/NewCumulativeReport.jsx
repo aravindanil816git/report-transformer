@@ -33,14 +33,14 @@ export default function CumulativeShopwiseReport() {
   useEffect(() => {
     getJson("leaves").then(res => {
       setShopLeaves(res.data?.shop || []);
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   // Initialize default date range (1st of month to today) on load
   useEffect(() => {
     getReport(id, null, view, { limit: 1 }).then(res => {
       const reportConfig = res?.data?.config || {};
-      
+
       let defaultStart = dayjs().startOf("month");
       let defaultEnd = dayjs();
 
@@ -48,21 +48,21 @@ export default function CumulativeShopwiseReport() {
       const endDateStr = reportConfig.end_date || reportConfig.date2;
 
       if (startDateStr && endDateStr) {
-         const configStart = dayjs(startDateStr);
-         const configEnd = dayjs(endDateStr);
-         
-         if (defaultEnd.isAfter(configEnd)) defaultEnd = configEnd;
-         if (defaultEnd.isBefore(configStart)) defaultEnd = configEnd;
-         
-         defaultStart = defaultEnd.startOf("month");
-         if (defaultStart.isBefore(configStart)) defaultStart = configStart;
+        const configStart = dayjs(startDateStr);
+        const configEnd = dayjs(endDateStr);
+
+        if (defaultEnd.isAfter(configEnd)) defaultEnd = configEnd;
+        if (defaultEnd.isBefore(configStart)) defaultEnd = configEnd;
+
+        defaultStart = defaultEnd.startOf("month");
+        if (defaultStart.isBefore(configStart)) defaultStart = configStart;
       }
 
       setDateRange([defaultStart, defaultEnd]);
 
       // The default mode is now 'bond', so we pass that to the initial load
       load(null, null, null, null, "bond", defaultStart.format("YYYY-MM-DD"), defaultEnd.format("YYYY-MM-DD"));
-    }).catch(() => {});
+    }).catch(() => { });
   }, [id]);
 
   // 🔹 load
@@ -71,7 +71,7 @@ export default function CumulativeShopwiseReport() {
     try {
       let activeD1 = d1 !== "RESET" ? d1 : null;
       let activeD2 = d2 !== "RESET" ? d2 : null;
-      
+
       if (!activeD1 && dateRange && dateRange.length === 2) {
         activeD1 = dateRange[0].format("YYYY-MM-DD");
         activeD2 = dateRange[1].format("YYYY-MM-DD");
@@ -84,7 +84,7 @@ export default function CumulativeShopwiseReport() {
         warehouse: selectedWarehouse,
         bond: selectedBond
       };
-      
+
       if (d1 && d2 && d1 !== "RESET") {
         params.start_date = d1;
         params.end_date = d2;
@@ -95,9 +95,9 @@ export default function CumulativeShopwiseReport() {
       const combinedReps = reportsRes.data?.items || reportsRes.data || [];
 
       const currentMonthPrefix = activeD1 ? activeD1.substring(0, 7) : dayjs().format("YYYY-MM");
-      const currentCombined = combinedReps.find(r => 
-         (r.config?.start_date && r.config.start_date.startsWith(currentMonthPrefix)) || 
-         (r.config?.date1 && r.config.date1.startsWith(currentMonthPrefix))
+      const currentCombined = combinedReps.find(r =>
+        (r.config?.start_date && r.config.start_date.startsWith(currentMonthPrefix)) ||
+        (r.config?.date1 && r.config.date1.startsWith(currentMonthPrefix))
       );
 
       // 1. Fetch current month data
@@ -107,7 +107,7 @@ export default function CumulativeShopwiseReport() {
       } else {
         currentResPromise = getReport(id, null, view, params);
       }
-      
+
       // 2. Concurrently fetch last month's data using pure date mapping
       let prevResPromise = Promise.resolve({ data: { data: [] } });
       if (activeD1 && activeD2) {
@@ -115,12 +115,12 @@ export default function CumulativeShopwiseReport() {
         const prevD2Str = dayjs(activeD1).subtract(1, 'month').endOf('month').format("YYYY-MM-DD");
         const prevMonthPrefix = prevD1Str.substring(0, 7);
         const prevParams = { ...params, start_date: prevD1Str, end_date: prevD2Str };
-        
-        const prevCombined = combinedReps.find(r => 
-           (r.config?.start_date && r.config.start_date.startsWith(prevMonthPrefix)) || 
-           (r.config?.date1 && r.config.date1.startsWith(prevMonthPrefix))
+
+        const prevCombined = combinedReps.find(r =>
+          (r.config?.start_date && r.config.start_date.startsWith(prevMonthPrefix)) ||
+          (r.config?.date1 && r.config.date1.startsWith(prevMonthPrefix))
         );
-        
+
         if (prevCombined) {
           prevResPromise = getReport(prevCombined.id, null, "cumulative", prevParams).catch(() => ({ data: { data: [] } }));
         } else {
@@ -129,7 +129,7 @@ export default function CumulativeShopwiseReport() {
       }
 
       const [res, prevRes] = await Promise.all([currentResPromise, prevResPromise]);
-      
+
       const rawData = res.data.data || [];
       const lastMonthData = prevRes.data.data || [];
 
@@ -151,15 +151,15 @@ export default function CumulativeShopwiseReport() {
           last_month_sales: pk ? (lastMonthSalesMap[pk] || 0) : 0
         };
       });
-  
+
       setData(cleaned);
       setLabels(res.data.labels || []);
       setConfig(res.data.config || {});
-  
+
       if (res.data.config?.date1 && res.data.config?.date2 && dateRange.length === 0) {
         setDateRange([dayjs(res.data.config.date1), dayjs(res.data.config.date2)]);
       }
-  
+
       if (allLabels.length === 0) {
         setAllLabels(res.data.labels || []);
       }
@@ -203,14 +203,14 @@ export default function CumulativeShopwiseReport() {
       message.warning("Please select a complete start and end date");
       return;
     }
-    
+
     let currentMode = mode;
     if (drilledWarehouse) currentMode = "shop";
     else if (drilledBond) currentMode = "shop";
 
     const d1 = dateRange[0].format("YYYY-MM-DD");
     const d2 = dateRange[1].format("YYYY-MM-DD");
-    
+
     try {
       await load(null, null, drilledWarehouse || warehouseFilter, drilledBond, currentMode, d1, d2);
       message.success("Report date range applied successfully");
@@ -226,7 +226,7 @@ export default function CumulativeShopwiseReport() {
     setDrilledWarehouse(null);
     setDrilledBond(null);
     setMode("warehouse");
-    
+
     try {
       await load(null, null, null, null, "warehouse", "RESET", "RESET");
     } catch (e) {
@@ -260,8 +260,8 @@ export default function CumulativeShopwiseReport() {
   const activeStartStr = config.date1 || config.start_date;
   const activeEndStr = config.date2 || config.end_date;
 
-  const currentPeriodLabel = activeStartStr && activeEndStr 
-    ? `${dayjs(activeStartStr).format("DD MMM")} - ${dayjs(activeEndStr).format("DD MMM")}` 
+  const currentPeriodLabel = activeStartStr && activeEndStr
+    ? `${dayjs(activeStartStr).format("DD MMM")} - ${dayjs(activeEndStr).format("DD MMM")}`
     : "Current Month";
 
   const lastMonthPeriodLabel = activeStartStr
@@ -477,40 +477,40 @@ export default function CumulativeShopwiseReport() {
       </div>
 
       <div style={{ marginBottom: 16 }}>
-  <Button
-    type={mode === "bond" ? "primary" : "default"}
-    onClick={() => { setMode("bond"); setDrilledBond(null); setDrilledWarehouse(null); setWarehouseFilter(null); }}
-  >
-    Bond
-  </Button>
-  
-  <Button
-    type={mode === "warehouse" && !drilledBond ? "primary" : "default"}
-    onClick={() => { setMode("warehouse"); setDrilledBond(null); setDrilledWarehouse(null); setWarehouseFilter(null); }}
-    style={{ marginLeft: 8 }}
-  >
-    Warehouse
-  </Button>
-  
-  <Button
-    type={mode === "shop" ? "primary" : "default"}
-    onClick={() => { setMode("shop"); setDrilledBond(null); setDrilledWarehouse(null); setWarehouseFilter(null); }}
-    style={{ marginLeft: 8 }}
-  >
-    Shop
-  </Button>
+        <Button
+          type={mode === "bond" ? "primary" : "default"}
+          onClick={() => { setMode("bond"); setDrilledBond(null); setDrilledWarehouse(null); setWarehouseFilter(null); }}
+        >
+          Bond
+        </Button>
 
-  {drilledWarehouse && (
-    <Button type="dashed" danger onClick={() => setDrilledWarehouse(null)} style={{ marginLeft: 8 }}>
-      Back to Warehouse View (Exit Drilling: {formatName(drilledWarehouse)})
-    </Button>
-  )}
-  {drilledBond && (
-    <Button type="dashed" danger onClick={() => setDrilledBond(null)} style={{ marginLeft: 8 }}>
-      Back to Bond View (Exit Drilling: {formatName(drilledBond)})
-    </Button>
-  )}
-</div>
+        <Button
+          type={mode === "warehouse" && !drilledBond ? "primary" : "default"}
+          onClick={() => { setMode("warehouse"); setDrilledBond(null); setDrilledWarehouse(null); setWarehouseFilter(null); }}
+          style={{ marginLeft: 8 }}
+        >
+          Warehouse
+        </Button>
+
+        <Button
+          type={mode === "shop" ? "primary" : "default"}
+          onClick={() => { setMode("shop"); setDrilledBond(null); setDrilledWarehouse(null); setWarehouseFilter(null); }}
+          style={{ marginLeft: 8 }}
+        >
+          Shop
+        </Button>
+
+        {drilledWarehouse && (
+          <Button type="dashed" danger onClick={() => setDrilledWarehouse(null)} style={{ marginLeft: 8 }}>
+            Back to Warehouse View (Exit Drilling: {formatName(drilledWarehouse)})
+          </Button>
+        )}
+        {drilledBond && (
+          <Button type="dashed" danger onClick={() => setDrilledBond(null)} style={{ marginLeft: 8 }}>
+            Back to Bond View (Exit Drilling: {formatName(drilledBond)})
+          </Button>
+        )}
+      </div>
 
       <div style={{ marginBottom: 12 }}>
         <b>Start Date:</b> {activeStartStr ? dayjs(activeStartStr).format("DD-MM-YYYY") : "-"} &nbsp;&nbsp;
@@ -548,7 +548,7 @@ export default function CumulativeShopwiseReport() {
       </Space>
 
       {/* 🔥 VIEW PILLS */}
-      <Space style={{ marginBottom: 16 }}>
+      {/* <Space style={{ marginBottom: 16 }}>
         <Button
           type={view === "cumulative" ? "primary" : "default"}
           onClick={() => setView("cumulative")}
@@ -563,7 +563,7 @@ export default function CumulativeShopwiseReport() {
         >
           Round off
         </Checkbox>
-      </Space>
+      </Space> */}
 
       {/* 🔥 TABLE */}
       <Table
@@ -589,12 +589,12 @@ export default function CumulativeShopwiseReport() {
               totalSales += sales || 0;
               totalClosing += closing || 0;
             });
-            
+
             const totalDiff = totalOpening - totalClosing;
             const totalClosingStockAtSalesPerc = totalSales ? (totalClosing * 100) / totalSales : 0;
             const totalPerc = totalOpening ? (totalDiff * 100) / totalOpening : 0;
             const totalAvgSalesPerDay = netDays ? totalSales / netDays : 0;
-            
+
             let totalLastMonthSales = 0;
             pageData.forEach(({ last_month_sales }) => {
               totalLastMonthSales += last_month_sales || 0;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Table, InputNumber, Button, message, Space, DatePicker, Popover, Checkbox } from "antd";
 import { useParams, useNavigate } from "react-router-dom";
-import { getReport, getJson } from "../api";
+import { getReport, getJson, updateReportConfig } from "../api";
 import axios from "axios";
 import { FilterOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -102,12 +102,13 @@ export default function AchievedTargetReport() {
       const targetsMap = {};
       data.forEach((row) => {
         targetsMap[row.bond] = {};
-        Object.keys(row.brands).forEach((brand) => {
-          targetsMap[row.bond][brand] = row.brands[brand].target || 0;
-        });
+        if (row.brands) {
+          Object.keys(row.brands).forEach((brand) => {
+            targetsMap[row.bond][brand] = row.brands[brand].target || 0;
+          });
+        }
       });
-      const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-      await axios.put(`${API_BASE}/reports/${id}/config`, { targets: targetsMap });
+      await updateReportConfig(id, { targets: targetsMap });
       message.success("Targets saved successfully!");
       setIsEditingTargets(false);
       loadData(); // refresh to ensure data alignment
