@@ -6,6 +6,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { getReport, processReport, getJson, listReports } from "../../api";
 import dayjs from "dayjs";
 import { exportToExcel } from "../../utils/exportUtils";
+import { disabledFutureMonthDates } from "../../utils/dateUtils";
 
 const { RangePicker } = DatePicker;
 
@@ -71,12 +72,13 @@ export default function CumulativeShopwiseReport() {
 
   // 🔹 triggerLastMonthLoad
   const triggerLastMonthLoad = async (activeD1, selectedMode, combinedReps) => {
-    if (!activeD1) return;
+    if (!activeD1 || !combinedReps || combinedReps.length === 0) return;
     setLoadingLastMonth(true);
     try {
-      const prevD1Str = dayjs(activeD1).subtract(1, 'month').startOf('month').format("YYYY-MM-DD");
-      const prevMonthPrefix = prevD1Str.substring(0, 7);
+      const prevD1 = dayjs(activeD1).subtract(1, "month").startOf("month");
+      const prevMonthPrefix = prevD1.format("YYYY-MM");
 
+      // Find the combined shopwise report for the previous month
       const prevCombined = combinedReps.find(r =>
         (r.config?.start_date && r.config.start_date.startsWith(prevMonthPrefix)) ||
         (r.config?.date1 && r.config.date1.startsWith(prevMonthPrefix))
@@ -87,11 +89,17 @@ export default function CumulativeShopwiseReport() {
         return;
       }
 
-      // Fetch the pre-processed report WITHOUT dates to prevent lazy process / config hijacking on backend
+      // Fetch the cumulative totals of the previous month's combined report
+      // No date parameters are passed, so the backend reads directly from the cache
       const prevRes = await getReport(prevCombined.id, null, "cumulative", {
         mode: selectedMode
       });
       const lastMonthData = prevRes.data?.data || prevRes.data || [];
+      console.log("[triggerLastMonthLoad] Loaded last month data for report:", prevCombined.name || prevCombined.id, {
+        mode: selectedMode,
+        rawRowsCount: lastMonthData.length,
+        rawRows: lastMonthData
+      });
 
       const salesMap = {};
       lastMonthData.forEach(row => {
@@ -100,6 +108,7 @@ export default function CumulativeShopwiseReport() {
           salesMap[pk] = (salesMap[pk] || 0) + (row.outward || row.sales || 0);
         }
       });
+      console.log("[triggerLastMonthLoad] Calculated salesMap:", salesMap);
       setLastMonthSalesMap(salesMap);
     } catch (e) {
       console.error("Failed to load last month comparative data:", e);
@@ -134,9 +143,15 @@ export default function CumulativeShopwiseReport() {
         params.end_date = d2;
       }
 
-      // Fetch combined reports list
-      const reportsRes = await listReports({ type: "combined_shopwise", limit: 100 });
-      const combinedReps = reportsRes.data?.items || reportsRes.data || [];
+      // Fetch both combined_shopwise and shop_sales_cumulative reports to cover all cumulative datasets
+      const [combinedRes, shopSalesRes] = await Promise.all([
+        listReports({ type: "combined_shopwise", limit: 100 }),
+        listReports({ type: "shop_sales_cumulative", limit: 100 })
+      ]);
+      const combinedReps = [
+        ...(combinedRes.data?.items || combinedRes.data || []),
+        ...(shopSalesRes.data?.items || shopSalesRes.data || [])
+      ];
 
       const currentMonthPrefix = activeD1 ? activeD1.substring(0, 7) : dayjs().format("YYYY-MM");
       const currentCombined = combinedReps.find(r =>
@@ -310,15 +325,8 @@ export default function CumulativeShopwiseReport() {
     return 30; // fallback
   }, [activeStartStr, shopLeaves]);
 
-  // 🔒 strict date range
-  const minDate = config.start_date ? dayjs(config.start_date) : null;
-  const maxDate = minDate ? minDate.add(config.num_days - 1, "day") : null;
-
   const disabledDate = (current) => {
-    if (!current) return false;
-    if (current.isAfter(dayjs().add(1, "day"), "day")) return true;
-    if (!minDate || !maxDate) return false;
-    return current.isBefore(minDate, "day") || current.isAfter(maxDate, "day");
+    return disabledFutureMonthDates(current);
   };
 
   // 🔥 Calculate missing columns locally in the frontend
