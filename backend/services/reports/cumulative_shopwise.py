@@ -651,7 +651,13 @@ class CumulativeShopwiseReportService(BaseReportService):
             end_date_param = kwargs.get("end_date") or report.get("config", {}).get("end_date") or report.get("config", {}).get("date2")
             if start_date_param:
                 month_prefix = str(start_date_param).split("T")[0][:7]
-                res = supabase.table("reports").select("id, type, config, uploads").in_("type", ["shop_sales_cumulative", "combined_shopwise"]).execute()
+                res = (
+                    supabase.table("reports")
+                    .select("id, type, config, uploads")
+                    .in_("type", ["shop_sales_cumulative", "combined_shopwise"])
+                    .or_(f"config->>start_date.like.{month_prefix}%,config->>date1.like.{month_prefix}%")
+                    .execute()
+                )
                 
                 source_uploads_map = {}
                 if res.data:

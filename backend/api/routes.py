@@ -165,8 +165,19 @@ def sync_cumulative_report(report, all_reports=None):
         return
 
     if all_reports is None:
-        # 🔥 CRITICAL FIX: Do NOT fetch 'data' or 'processed'. Only fetch paths and metadata to prevent the server from hanging/timeout.
-        all_reports = get_all_reports(types=allowed_sources, columns="id, name, type, status, config, uploads, created_at, path, file, storage_path")
+        # 🔥 CRITICAL MONTHLY FILTER: Only query reports for the target month to prevent OOM
+        rep_month = None
+        cfg = report.get("config", {})
+        for k in ["date1", "start_date", "date"]:
+            if cfg.get(k):
+                rep_month = str(cfg[k]).split("T")[0][:7]
+                break
+        
+        query = supabase.table("reports").select("id, name, type, status, config, uploads, created_at, path, file, storage_path").in_("type", allowed_sources)
+        if rep_month:
+            query = query.or_(f"config->>date.like.{rep_month}%,config->>date1.like.{rep_month}%,config->>start_date.like.{rep_month}%")
+        res = query.execute()
+        all_reports = res.data or []
         
     original_status = report.get("status")
     
@@ -894,6 +905,11 @@ async def upload(
         report["file"] = file.filename
         report["storage_path"] = storage_path
         report["status"] = "Ready"
+        
+        # 🔥 CRITICAL FIX: Do not store massive raw data dicts in the database payload to prevent OOM
+        for u in report.get("uploads", []):
+            u.pop("data", None)
+            
         save_report(report)
 
         # If a combined_shopwise report exists for the same date range, sync it immediately.
