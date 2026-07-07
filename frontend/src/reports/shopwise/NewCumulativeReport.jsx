@@ -30,6 +30,10 @@ export default function CumulativeShopwiseReport() {
 
   const [shopLeaves, setShopLeaves] = useState([]);
 
+  // States for lazy loading the previous month's baseline
+  const [lastMonthSalesMap, setLastMonthSalesMap] = useState({});
+  const [loadingLastMonth, setLoadingLastMonth] = useState(false);
+
   useEffect(() => {
     getJson("leaves").then(res => {
       setShopLeaves(res.data?.shop || []);
@@ -65,6 +69,46 @@ export default function CumulativeShopwiseReport() {
     }).catch(() => { });
   }, [id]);
 
+  // 🔹 triggerLastMonthLoad
+  const triggerLastMonthLoad = async (activeD1, selectedMode, combinedReps) => {
+    if (!activeD1) return;
+    setLoadingLastMonth(true);
+    try {
+      const prevD1Str = dayjs(activeD1).subtract(1, 'month').startOf('month').format("YYYY-MM-DD");
+      const prevMonthPrefix = prevD1Str.substring(0, 7);
+
+      const prevCombined = combinedReps.find(r =>
+        (r.config?.start_date && r.config.start_date.startsWith(prevMonthPrefix)) ||
+        (r.config?.date1 && r.config.date1.startsWith(prevMonthPrefix))
+      );
+
+      if (!prevCombined) {
+        setLastMonthSalesMap({});
+        return;
+      }
+
+      // Fetch the pre-processed report WITHOUT dates to prevent lazy process / config hijacking on backend
+      const prevRes = await getReport(prevCombined.id, null, "cumulative", {
+        mode: selectedMode
+      });
+      const lastMonthData = prevRes.data?.data || prevRes.data || [];
+
+      const salesMap = {};
+      lastMonthData.forEach(row => {
+        const pk = selectedMode === "bond" ? row.bond : (selectedMode === "shop" ? row.shop_code : row.warehouse);
+        if (pk) {
+          salesMap[pk] = (salesMap[pk] || 0) + (row.outward || row.sales || 0);
+        }
+      });
+      setLastMonthSalesMap(salesMap);
+    } catch (e) {
+      console.error("Failed to load last month comparative data:", e);
+      setLastMonthSalesMap({});
+    } finally {
+      setLoadingLastMonth(false);
+    }
+  };
+
   // 🔹 load
   const load = async (startIdx = null, endIdx = null, selectedWarehouse = warehouseFilter, selectedBond = null, selectedMode = mode, d1 = null, d2 = null) => {
     setLoading(true);
@@ -90,7 +134,7 @@ export default function CumulativeShopwiseReport() {
         params.end_date = d2;
       }
 
-      // Fetch combined reports to map to the correct 2-file datasets
+      // Fetch combined reports list
       const reportsRes = await listReports({ type: "combined_shopwise", limit: 100 });
       const combinedReps = reportsRes.data?.items || reportsRes.data || [];
 
@@ -100,7 +144,7 @@ export default function CumulativeShopwiseReport() {
         (r.config?.date1 && r.config.date1.startsWith(currentMonthPrefix))
       );
 
-      // 1. Fetch current month data
+      // Fetch current month data
       let currentResPromise;
       if (view === "cumulative" && currentCombined) {
         currentResPromise = getReport(currentCombined.id, null, "cumulative", params);
@@ -108,48 +152,12 @@ export default function CumulativeShopwiseReport() {
         currentResPromise = getReport(id, null, view, params);
       }
 
-      // 2. Concurrently fetch last month's data using pure date mapping
-      let prevResPromise = Promise.resolve({ data: { data: [] } });
-      if (activeD1 && activeD2) {
-        const prevD1Str = dayjs(activeD1).subtract(1, 'month').startOf('month').format("YYYY-MM-DD");
-        const prevD2Str = dayjs(activeD1).subtract(1, 'month').endOf('month').format("YYYY-MM-DD");
-        const prevMonthPrefix = prevD1Str.substring(0, 7);
-        const prevParams = { ...params, start_date: prevD1Str, end_date: prevD2Str };
-
-        const prevCombined = combinedReps.find(r =>
-          (r.config?.start_date && r.config.start_date.startsWith(prevMonthPrefix)) ||
-          (r.config?.date1 && r.config.date1.startsWith(prevMonthPrefix))
-        );
-
-        if (prevCombined) {
-          prevResPromise = getReport(prevCombined.id, null, "cumulative", prevParams).catch(() => ({ data: { data: [] } }));
-        } else {
-          prevResPromise = getReport(id, null, "cumulative", prevParams).catch(() => ({ data: { data: [] } }));
-        }
-      }
-
-      const [res, prevRes] = await Promise.all([currentResPromise, prevResPromise]);
-
+      const res = await currentResPromise;
       const rawData = res.data.data || [];
-      const lastMonthData = prevRes.data.data || [];
-
-      const lastMonthSalesMap = {};
-      lastMonthData.forEach(row => {
-        const pk = selectedMode === "bond" ? row.bond : (selectedMode === "shop" ? row.shop_code : row.warehouse);
-        if (pk) {
-          lastMonthSalesMap[pk] = (lastMonthSalesMap[pk] || 0) + (row.outward || row.sales || 0);
-        }
-      });
 
       const cleaned = rawData.filter(d => {
         const isValid = d.warehouse || d.shop_code || d.bond || d.warehouse === "";
         return isValid;
-      }).map(row => {
-        const pk = selectedMode === "bond" ? row.bond : (selectedMode === "shop" ? row.shop_code : row.warehouse);
-        return {
-          ...row,
-          last_month_sales: pk ? (lastMonthSalesMap[pk] || 0) : 0
-        };
       });
 
       setData(cleaned);
@@ -163,6 +171,9 @@ export default function CumulativeShopwiseReport() {
       if (allLabels.length === 0) {
         setAllLabels(res.data.labels || []);
       }
+
+      // Trigger lazy load of prior month baseline data
+      triggerLastMonthLoad(activeD1, selectedMode, combinedReps);
     } finally {
       setLoading(false);
     }
@@ -322,7 +333,9 @@ export default function CumulativeShopwiseReport() {
       const closing_stock_at_sales_perc = sales ? (closing * 100) / sales : 0;
       const perc = opening ? (difference * 100) / opening : 0;
       const avg_sales_per_day = netDays ? sales / netDays : 0;
-      const last_month_sales = d.last_month_sales || 0;
+
+      const pk = mode === "bond" ? d.bond : (mode === "shop" ? d.shop_code : d.warehouse);
+      const last_month_sales = lastMonthSalesMap[pk] || 0;
       const last_month_avg = lastMonthNetDays ? last_month_sales / lastMonthNetDays : 0;
       const avg_diff = avg_sales_per_day - last_month_avg;
 
@@ -337,10 +350,11 @@ export default function CumulativeShopwiseReport() {
         perc,
         avg_sales_per_day,
         last_month_sales,
-        last_month_avg
+        last_month_avg,
+        avg_diff
       };
     });
-  }, [filteredData, netDays]);
+  }, [filteredData, netDays, lastMonthSalesMap, lastMonthNetDays, mode]);
 
   const getTitle = () => {
     if (drilledWarehouse || drilledBond || mode === "shop") return "Shop Name";
@@ -371,7 +385,10 @@ export default function CumulativeShopwiseReport() {
     return <span>{displayText}</span>;
   };
 
-  const formatVal = (val) => {
+  const formatVal = (val, isLoadingField = false) => {
+    if (isLoadingField && loadingLastMonth) {
+      return <span style={{ color: "#bfbfbf", fontStyle: "italic" }}>loading...</span>;
+    }
     if (val === null || val === undefined) return "";
     const num = Number(val);
     if (isNaN(num)) return val;
@@ -406,8 +423,8 @@ export default function CumulativeShopwiseReport() {
       title: "Average (Cases)",
       children: [
         { title: `Current Month Avg (${currentPeriodLabel})`, dataIndex: "avg_sales_per_day", width: 160, align: "center", render: (v) => formatVal(v) },
-        { title: `Last Month Avg (${lastMonthPeriodLabel})`, dataIndex: "last_month_avg", width: 160, align: "center", render: (v) => formatVal(v) },
-        { title: "Difference", dataIndex: "avg_diff", width: 120, align: "center", render: (v) => formatVal(v) }
+        { title: `Last Month Avg (${lastMonthPeriodLabel})`, dataIndex: "last_month_avg", width: 160, align: "center", render: (v) => formatVal(v, true) },
+        { title: "Difference", dataIndex: "avg_diff", width: 120, align: "center", render: (v) => formatVal(v, true) }
       ]
     }
   ];
@@ -427,8 +444,8 @@ export default function CumulativeShopwiseReport() {
         "Perc(%)": useWholeNumbers ? Math.round(d.perc || 0) : d.perc,
         " ": "", // spacer
         [`Current Month Avg (${currentPeriodLabel})`]: useWholeNumbers ? Math.round(d.avg_sales_per_day || 0) : d.avg_sales_per_day,
-        [`Last Month Avg (${lastMonthPeriodLabel})`]: useWholeNumbers ? Math.round(d.last_month_avg || 0) : d.last_month_avg,
-        "Avg Difference": useWholeNumbers ? Math.round(d.avg_diff || 0) : d.avg_diff
+        [`Last Month Avg (${lastMonthPeriodLabel})`]: loadingLastMonth ? "Loading..." : (useWholeNumbers ? Math.round(d.last_month_avg || 0) : d.last_month_avg),
+        "Avg Difference": loadingLastMonth ? "Loading..." : (useWholeNumbers ? Math.round(d.avg_diff || 0) : d.avg_diff)
       }));
     } else {
       exportData = processedData.map(row => {
@@ -615,8 +632,8 @@ export default function CumulativeShopwiseReport() {
                   <Table.Summary.Cell index={7} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalPerc)}</Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={8} style={{ padding: "12px 8px" }}></Table.Summary.Cell>
                   <Table.Summary.Cell index={9} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalAvgSalesPerDay)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={10} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalLastMonthAvg)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={11} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalAvgDiff)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={10} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalLastMonthAvg, true)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={11} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalAvgDiff, true)}</Text></Table.Summary.Cell>
                 </Table.Summary.Row>
               </Table.Summary>
             );
