@@ -167,8 +167,17 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                 path = u.get("path")
                 storage_path = u.get("storage_path")
                 # Fallback: Reconstruct storage_path if missing from legacy records
-                if not storage_path and u.get("file") and report.get("id"):
-                    storage_path = f"{report.get('id')}/{u.get('file')}"
+                if not storage_path and u.get("file"):
+                    filename = u.get("file")
+                    path_val = u.get("path") or ""
+                    import os
+                    basename = os.path.basename(path_val)
+                    if basename.endswith(filename) and len(basename) > len(filename) + 1:
+                        # Extract source report ID prefix from filename e.g. "9ea4adba-848e..._june 1-16.xlsx"
+                        source_id = basename[:-(len(filename) + 1)]
+                        storage_path = f"{source_id}/{filename}"
+                    elif report.get("id"):
+                        storage_path = f"{report.get('id')}/{filename}"
                 
                 if path:
                     import os

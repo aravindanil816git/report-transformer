@@ -458,10 +458,20 @@ export default function CombinedShopwiseReport() {
           const res = await getReport(id, null, view, params);
           const fullData = res.data.data || [];
 
-          const exportData = fullData.map(d => {
-            const shopCodeStr = String(d.shop_code || "");
+          const exportData = [];
+          const shopGrouped = {};
+          fullData.forEach((row) => {
+            const shopCode = row["shop_code"];
+            const brand = row["brand"];
+            if (!shopGrouped[shopCode]) shopGrouped[shopCode] = {};
+            if (!shopGrouped[shopCode][brand]) shopGrouped[shopCode][brand] = [];
+            shopGrouped[shopCode][brand].push(row);
+          });
+
+          Object.entries(shopGrouped).forEach(([shopCode, brands]) => {
+            const shopCodeStr = String(shopCode || "");
             const shopInfo = allShops.find(s => String(s.value) === shopCodeStr);
-            const shopName = shopInfo?.shopName || d.shop_name || "";
+            const displayLabel = shopInfo?.shopName ? shopInfo.shopName : shopCodeStr;
 
             // Find Bond
             let resolvedBond = "";
@@ -491,18 +501,107 @@ export default function CombinedShopwiseReport() {
               }
             }
 
-            return {
+            let sOpening = 0, sIn = 0, sOut = 0, sClosing = 0;
+            Object.values(brands).flat().forEach(item => {
+              sOpening += item.opening || 0;
+              sIn += item.inward || 0;
+              sOut += item.outward || 0;
+              sClosing += item.closing || 0;
+            });
+            const sOpeningVal = useWholeNumbers ? Math.round(sOpening) : Number(sOpening.toFixed(2));
+            const sInVal = useWholeNumbers ? Math.round(sIn) : Number(sIn.toFixed(2));
+            const sOutVal = useWholeNumbers ? Math.round(sOut) : Number(sOut.toFixed(2));
+            const sClosingVal = useWholeNumbers ? Math.round(sClosing) : Number(sClosing.toFixed(2));
+
+            // Shop Header Row
+            exportData.push({
               Bond: resolvedBond,
               Warehouse: resolvedWarehouse,
-              "Shop Code": shopCodeStr,
-              "Shop Name": shopName,
-              Brand: d.brand || "",
-              Pack: d.pack || "",
-              Opening: useWholeNumbers ? Math.round(d.opening || 0) : Number((d.opening || 0).toFixed(2)),
-              Receipt: useWholeNumbers ? Math.round(d.inward || 0) : Number((d.inward || 0).toFixed(2)),
-              Sales: useWholeNumbers ? Math.round(d.outward || 0) : Number((d.outward || 0).toFixed(2)),
-              Closing: useWholeNumbers ? Math.round(d.closing || 0) : Number((d.closing || 0).toFixed(2))
-            };
+              "Row Labels": displayLabel,
+              "Opening": sOpeningVal,
+              "Receipt": sInVal,
+              "Sales": sOutVal,
+              "Closing": sClosingVal
+            });
+
+            Object.entries(brands).forEach(([brand, items]) => {
+              // Brand Header Row
+              exportData.push({
+                Bond: resolvedBond,
+                Warehouse: resolvedWarehouse,
+                "Row Labels": brand,
+                "Opening": "",
+                "Receipt": "",
+                "Sales": "",
+                "Closing": ""
+              });
+
+              let bOpening = 0, bIn = 0, bOut = 0, bClosing = 0;
+              items.forEach(item => {
+                const op = item.opening || 0;
+                const i = item.inward || 0;
+                const o = item.outward || 0;
+                const c = item.closing || 0;
+
+                const opVal = useWholeNumbers ? Math.round(op) : Number(op.toFixed(2));
+                const iVal = useWholeNumbers ? Math.round(i) : Number(i.toFixed(2));
+                const oVal = useWholeNumbers ? Math.round(o) : Number(o.toFixed(2));
+                const cVal = useWholeNumbers ? Math.round(c) : Number(c.toFixed(2));
+
+                exportData.push({
+                  Bond: resolvedBond,
+                  Warehouse: resolvedWarehouse,
+                  "Row Labels": "  " + item.pack,
+                  "Opening": opVal,
+                  "Receipt": iVal,
+                  "Sales": oVal,
+                  "Closing": cVal
+                });
+
+                bOpening += op;
+                bIn += i;
+                bOut += o;
+                bClosing += c;
+              });
+
+              const bOpeningVal = useWholeNumbers ? Math.round(bOpening) : Number(bOpening.toFixed(2));
+              const bInVal = useWholeNumbers ? Math.round(bIn) : Number(bIn.toFixed(2));
+              const bOutVal = useWholeNumbers ? Math.round(bOut) : Number(bOut.toFixed(2));
+              const bClosingVal = useWholeNumbers ? Math.round(bClosing) : Number(bClosing.toFixed(2));
+
+              // Brand Total Row
+              exportData.push({
+                Bond: resolvedBond,
+                Warehouse: resolvedWarehouse,
+                "Row Labels": brand + " Total",
+                "Opening": bOpeningVal,
+                "Receipt": bInVal,
+                "Sales": bOutVal,
+                "Closing": bClosingVal
+              });
+            });
+
+            // Shop Total Row
+            exportData.push({
+              Bond: resolvedBond,
+              Warehouse: resolvedWarehouse,
+              "Row Labels": `${displayLabel} Total`,
+              "Opening": sOpeningVal,
+              "Receipt": sInVal,
+              "Sales": sOutVal,
+              "Closing": sClosingVal
+            });
+
+            // Spacer Row
+            exportData.push({
+              Bond: resolvedBond,
+              Warehouse: resolvedWarehouse,
+              "Row Labels": "",
+              "Opening": "",
+              "Receipt": "",
+              "Sales": "",
+              "Closing": ""
+            });
           });
 
           const uniqueList = Array.from(new Set(
@@ -521,7 +620,8 @@ export default function CombinedShopwiseReport() {
             sumCols: ["Opening", "Receipt", "Sales", "Closing"],
             dropdownLabel: filterMode === "bond" ? "Bond" : "Warehouse",
             filterColumnName: filterMode === "bond" ? "Bond" : "Warehouse",
-            theme: "navy"
+            theme: "navy",
+            reportColumns: ["Row Labels", "Opening", "Receipt", "Sales", "Closing"]
           });
         } catch (e) {
           console.error("Error exporting unified excel:", e);
