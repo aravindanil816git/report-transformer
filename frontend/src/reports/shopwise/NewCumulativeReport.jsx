@@ -3,10 +3,11 @@ import { Table, Button, Select, DatePicker, Space, Typography, message, Checkbox
 
 const { Text } = Typography;
 import { useParams, useNavigate } from "react-router-dom";
-import { getReport, processReport, getJson, listReports } from "../../api";
+import { getReport, processReport, getJson, listReports, getFilters } from "../../api";
 import dayjs from "dayjs";
-import { exportToExcel } from "../../utils/exportUtils";
+import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf, exportShopDrilldownPdfByBond } from "../../utils/exportUtils";
 import { disabledFutureMonthDates } from "../../utils/dateUtils";
+import DownloadDropdown from "../../components/DownloadDropdown";
 
 const { RangePicker } = DatePicker;
 
@@ -34,6 +35,7 @@ export default function CumulativeShopwiseReport() {
   // States for lazy loading the previous month's baseline
   const [lastMonthSalesMap, setLastMonthSalesMap] = useState({});
   const [loadingLastMonth, setLoadingLastMonth] = useState(false);
+  const [currentCombined, setCurrentCombined] = useState(null);
 
   useEffect(() => {
     getJson("leaves").then(res => {
@@ -81,7 +83,9 @@ export default function CumulativeShopwiseReport() {
       // Find the combined shopwise report for the previous month
       const prevCombined = combinedReps.find(r =>
         (r.config?.start_date && r.config.start_date.startsWith(prevMonthPrefix)) ||
-        (r.config?.date1 && r.config.date1.startsWith(prevMonthPrefix))
+        (r.config?.date1 && r.config.date1.startsWith(prevMonthPrefix)) ||
+        (r.created_at && r.created_at.startsWith(prevMonthPrefix)) ||
+        (r.name && r.name.toLowerCase().includes(prevD1.format("MMMM").toLowerCase()))
       );
 
       if (!prevCombined) {
@@ -89,14 +93,10 @@ export default function CumulativeShopwiseReport() {
         return;
       }
 
-      const prevD2 = prevD1.endOf("month");
-
       // Fetch the cumulative totals of the previous month's combined report
-      // Explicitly pass full month start and end dates to force backend calculation of full month totals
+      // No date parameters are passed, so the backend reads directly from the cache
       const prevRes = await getReport(prevCombined.id, null, "cumulative", {
-        mode: selectedMode,
-        start_date: prevD1.format("YYYY-MM-DD"),
-        end_date: prevD2.format("YYYY-MM-DD")
+        mode: selectedMode
       });
       const lastMonthData = prevRes.data?.data || prevRes.data || [];
       console.log("[triggerLastMonthLoad] Loaded last month data for report:", prevCombined.name || prevCombined.id, {
@@ -158,10 +158,20 @@ export default function CumulativeShopwiseReport() {
       ];
 
       const currentMonthPrefix = activeD1 ? activeD1.substring(0, 7) : dayjs().format("YYYY-MM");
+      
+      console.log("[DEBUG] activeD1:", activeD1, "currentMonthPrefix:", currentMonthPrefix, "combinedReps count:", combinedReps.length);
+      console.log("[DEBUG] combinedReps list:", combinedReps.map(r => ({ id: r.id, name: r.name, type: r.type, config: r.config, created_at: r.created_at })));
+
       const currentCombined = combinedReps.find(r =>
         (r.config?.start_date && r.config.start_date.startsWith(currentMonthPrefix)) ||
-        (r.config?.date1 && r.config.date1.startsWith(currentMonthPrefix))
+        (r.config?.date1 && r.config.date1.startsWith(currentMonthPrefix)) ||
+        (r.created_at && r.created_at.startsWith(currentMonthPrefix)) ||
+        (r.name && r.name.toLowerCase().includes(dayjs(activeD1).format("MMMM").toLowerCase()))
       );
+
+      setCurrentCombined(currentCombined);
+
+      console.log("[DEBUG] matched currentCombined:", currentCombined ? { id: currentCombined.id, name: currentCombined.name } : "undefined");
 
       // Fetch current month data
       let currentResPromise;
@@ -490,6 +500,312 @@ export default function CumulativeShopwiseReport() {
     );
   };
 
+  const handleDownload = async (format, modeType) => {
+    if (!currentCombined) {
+      message.error("Combined Shopwise Report not found for this month");
+      return;
+    }
+    const reportTitle = "Shop Sales Cumulative";
+    const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
+    
+    setLoading(true);
+    try {
+      // 1. Fetch all required mappings dynamically
+      const [filtersRes, mappingRes] = await Promise.all([
+        getFilters(currentCombined.id), // Fetch warehouse/bond/shop mappings
+        getJson("shopcode_mapping") // Fetch shopcode to bond/warehouse list mapping
+      ]);
+      
+      const { shops, mapping, bond_mapping } = filtersRes.data || {};
+      const shopcodeMapping = mappingRes.data || {};
+      const filterMapping = mapping || {};
+      const bondMapping = bond_mapping || {};
+      const allShops = (shops || []).map(s => ({
+        value: s.shop_code,
+        label: `${s.shop_code} - ${s.shop_name}`,
+        shopName: s.shop_name
+      }));
+      
+      // 2. Fetch the raw brand/pack data for the combined report
+      const sStr = dateRange[0]?.format("YYYY-MM-DD");
+      const eStr = dateRange[1]?.format("YYYY-MM-DD");
+      let startIdx = null;
+      let endIdx = null;
+      
+      // For combined report uploads
+      const uploads = currentCombined.uploads || [];
+      if (sStr && eStr) {
+        const allDates = uploads.filter(u => u.status === 'uploaded').map(u => u.date).sort();
+        startIdx = allDates.findIndex(d => d >= sStr);
+        const endDates = allDates.filter(d => d <= eStr);
+        if (endDates.length > 0) {
+          endIdx = allDates.indexOf(endDates[endDates.length - 1]);
+        }
+      }
+      
+      const params = { start_idx: startIdx, end_idx: endIdx };
+      if (sStr && eStr) {
+        params.start_date = sStr;
+        params.end_date = eStr;
+      }
+      
+      // Fetch shopwise drilldown view (using "case" view)
+      const res = await getReport(currentCombined.id, null, "case", params);
+      const fullData = res.data.data || [];
+      
+      // 3. Perform identical grouping and mapping to CombinedShopwiseReport.jsx
+      const exportData = [];
+      const shopGrouped = {};
+      fullData.forEach((row) => {
+        const shopCode = row["shop_code"];
+        const brand = row["brand"];
+        if (!shopGrouped[shopCode]) shopGrouped[shopCode] = {};
+        if (!shopGrouped[shopCode][brand]) shopGrouped[shopCode][brand] = [];
+        shopGrouped[shopCode][brand].push(row);
+      });
+      
+      Object.entries(shopGrouped).forEach(([shopCode, brands]) => {
+        const shopCodeStr = String(shopCode || "");
+        const shopInfo = allShops.find(s => String(s.value) === shopCodeStr);
+        const firstRowInShop = Object.values(brands)[0]?.[0];
+        const rawShopName = firstRowInShop?.shop_name;
+        const displayLabel = rawShopName || (shopInfo?.shopName ? shopInfo.shopName : shopCodeStr);
+
+        // Find Bond
+        let resolvedBond = "";
+        for (const [bondName, bData] of Object.entries(bondMapping)) {
+          const list = Array.isArray(bData) ? bData : (bData?.shops || []);
+          const found = list.some(s => String(typeof s === 'object' ? s.shop_code : s) === shopCodeStr);
+          if (found) {
+            resolvedBond = bondName;
+            break;
+          }
+        }
+        if (!resolvedBond && shopcodeMapping) {
+          for (const [bondName, shopsList] of Object.entries(shopcodeMapping)) {
+            if (shopsList.some(s => String(s.shop_code) === shopCodeStr)) {
+              resolvedBond = bondName;
+              break;
+            }
+          }
+        }
+
+        // Find Warehouse
+        let resolvedWarehouse = "";
+        for (const [whName, shopCodes] of Object.entries(filterMapping)) {
+          if (shopCodes.includes(shopCodeStr)) {
+            resolvedWarehouse = whName;
+            break;
+          }
+        }
+
+        let sOpening = 0, sIn = 0, sOut = 0, sClosing = 0;
+        Object.values(brands).flat().forEach(item => {
+          sOpening += item.opening || 0;
+          sIn += item.inward || 0;
+          sOut += item.outward || 0;
+          sClosing += item.closing || 0;
+        });
+        const sOpeningVal = useWholeNumbers ? Math.round(sOpening) : Number(sOpening.toFixed(2));
+        const sInVal = useWholeNumbers ? Math.round(sIn) : Number(sIn.toFixed(2));
+        const sOutVal = useWholeNumbers ? Math.round(sOut) : Number(sOut.toFixed(2));
+        const sClosingVal = useWholeNumbers ? Math.round(sClosing) : Number(sClosing.toFixed(2));
+
+        // Shop Header Row
+        exportData.push({
+          Bond: resolvedBond,
+          Warehouse: resolvedWarehouse,
+          "Row Labels": displayLabel,
+          "Opening": sOpeningVal,
+          "Receipt": sInVal,
+          "Sales": sOutVal,
+          "Closing": sClosingVal
+        });
+
+        Object.entries(brands).forEach(([brand, items]) => {
+          // Brand Header Row
+          exportData.push({
+            Bond: resolvedBond,
+            Warehouse: resolvedWarehouse,
+            "Row Labels": brand,
+            "Opening": "",
+            "Receipt": "",
+            "Sales": "",
+            "Closing": ""
+          });
+
+          let bOpening = 0, bIn = 0, bOut = 0, bClosing = 0;
+          items.forEach(item => {
+            const op = item.opening || 0;
+            const i = item.inward || 0;
+            const o = item.outward || 0;
+            const c = item.closing || 0;
+
+            const opVal = useWholeNumbers ? Math.round(op) : Number(op.toFixed(2));
+            const iVal = useWholeNumbers ? Math.round(i) : Number(i.toFixed(2));
+            const oVal = useWholeNumbers ? Math.round(o) : Number(o.toFixed(2));
+            const cVal = useWholeNumbers ? Math.round(c) : Number(c.toFixed(2));
+
+            exportData.push({
+              Bond: resolvedBond,
+              Warehouse: resolvedWarehouse,
+              "Row Labels": "  " + item.pack,
+              "Opening": opVal,
+              "Receipt": iVal,
+              "Sales": oVal,
+              "Closing": cVal
+            });
+
+            bOpening += op;
+            bIn += i;
+            bOut += o;
+            bClosing += c;
+          });
+
+          const bOpeningVal = useWholeNumbers ? Math.round(bOpening) : Number(bOpening.toFixed(2));
+          const bInVal = useWholeNumbers ? Math.round(bIn) : Number(bIn.toFixed(2));
+          const bOutVal = useWholeNumbers ? Math.round(bOut) : Number(bOut.toFixed(2));
+          const bClosingVal = useWholeNumbers ? Math.round(bClosing) : Number(bClosing.toFixed(2));
+
+          // Brand Total Row
+          exportData.push({
+            Bond: resolvedBond,
+            Warehouse: resolvedWarehouse,
+            "Row Labels": `${brand} Total`,
+            "Opening": bOpeningVal,
+            "Receipt": bInVal,
+            "Sales": bOutVal,
+            "Closing": bClosingVal
+          });
+        });
+
+        // Shop Total Row
+        exportData.push({
+          Bond: resolvedBond,
+          Warehouse: resolvedWarehouse,
+          "Row Labels": `${displayLabel} Total`,
+          "Opening": sOpeningVal,
+          "Receipt": sInVal,
+          "Sales": sOutVal,
+          "Closing": sClosingVal
+        });
+
+        // Spacer Row
+        exportData.push({
+          Bond: resolvedBond,
+          Warehouse: resolvedWarehouse,
+          "Row Labels": "",
+          "Opening": "",
+          "Receipt": "",
+          "Sales": "",
+          "Closing": ""
+        });
+      });
+
+      // 4. Run export based on format/type
+      if (format === "xlsx") {
+        if (modeType === "current") {
+          // Current view xlsx is still the original flat table download
+          downloadExcel();
+        } else if (modeType === "unified") {
+          const uniqueList = Array.from(new Set(
+            exportData.map(d => mode === "bond" ? d.Bond : d.Warehouse).filter(Boolean)
+          )).sort();
+
+          exportUnifiedWithDropdown({
+            data: exportData,
+            warehouses: uniqueList,
+            reportTitle: `${reportTitle} (Unified - Shop Drilldown)`,
+            periodLabel: period,
+            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_unified.xlsx`,
+            sheetName: "Shop Drilldown",
+            sumCols: ["Opening", "Receipt", "Sales", "Closing"],
+            dropdownLabel: mode === "bond" ? "Bond" : "Warehouse",
+            filterColumnName: mode === "bond" ? "Bond" : "Warehouse",
+            theme: "navy",
+            reportColumns: ["Row Labels", "Opening", "Receipt", "Sales", "Closing"]
+          });
+        }
+      } else if (format === "pdf") {
+        if (modeType === "current") {
+          // Export current view PDF (same as flat table view PDF)
+          let flatCols = [];
+          let flatSumCols = [];
+          let flatExportData = [];
+          
+          if (view === "cumulative") {
+            flatCols = ["Row Labels", "Opening", "Receipt", "Sales", "Closing", "Difference", "ClosingStock@Sales%", "Perc(%)"];
+            flatSumCols = ["Opening", "Receipt", "Sales", "Closing", "Difference"];
+            flatExportData = processedData.map(d => ({
+              "Row Labels": d.shop_code ? d.shop_name : formatName(d.warehouse),
+              Opening: useWholeNumbers ? Math.round(d.opening || 0) : d.opening,
+              Receipt: useWholeNumbers ? Math.round(d.receipt || 0) : d.receipt,
+              Sales: useWholeNumbers ? Math.round(d.sales || 0) : d.sales,
+              Closing: useWholeNumbers ? Math.round(d.closing || 0) : d.closing,
+              Difference: useWholeNumbers ? Math.round(d.difference || 0) : d.difference,
+              "ClosingStock@Sales%": useWholeNumbers ? Math.round(d.closing_stock_at_sales_perc || 0) : d.closing_stock_at_sales_perc,
+              "Perc(%)": useWholeNumbers ? Math.round(d.perc || 0) : d.perc
+            }));
+          } else {
+            flatCols = ["Row Labels", ...labels, "Total"];
+            flatSumCols = [...labels, "Total"];
+            flatExportData = processedData.map(row => {
+              const obj = { "Row Labels": row.shop_code ? row.shop_name : formatName(row.warehouse) };
+              let total = 0;
+              labels.forEach(l => {
+                const v = row[l] || 0;
+                obj[l] = useWholeNumbers ? Math.round(v) : v;
+                total += v;
+              });
+              obj["Total"] = useWholeNumbers ? Math.round(total) : total;
+              return obj;
+            });
+          }
+          
+          exportToPdf({
+            title: "Comparative Shopsales",
+            periodLabel: period,
+            columns: flatCols,
+            data: flatExportData,
+            sumCols: flatSumCols,
+            filename: `comparative_shopsales_current.pdf`,
+            orientation: view === "cumulative" ? "portrait" : "landscape",
+            zeroMargin: true
+          });
+        } else if (modeType === "cluster") {
+          // Export PDF shop drilldown by Bond (just like CombinedShopwiseReport.jsx does!)
+          const activeBonds = mode === "bond" && drilledBond ? [drilledBond] : Object.keys(shopcodeMapping);
+          for (const bondName of activeBonds) {
+            const bondShops = shopcodeMapping[bondName] || [];
+            const bondShopCodes = bondShops.map(s => String(s.shop_code));
+            const bondHasData = fullData.some(d => bondShopCodes.includes(String(d.shop_code)));
+
+            if (bondHasData) {
+              await exportShopDrilldownPdfByBond({
+                title: reportTitle,
+                periodLabel: period,
+                data: fullData,
+                bondName: bondName,
+                bondShops: bondShops,
+                allShops: allShops,
+                useWholeNumbers: useWholeNumbers,
+                view: "case",
+                filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_bond_${bondName.toLowerCase().replace(/\s+/g, '_')}.pdf`
+              });
+              await new Promise(resolve => setTimeout(resolve, 300));
+            }
+          }
+          message.success("Bonds PDF export completed!");
+        }
+      }
+    } catch (e) {
+      console.error("Error exporting PDF:", e);
+      message.error("Failed to export PDF: " + (e.message || String(e)));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={{ padding: 20 }}>
       <div style={{ marginBottom: 16 }}>
@@ -501,7 +817,14 @@ export default function CumulativeShopwiseReport() {
         <h2>Comparitive Shopsales</h2>
         <Space>
           <Button onClick={handleRefresh}>Refresh Data</Button>
-          <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
+          <DownloadDropdown
+            onDownload={handleDownload}
+            loading={loading}
+            disabled={processedData.length === 0}
+            showPdf={true}
+            pdfOptions={["current", "cluster"]}
+            clusterLabel="Bond"
+          />
         </Space>
       </div>
 
