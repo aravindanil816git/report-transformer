@@ -1179,6 +1179,53 @@ def get_report(
     if not report:
         return {"data": []}
 
+    # Automatically delegate new_cumulative_report cumulative queries to the combined_shopwise report for the same month
+    if report.get("type") == "new_cumulative_report" and view == "cumulative":
+        from services.store import get_all_reports
+        rep_month = None
+        cfg = report.get("config", {})
+        for k in ["date1", "start_date", "date"]:
+            if cfg.get(k):
+                rep_month = str(cfg[k]).split("T")[0][:7]
+                break
+        if not rep_month and start_date:
+            rep_month = str(start_date)[:7]
+        if not rep_month:
+            rep_month = report.get("created_at", "")[:7]
+            
+        combined_report = None
+        for r in get_all_reports(types=["combined_shopwise"]):
+            r_month = None
+            rc = r.get("config", {})
+            for k in ["date1", "start_date", "date"]:
+                if rc.get(k):
+                    r_month = str(rc[k]).split("T")[0][:7]
+                    break
+            if not r_month:
+                r_month = r.get("created_at", "")[:7]
+            if r_month == rep_month:
+                combined_report = r
+                break
+                
+        if combined_report:
+            print(f"[INFO] Backend delegating new_cumulative_report {rid} to combined_shopwise {combined_report['id']} for view='cumulative'")
+            svc = get_service("combined_shopwise")
+            kwargs = {}
+            if shop_code: kwargs["shop_code"] = shop_code
+            if view: kwargs["view"] = view
+            if warehouse: kwargs["warehouse"] = warehouse
+            if bond: kwargs["bond"] = bond
+            if mode: kwargs["mode"] = mode
+            if start_idx is not None: kwargs["start_idx"] = start_idx
+            if end_idx is not None: kwargs["end_idx"] = end_idx
+            if start_date and start_date != "RESET": kwargs["start_date"] = start_date
+            if end_date and end_date != "RESET": kwargs["end_date"] = end_date
+            
+            result = svc.get_report(combined_report, **kwargs)
+            result["name"] = report.get("name")
+            result["type"] = report.get("type")
+            return clean_nan(result)
+
     if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "new_cumulative_report"]:
         sync_cumulative_report(report)
         

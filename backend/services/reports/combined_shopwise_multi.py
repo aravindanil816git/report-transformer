@@ -51,12 +51,21 @@ class CombinedShopwiseMultiReportService(BaseReportService):
             if 1 <= start_day <= 31 and 1 <= end_day <= 31:
                 return start_day, end_day
                 
-        # 4. Fallback to report config date
+        # 4. Fallback to report config date range bounds
         if report_config:
-            config_date = report_config.get("date1") or report_config.get("start_date")
-            if config_date:
+            d1 = report_config.get("date1") or report_config.get("start_date")
+            d2 = report_config.get("date2") or report_config.get("end_date")
+            if d1 and d2:
                 try:
-                    day = int(pd.to_datetime(config_date).day)
+                    start_day = int(pd.to_datetime(d1).day)
+                    end_day = int(pd.to_datetime(d2).day)
+                    if 1 <= start_day <= 31 and 1 <= end_day <= 31:
+                        return start_day, end_day
+                except Exception:
+                    pass
+            elif d1:
+                try:
+                    day = int(pd.to_datetime(d1).day)
                     if day <= 16:
                         return 1, 16
                     else:
