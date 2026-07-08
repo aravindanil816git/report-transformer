@@ -246,7 +246,9 @@ export default function CombinedShopwiseReport() {
     Object.entries(shopGrouped).forEach(([shopCode, brands]) => {
       const isCollapsed = collapsedShops[shopCode];
       const shopInfo = allShops.find(s => String(s.value) === String(shopCode));
-      const displayLabel = shopInfo?.shopName ? shopInfo.shopName : shopCode;
+      const firstRowInShop = Object.values(brands)[0]?.[0];
+      const rawShopName = firstRowInShop?.shop_name;
+      const displayLabel = rawShopName || (shopInfo?.shopName ? shopInfo.shopName : shopCode);
 
       let shopOpening = 0, shopInward = 0, shopOutward = 0, shopClosing = 0;
       Object.values(brands).flat().forEach(item => {
@@ -371,7 +373,9 @@ export default function CombinedShopwiseReport() {
 
     Object.entries(shopGrouped).forEach(([shopCode, brands]) => {
       const shopInfo = allShops.find(s => String(s.value) === String(shopCode));
-      const displayLabel = shopInfo?.shopName ? shopInfo.shopName : shopCode;
+      const firstRowInShop = Object.values(brands)[0]?.[0];
+      const rawShopName = firstRowInShop?.shop_name;
+      const displayLabel = rawShopName || (shopInfo?.shopName ? shopInfo.shopName : shopCode);
 
       let sOpening = 0, sIn = 0, sOut = 0, sClosing = 0;
       Object.values(brands).flat().forEach(item => {
@@ -471,7 +475,9 @@ export default function CombinedShopwiseReport() {
           Object.entries(shopGrouped).forEach(([shopCode, brands]) => {
             const shopCodeStr = String(shopCode || "");
             const shopInfo = allShops.find(s => String(s.value) === shopCodeStr);
-            const displayLabel = shopInfo?.shopName ? shopInfo.shopName : shopCodeStr;
+            const firstRowInShop = Object.values(brands)[0]?.[0];
+            const rawShopName = firstRowInShop?.shop_name;
+            const displayLabel = rawShopName || (shopInfo?.shopName ? shopInfo.shopName : shopCodeStr);
 
             // Find Bond
             let resolvedBond = "";
