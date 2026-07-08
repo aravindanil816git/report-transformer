@@ -89,10 +89,14 @@ export default function CumulativeShopwiseReport() {
         return;
       }
 
+      const prevD2 = prevD1.endOf("month");
+
       // Fetch the cumulative totals of the previous month's combined report
-      // No date parameters are passed, so the backend reads directly from the cache
+      // Explicitly pass full month start and end dates to force backend calculation of full month totals
       const prevRes = await getReport(prevCombined.id, null, "cumulative", {
-        mode: selectedMode
+        mode: selectedMode,
+        start_date: prevD1.format("YYYY-MM-DD"),
+        end_date: prevD2.format("YYYY-MM-DD")
       });
       const lastMonthData = prevRes.data?.data || prevRes.data || [];
       console.log("[triggerLastMonthLoad] Loaded last month data for report:", prevCombined.name || prevCombined.id, {
