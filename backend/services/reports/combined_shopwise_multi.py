@@ -27,6 +27,51 @@ class CombinedShopwiseMultiReportService(BaseReportService):
     # ---------------------------------------------------------------------
     # Upload handling
     # ---------------------------------------------------------------------
+    def _parse_days(self, filename, report_config=None, default_start=1, default_end=16):
+        if not filename:
+            return default_start, default_end
+        lowered = filename.lower()
+        
+        # 1. Clean suffix letters like st, nd, rd, th from numbers (e.g. 1st -> 1, 7th -> 7)
+        clean_name = re.sub(r"(\d+)(?:st|nd|rd|th)\b", r"\1", lowered)
+        
+        # 2. Find all 1-to-2 digit numbers (ignoring 4-digit years)
+        days = [int(n) for n in re.findall(r"\b\d{1,2}\b", clean_name)]
+        if len(days) >= 2:
+            start_day = days[0]
+            end_day = days[1]
+            if 1 <= start_day <= 31 and 1 <= end_day <= 31:
+                return start_day, end_day
+                
+        # 3. Fallback to standard range regex
+        match = re.search(r"(\d{1,2})\s*(?:-|to|–|—|_)\s*(\d{1,2})", lowered)
+        if match:
+            start_day = int(match.group(1))
+            end_day = int(match.group(2))
+            if 1 <= start_day <= 31 and 1 <= end_day <= 31:
+                return start_day, end_day
+                
+        # 4. Fallback to report config date
+        if report_config:
+            config_date = report_config.get("date1") or report_config.get("start_date")
+            if config_date:
+                try:
+                    day = int(pd.to_datetime(config_date).day)
+                    if day <= 16:
+                        return 1, 16
+                    else:
+                        return 17, 31
+                except Exception:
+                    pass
+                    
+        # 5. Standard fallbacks
+        if "1-16" in lowered or "1-15" in lowered or "1-12" in lowered:
+            return 1, 16
+        elif "17-30" in lowered or "17-31" in lowered or "16-30" in lowered or "16-31" in lowered:
+            return 17, 31
+            
+        return default_start, default_end
+
     def upload(self, report, path, file_name, date=None, **kwargs):
         """Read an Excel file and store it in ``report['uploads']``.
 
@@ -40,40 +85,8 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         df = clean_df(normalize(df))
 
         # Determine the key for this upload and store exact start/end day bounds
-        start_day, end_day = None, None
-        key = None
-        lowered = file_name.lower()
-        
-        # 1. Parse start and end day from filename (e.g. "1-16", "17-30", "17-20")
-        match = re.search(r"\b(\d{1,2})\s*(?:-|to|–|—|_)\s*(\d{1,2})\b", lowered)
-        if match:
-            start_day = int(match.group(1))
-            end_day = int(match.group(2))
-            key = f"{start_day}-{end_day}"
-            
-        # 2. Fallback to report config date
-        if not key:
-            config_date = report.get("config", {}).get("date1") or report.get("config", {}).get("start_date")
-            if config_date:
-                try:
-                    day = int(pd.to_datetime(config_date).day)
-                    if day <= 16:
-                        start_day, end_day = 1, 16
-                    else:
-                        start_day, end_day = 17, 31
-                except Exception:
-                    pass
-            
-            # 3. Fallback to standard range patterns
-            if start_day is None or end_day is None:
-                if re.search(r"\b1\s*(?:-|to|–|—|_)\s*1[562]\b", lowered) or "1-16" in lowered or "1-15" in lowered or "1-12" in lowered:
-                    start_day, end_day = 1, 16
-                elif re.search(r"\b1[67]\s*(?:-|to|–|—|_)\s*3[01]\b", lowered) or "17-30" in lowered or "17-31" in lowered or "16-30" in lowered or "16-31" in lowered:
-                    start_day, end_day = 17, 31
-                else:
-                    start_day, end_day = 1, 16  # Default fallback
-            
-            key = f"{start_day}-{end_day}"
+        start_day, end_day = self._parse_days(file_name, report.get("config"))
+        key = f"{start_day}-{end_day}"
 
         # Ensure the uploads list exists
         report.setdefault("uploads", [])
@@ -128,6 +141,8 @@ class CombinedShopwiseMultiReportService(BaseReportService):
             except Exception:
                 pass
         
+        print(f"[DEBUG] get_report query: start_date={start_date}, end_date={end_date}, parsed sel_start_day={sel_start_day}, sel_end_day={sel_end_day}")
+
         # Categorize and select the latest upload for Set 1 and Set 2 that fall within the date filter
         set1_uploads = []
         set2_uploads = []
@@ -135,27 +150,15 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         for u in uploads:
             r_key = u.get("range_key") or u.get("date", "default")
             
-            # Determine day range bounds for this upload
-            u_start_day = u.get("start_day")
-            u_end_day = u.get("end_day")
+            # Determine day range bounds for this upload (dynamically parse from filename to fix legacy/incorrect database entries)
+            u_start_day, u_end_day = self._parse_days(u.get("file") or u.get("path"), report.get("config"))
             
-            if u_start_day is None or u_end_day is None:
-                # Fallback to parsing from range_key
-                match = re.search(r"(\d{1,2})\s*-\s*(\d{1,2})", str(r_key))
-                if match:
-                    u_start_day = int(match.group(1))
-                    u_end_day = int(match.group(2))
-                else:
-                    if r_key == "1-16":
-                        u_start_day, u_end_day = 1, 16
-                    elif r_key in ["17-31", "17-30"]:
-                        u_start_day, u_end_day = 17, 31
-                    else:
-                        u_start_day, u_end_day = 1, 31
-            
+            print(f"[DEBUG] Upload '{u.get('file')}' -> key={r_key}, u_start_day={u_start_day}, u_end_day={u_end_day}")
+
             # Adhere strictly to date filter: the upload must fall within the selected date range
             if sel_start_day is not None and sel_end_day is not None:
                 if u_start_day < sel_start_day or u_end_day > sel_end_day:
+                    print(f"[DEBUG] Excluding upload '{u.get('file')}' because it is outside the selected range [{sel_start_day}, {sel_end_day}]")
                     continue
                         
             u_copied = dict(u)
@@ -171,9 +174,11 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         if set1_uploads:
             set1_uploads_sorted = sorted(set1_uploads, key=lambda x: (x.get("end_day") or 0))
             selected_uploads.append(set1_uploads_sorted[-1])
+            print(f"[DEBUG] Set 1 uploads: {[x.get('file') for x in set1_uploads_sorted]} -> Selected latest: '{set1_uploads_sorted[-1].get('file')}'")
         if set2_uploads:
             set2_uploads_sorted = sorted(set2_uploads, key=lambda x: (x.get("end_day") or 0))
             selected_uploads.append(set2_uploads_sorted[-1])
+            print(f"[DEBUG] Set 2 uploads: {[x.get('file') for x in set2_uploads_sorted]} -> Selected latest: '{set2_uploads_sorted[-1].get('file')}'")
 
         # Build DataFrames from selected upload entries
         dfs = []
@@ -181,6 +186,7 @@ class CombinedShopwiseMultiReportService(BaseReportService):
             r_key = u.get("range_key") or u.get("date", "default")
             u_start_day = u.get("start_day")
             u_end_day = u.get("end_day")
+            print(f"[DEBUG] Processing selected upload: '{u.get('file')}' (key={r_key})")
                 
             data = u.get("data")
             if isinstance(data, list) and data:
