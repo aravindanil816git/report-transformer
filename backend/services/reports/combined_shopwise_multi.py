@@ -128,8 +128,10 @@ class CombinedShopwiseMultiReportService(BaseReportService):
             except Exception:
                 pass
         
-        # Build DataFrames from each upload entry
-        dfs = []
+        # Categorize and select the latest upload for Set 1 and Set 2 that fall within the date filter
+        set1_uploads = []
+        set2_uploads = []
+        
         for u in uploads:
             r_key = u.get("range_key") or u.get("date", "default")
             
@@ -151,10 +153,34 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                     else:
                         u_start_day, u_end_day = 1, 31
             
-            # Filter: include if the upload's range overlaps with the selected filter bounds
+            # Adhere strictly to date filter: the upload must fall within the selected date range
             if sel_start_day is not None and sel_end_day is not None:
-                if u_end_day < sel_start_day or u_start_day > sel_end_day:
+                if u_start_day < sel_start_day or u_end_day > sel_end_day:
                     continue
+                        
+            u_copied = dict(u)
+            u_copied["start_day"] = u_start_day
+            u_copied["end_day"] = u_end_day
+            
+            if u_start_day <= 16:
+                set1_uploads.append(u_copied)
+            else:
+                set2_uploads.append(u_copied)
+                
+        selected_uploads = []
+        if set1_uploads:
+            set1_uploads_sorted = sorted(set1_uploads, key=lambda x: (x.get("end_day") or 0))
+            selected_uploads.append(set1_uploads_sorted[-1])
+        if set2_uploads:
+            set2_uploads_sorted = sorted(set2_uploads, key=lambda x: (x.get("end_day") or 0))
+            selected_uploads.append(set2_uploads_sorted[-1])
+
+        # Build DataFrames from selected upload entries
+        dfs = []
+        for u in selected_uploads:
+            r_key = u.get("range_key") or u.get("date", "default")
+            u_start_day = u.get("start_day")
+            u_end_day = u.get("end_day")
                 
             data = u.get("data")
             if isinstance(data, list) and data:
