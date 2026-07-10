@@ -146,12 +146,13 @@ def ensure_local_file(storage_path, local_path):
 
 # ================= SYNC DATA =================
 def sync_cumulative_report(report, all_reports=None):
-    if report.get("type") not in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
+    if report.get("type") not in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "new_cumulative_report"]:
         return
     
     # Target to allowed source types
     source_map = {
         "cumulative_shopwise": ["shopwise", "cumulative_shopwise"],
+        "new_cumulative_report": ["shopwise", "new_cumulative_report"],
         "cumulative_warehouse": ["daily_warehouse_offtake", "cumulative_warehouse"],
         "dailywise_secondary_sales_cum": ["daily_warehouse_offtake", "dailywise_secondary_sales_cum"],
         "brandwise_cum_secondary_sales": ["daily_warehouse_offtake", "brandwise_cum_secondary_sales"],
@@ -165,14 +166,26 @@ def sync_cumulative_report(report, all_reports=None):
         return
 
     if all_reports is None:
-        # 🔥 CRITICAL FIX: Do NOT fetch 'data' or 'processed'. Only fetch paths and metadata to prevent the server from hanging/timeout.
-        all_reports = get_all_reports(types=allowed_sources, columns="id, name, type, status, config, uploads, created_at, path, file, storage_path")
+        # 🔥 CRITICAL MONTHLY FILTER: Only query reports for the target month to prevent OOM
+        rep_month = None
+        cfg = report.get("config", {})
+        for k in ["date1", "start_date", "date"]:
+            if cfg.get(k):
+                rep_month = str(cfg[k]).split("T")[0][:7]
+                break
+        
+        query = supabase.table("reports").select("id, name, type, status, config, uploads, created_at, path, file, storage_path").in_("type", allowed_sources)
+        if rep_month:
+            query = query.or_(f"config->>date.like.{rep_month}%,config->>date1.like.{rep_month}%,config->>start_date.like.{rep_month}%")
+        res = query.execute()
+        all_reports = res.data or []
         
     original_status = report.get("status")
     
     # primary source mapping for daily reports
     primary_source_map = {
         "cumulative_shopwise": "shopwise",
+        "new_cumulative_report": "shopwise",
         "cumulative_warehouse": "daily_warehouse_offtake",
         "dailywise_secondary_sales_cum": "daily_warehouse_offtake",
         "brandwise_cum_secondary_sales": "daily_warehouse_offtake",
@@ -390,7 +403,7 @@ def create_report(
         config = {"date1": date1, "date2": date2}
 
     # 🔥 CUMULATIVE REPORTS
-    elif type in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
+    elif type in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "new_cumulative_report"]:
         from datetime import datetime, timedelta
         start = datetime.strptime(date1, "%Y-%m-%d")
         end = datetime.strptime(date2, "%Y-%m-%d")
@@ -919,7 +932,7 @@ async def upload(
         save_report(report)
         return {"status": "uploaded"}
 
-    elif report["type"] in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
+    elif report["type"] in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "new_cumulative_report"]:
         for u in report["uploads"]:
             if u["date"] == key:
                 df = read_excel_robust(path)
@@ -962,7 +975,7 @@ def process(rid: str):
     original_num = None
     original_end = None
 
-    if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
+    if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "new_cumulative_report"]:
         sync_cumulative_report(report)
         
         # Enforce Lazy Processing limits universally for all cumulative reports
@@ -1061,7 +1074,7 @@ def process(rid: str):
         svc.process(report)
     finally:
         # Safely restore original bounds so the frontend DatePicker doesn't get trapped if an error occurs
-        if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
+        if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "new_cumulative_report"]:
             config = report.get("config", {})
             if original_start:
                 config["start_date"] = original_start
@@ -1166,7 +1179,54 @@ def get_report(
     if not report:
         return {"data": []}
 
-    if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales"]:
+    # Automatically delegate new_cumulative_report cumulative queries to the combined_shopwise report for the same month
+    if report.get("type") == "new_cumulative_report" and view == "cumulative":
+        from services.store import get_all_reports
+        rep_month = None
+        cfg = report.get("config", {})
+        for k in ["date1", "start_date", "date"]:
+            if cfg.get(k):
+                rep_month = str(cfg[k]).split("T")[0][:7]
+                break
+        if not rep_month and start_date:
+            rep_month = str(start_date)[:7]
+        if not rep_month:
+            rep_month = report.get("created_at", "")[:7]
+            
+        combined_report = None
+        for r in get_all_reports(types=["combined_shopwise"]):
+            r_month = None
+            rc = r.get("config", {})
+            for k in ["date1", "start_date", "date"]:
+                if rc.get(k):
+                    r_month = str(rc[k]).split("T")[0][:7]
+                    break
+            if not r_month:
+                r_month = r.get("created_at", "")[:7]
+            if r_month == rep_month:
+                combined_report = r
+                break
+                
+        if combined_report:
+            print(f"[INFO] Backend delegating new_cumulative_report {rid} to combined_shopwise {combined_report['id']} for view='cumulative'")
+            svc = get_service("combined_shopwise")
+            kwargs = {}
+            if shop_code: kwargs["shop_code"] = shop_code
+            if view: kwargs["view"] = view
+            if warehouse: kwargs["warehouse"] = warehouse
+            if bond: kwargs["bond"] = bond
+            if mode: kwargs["mode"] = mode
+            if start_idx is not None: kwargs["start_idx"] = start_idx
+            if end_idx is not None: kwargs["end_idx"] = end_idx
+            if start_date and start_date != "RESET": kwargs["start_date"] = start_date
+            if end_date and end_date != "RESET": kwargs["end_date"] = end_date
+            
+            result = svc.get_report(combined_report, **kwargs)
+            result["name"] = report.get("name")
+            result["type"] = report.get("type")
+            return clean_nan(result)
+
+    if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "new_cumulative_report"]:
         sync_cumulative_report(report)
         
         # Lazy processing on-the-fly if dates are provided via GET query

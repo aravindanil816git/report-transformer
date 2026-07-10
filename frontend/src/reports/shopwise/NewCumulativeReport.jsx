@@ -3,10 +3,11 @@ import { Table, Button, Select, DatePicker, Space, Typography, message, Checkbox
 
 const { Text } = Typography;
 import { useParams, useNavigate } from "react-router-dom";
-import { getReport, processReport, getJson, listReports } from "../../api";
+import { getReport, processReport, getJson, listReports, getFilters } from "../../api";
 import dayjs from "dayjs";
-import { exportToExcel } from "../../utils/exportUtils";
+import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf, exportShopDrilldownPdfByBond } from "../../utils/exportUtils";
 import { disabledFutureMonthDates } from "../../utils/dateUtils";
+import DownloadDropdown from "../../components/DownloadDropdown";
 
 const { RangePicker } = DatePicker;
 
@@ -30,14 +31,25 @@ export default function CumulativeShopwiseReport() {
   const [useWholeNumbers, setUseWholeNumbers] = useState(false);
 
   const [shopLeaves, setShopLeaves] = useState([]);
+  const [warehouseClusters, setWarehouseClusters] = useState({});
+  const [bondClusters, setBondClusters] = useState({});
 
   // States for lazy loading the previous month's baseline
   const [lastMonthSalesMap, setLastMonthSalesMap] = useState({});
   const [loadingLastMonth, setLoadingLastMonth] = useState(false);
+  const [currentCombined, setCurrentCombined] = useState(null);
 
   useEffect(() => {
     getJson("leaves").then(res => {
       setShopLeaves(res.data?.shop || []);
+    }).catch(() => { });
+
+    getJson("warehouse_clusters").then(res => {
+      setWarehouseClusters(res.data || {});
+    }).catch(() => { });
+
+    getJson("clusters").then(res => {
+      setBondClusters(res.data || {});
     }).catch(() => { });
   }, []);
 
@@ -81,7 +93,9 @@ export default function CumulativeShopwiseReport() {
       // Find the combined shopwise report for the previous month
       const prevCombined = combinedReps.find(r =>
         (r.config?.start_date && r.config.start_date.startsWith(prevMonthPrefix)) ||
-        (r.config?.date1 && r.config.date1.startsWith(prevMonthPrefix))
+        (r.config?.date1 && r.config.date1.startsWith(prevMonthPrefix)) ||
+        (r.created_at && r.created_at.startsWith(prevMonthPrefix)) ||
+        (r.name && r.name.toLowerCase().includes(prevD1.format("MMMM").toLowerCase()))
       );
 
       if (!prevCombined) {
@@ -154,10 +168,20 @@ export default function CumulativeShopwiseReport() {
       ];
 
       const currentMonthPrefix = activeD1 ? activeD1.substring(0, 7) : dayjs().format("YYYY-MM");
+      
+      console.log("[DEBUG] activeD1:", activeD1, "currentMonthPrefix:", currentMonthPrefix, "combinedReps count:", combinedReps.length);
+      console.log("[DEBUG] combinedReps list:", combinedReps.map(r => ({ id: r.id, name: r.name, type: r.type, config: r.config, created_at: r.created_at })));
+
       const currentCombined = combinedReps.find(r =>
         (r.config?.start_date && r.config.start_date.startsWith(currentMonthPrefix)) ||
-        (r.config?.date1 && r.config.date1.startsWith(currentMonthPrefix))
+        (r.config?.date1 && r.config.date1.startsWith(currentMonthPrefix)) ||
+        (r.created_at && r.created_at.startsWith(currentMonthPrefix)) ||
+        (r.name && r.name.toLowerCase().includes(dayjs(activeD1).format("MMMM").toLowerCase()))
       );
+
+      setCurrentCombined(currentCombined);
+
+      console.log("[DEBUG] matched currentCombined:", currentCombined ? { id: currentCombined.id, name: currentCombined.name } : "undefined");
 
       // Fetch current month data
       let currentResPromise;
@@ -283,8 +307,8 @@ export default function CumulativeShopwiseReport() {
 
   const uniqueWarehouses = [...new Set(data.map(d => d.warehouse))];
 
-  const activeStartStr = config.date1 || config.start_date;
-  const activeEndStr = config.date2 || config.end_date;
+  const activeStartStr = dateRange.length === 2 && dateRange[0] ? dateRange[0].format("YYYY-MM-DD") : (config.date1 || config.start_date);
+  const activeEndStr = dateRange.length === 2 && dateRange[1] ? dateRange[1].format("YYYY-MM-DD") : (config.date2 || config.end_date);
 
   const currentPeriodLabel = activeStartStr && activeEndStr
     ? `${dayjs(activeStartStr).format("DD MMM")} - ${dayjs(activeEndStr).format("DD MMM")}`
@@ -329,9 +353,20 @@ export default function CumulativeShopwiseReport() {
     return disabledFutureMonthDates(current);
   };
 
+  const normalizeName = (name) => {
+    if (!name) return "";
+    return name.replace(/^WH-/i, "").split(/\s+(?:FL|RFL)/i)[0].trim().toUpperCase();
+  };
+
+  const isInCluster = (name, clusterList) => {
+    if (!name || !clusterList) return false;
+    const normalized = normalizeName(name);
+    return clusterList.some(item => normalizeName(item) === normalized);
+  };
+
   // 🔥 Calculate missing columns locally in the frontend
   const processedData = useMemo(() => {
-    return filteredData.map(d => {
+    const baseItems = filteredData.map(d => {
       const opening = d.opening || 0;
       const receipt = d.inward || d.receipt || 0;
       const sales = d.outward || d.sales || 0;
@@ -362,7 +397,156 @@ export default function CumulativeShopwiseReport() {
         avg_diff
       };
     });
-  }, [filteredData, netDays, lastMonthSalesMap, lastMonthNetDays, mode]);
+
+    const activeClusters = mode === "bond" ? bondClusters : (mode === "warehouse" ? warehouseClusters : {});
+    const activeDrill = mode === "bond" ? drilledBond : drilledWarehouse;
+    const isGroupingEnabled = (mode === "bond" || mode === "warehouse") && !activeDrill && Object.keys(activeClusters).length > 0;
+
+    if (isGroupingEnabled) {
+      const groupedData = [];
+      const unclustered = [...baseItems];
+
+      Object.entries(activeClusters).forEach(([clusterName, nameList]) => {
+        const clusterItems = [];
+        for (let i = unclustered.length - 1; i >= 0; i--) {
+          const d = unclustered[i];
+          const checkName = mode === "bond" ? (d.bond || d.warehouse) : d.warehouse;
+          if (isInCluster(checkName, nameList)) {
+            clusterItems.push(d);
+            unclustered.splice(i, 1);
+          }
+        }
+
+        if (clusterItems.length > 0) {
+          clusterItems.sort((a, b) => {
+            const valA = mode === "bond" ? (a.bond || a.warehouse || "") : (a.warehouse || "");
+            const valB = mode === "bond" ? (b.bond || b.warehouse || "") : (b.warehouse || "");
+            return valA.localeCompare(valB);
+          });
+          groupedData.push(...clusterItems);
+
+          let totalOpening = 0;
+          let totalReceipt = 0;
+          let totalSales = 0;
+          let totalClosing = 0;
+          let totalLastMonthSales = 0;
+
+          const daywiseSums = {};
+          if (view === "daywise") {
+            labels.forEach(l => daywiseSums[l] = 0);
+          }
+
+          clusterItems.forEach(d => {
+            totalOpening += d.opening || 0;
+            totalReceipt += d.receipt || 0;
+            totalSales += d.sales || 0;
+            totalClosing += d.closing || 0;
+            totalLastMonthSales += d.last_month_sales || 0;
+
+            if (view === "daywise") {
+              labels.forEach(l => {
+                daywiseSums[l] += (Number(d[l]) || 0);
+              });
+            }
+          });
+
+          const totalDiff = totalOpening - totalClosing;
+          const totalClosingStockAtSalesPerc = totalSales ? (totalClosing * 100) / totalSales : 0;
+          const totalPerc = totalOpening ? (totalDiff * 100) / totalOpening : 0;
+          const totalAvgSalesPerDay = netDays ? totalSales / netDays : 0;
+          const totalLastMonthAvg = lastMonthNetDays ? totalLastMonthSales / lastMonthNetDays : 0;
+          const totalAvgDiff = totalAvgSalesPerDay - totalLastMonthAvg;
+          const totalDaywiseSum = Object.values(daywiseSums).reduce((a, b) => a + b, 0);
+
+          groupedData.push({
+            isClusterTotal: true,
+            clusterName: clusterName,
+            warehouse: `${clusterName} Total`,
+            opening: totalOpening,
+            receipt: totalReceipt,
+            sales: totalSales,
+            closing: totalClosing,
+            difference: totalDiff,
+            closing_stock_at_sales_perc: totalClosingStockAtSalesPerc,
+            perc: totalPerc,
+            avg_sales_per_day: totalAvgSalesPerDay,
+            last_month_sales: totalLastMonthSales,
+            last_month_avg: totalLastMonthAvg,
+            avg_diff: totalAvgDiff,
+            total: totalDaywiseSum,
+            ...daywiseSums,
+            key: `total-${clusterName}`
+          });
+        }
+      });
+
+      if (unclustered.length > 0) {
+        unclustered.sort((a, b) => {
+          const valA = mode === "bond" ? (a.bond || a.warehouse || "") : (a.warehouse || "");
+          const valB = mode === "bond" ? (b.bond || b.warehouse || "") : (b.warehouse || "");
+          return valA.localeCompare(valB);
+        });
+        groupedData.push(...unclustered);
+
+        let totalOpening = 0;
+        let totalReceipt = 0;
+        let totalSales = 0;
+        let totalClosing = 0;
+        let totalLastMonthSales = 0;
+
+        const daywiseSums = {};
+        if (view === "daywise") {
+          labels.forEach(l => daywiseSums[l] = 0);
+        }
+
+        unclustered.forEach(d => {
+          totalOpening += d.opening || 0;
+          totalReceipt += d.receipt || 0;
+          totalSales += d.sales || 0;
+          totalClosing += d.closing || 0;
+          totalLastMonthSales += d.last_month_sales || 0;
+
+          if (view === "daywise") {
+            labels.forEach(l => {
+              daywiseSums[l] += (Number(d[l]) || 0);
+            });
+          }
+        });
+
+        const totalDiff = totalOpening - totalClosing;
+        const totalClosingStockAtSalesPerc = totalSales ? (totalClosing * 100) / totalSales : 0;
+        const totalPerc = totalOpening ? (totalDiff * 100) / totalOpening : 0;
+        const totalAvgSalesPerDay = netDays ? totalSales / netDays : 0;
+        const totalLastMonthAvg = lastMonthNetDays ? totalLastMonthSales / lastMonthNetDays : 0;
+        const totalAvgDiff = totalAvgSalesPerDay - totalLastMonthAvg;
+        const totalDaywiseSum = Object.values(daywiseSums).reduce((a, b) => a + b, 0);
+
+        groupedData.push({
+          isClusterTotal: true,
+          clusterName: "UNCLUSTERED ITEMS",
+          warehouse: "UNCLUSTERED Total",
+          opening: totalOpening,
+          receipt: totalReceipt,
+          sales: totalSales,
+          closing: totalClosing,
+          difference: totalDiff,
+          closing_stock_at_sales_perc: totalClosingStockAtSalesPerc,
+          perc: totalPerc,
+          avg_sales_per_day: totalAvgSalesPerDay,
+          last_month_sales: totalLastMonthSales,
+          last_month_avg: totalLastMonthAvg,
+          avg_diff: totalAvgDiff,
+          total: totalDaywiseSum,
+          ...daywiseSums,
+          key: "total-unclustered"
+        });
+      }
+
+      return groupedData;
+    }
+
+    return baseItems;
+  }, [filteredData, netDays, lastMonthSalesMap, lastMonthNetDays, mode, warehouseClusters, bondClusters, labels, view]);
 
   const getTitle = () => {
     if (drilledWarehouse || drilledBond || mode === "shop") return "Shop Name";
@@ -383,6 +567,9 @@ export default function CumulativeShopwiseReport() {
   };
 
   const renderFirstCol = (text, record) => {
+    if (record.isClusterTotal) {
+      return <strong>{record.warehouse}</strong>;
+    }
     const displayText = formatName(text);
     if (mode === "warehouse" && !drilledWarehouse) {
       return <a onClick={() => setDrilledWarehouse(record.warehouse)}>{displayText}</a>;
@@ -406,33 +593,39 @@ export default function CumulativeShopwiseReport() {
   // 🔹 daywise + total
   const daywiseColumns = [
     { title: getTitle(), dataIndex: getDataIndex(), fixed: "left", width: 180, render: renderFirstCol },
-    ...labels.map(l => ({ title: l, dataIndex: l, width: 100, align: "center", render: (v) => formatVal(v) })),
+    ...labels.map(l => ({
+      title: l,
+      dataIndex: l,
+      width: 100,
+      align: "center",
+      render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v)
+    })),
     {
       title: "Total",
       dataIndex: "total",
       fixed: "right",
       width: 120,
       align: "right",
-      render: (v) => formatVal(v)
+      render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v)
     }
   ];
 
   const cumulativeColumns = [
     { title: getTitle(), dataIndex: getDataIndex(), width: 180, render: renderFirstCol },
-    { title: "Opening", dataIndex: "opening", width: 100, align: "center", render: (v) => formatVal(v) },
-    { title: "Receipt", dataIndex: "receipt", width: 100, align: "center", render: (v) => formatVal(v) },
-    { title: "Sales", dataIndex: "sales", width: 100, align: "center", render: (v) => formatVal(v) },
-    { title: "Closing", dataIndex: "closing", width: 100, align: "center", render: (v) => formatVal(v) },
-    { title: "Difference", dataIndex: "difference", width: 100, align: "center", render: (v) => formatVal(v) },
-    { title: "ClosingStock@Sales%", dataIndex: "closing_stock_at_sales_perc", width: 150, align: "center", render: (v) => formatVal(v) },
-    { title: "Perc(%)", dataIndex: "perc", width: 100, align: "right", render: (v) => formatVal(v) },
+    { title: "Opening", dataIndex: "opening", width: 100, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
+    { title: "Receipt", dataIndex: "receipt", width: 100, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
+    { title: "Sales", dataIndex: "sales", width: 100, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
+    { title: "Closing", dataIndex: "closing", width: 100, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
+    { title: "Difference", dataIndex: "difference", width: 100, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
+    { title: "ClosingStock@Sales%", dataIndex: "closing_stock_at_sales_perc", width: 150, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
+    { title: "Perc(%)", dataIndex: "perc", width: 100, align: "right", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
     { title: "", dataIndex: "spacer", width: 40, render: () => null }, // Spacer column
     {
       title: "Average (Cases)",
       children: [
-        { title: `Current Month Avg (${currentPeriodLabel})`, dataIndex: "avg_sales_per_day", width: 160, align: "center", render: (v) => formatVal(v) },
-        { title: `Last Month Avg (${lastMonthPeriodLabel})`, dataIndex: "last_month_avg", width: 160, align: "center", render: (v) => formatVal(v, true) },
-        { title: "Difference", dataIndex: "avg_diff", width: 120, align: "center", render: (v) => formatVal(v, true) }
+        { title: `Current Month Avg (${currentPeriodLabel})`, dataIndex: "avg_sales_per_day", width: 160, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
+        { title: `Last Month Avg (${lastMonthPeriodLabel})`, dataIndex: "last_month_avg", width: 160, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v, true)}</strong> : formatVal(v, true) },
+        { title: "Difference", dataIndex: "avg_diff", width: 120, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v, true)}</strong> : formatVal(v, true) }
       ]
     }
   ];
@@ -486,6 +679,55 @@ export default function CumulativeShopwiseReport() {
     );
   };
 
+  const downloadPdf = () => {
+    const reportTitle = "Comparative Shopsales";
+    const period = dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All";
+    
+    let exportData = [];
+    let cols = [];
+    let sumCols = [];
+    
+    if (view === "cumulative") {
+      cols = [getTitle(), "Opening", "Receipt", "Sales", "Closing", "Difference", "ClosingStock@Sales%", "Perc(%)"];
+      sumCols = ["Opening", "Receipt", "Sales", "Closing", "Difference"];
+      exportData = processedData.map(d => ({
+        [getTitle()]: d.shop_code ? d.shop_name : formatName(d.warehouse),
+        Opening: useWholeNumbers ? Math.round(d.opening || 0) : d.opening,
+        Receipt: useWholeNumbers ? Math.round(d.receipt || 0) : d.receipt,
+        Sales: useWholeNumbers ? Math.round(d.sales || 0) : d.sales,
+        Closing: useWholeNumbers ? Math.round(d.closing || 0) : d.closing,
+        Difference: useWholeNumbers ? Math.round(d.difference || 0) : d.difference,
+        "ClosingStock@Sales%": useWholeNumbers ? Math.round(d.closing_stock_at_sales_perc || 0) : d.closing_stock_at_sales_perc,
+        "Perc(%)": useWholeNumbers ? Math.round(d.perc || 0) : d.perc
+      }));
+    } else {
+      cols = [getTitle(), ...labels, "Total"];
+      sumCols = [...labels, "Total"];
+      exportData = processedData.map(row => {
+        const obj = { [getTitle()]: row.shop_code ? row.shop_name : formatName(row.warehouse) };
+        let total = 0;
+        labels.forEach(l => {
+          const v = row[l] || 0;
+          obj[l] = useWholeNumbers ? Math.round(v) : v;
+          total += v;
+        });
+        obj["Total"] = useWholeNumbers ? Math.round(total) : total;
+        return obj;
+      });
+    }
+    
+    exportToPdf({
+      title: reportTitle,
+      periodLabel: period,
+      columns: cols,
+      data: exportData,
+      sumCols: sumCols,
+      filename: `comparative_shopsales_current.pdf`,
+      orientation: view === "cumulative" ? "portrait" : "landscape",
+      zeroMargin: true
+    });
+  };
+
   return (
     <div style={{ padding: 20 }}>
       <div style={{ marginBottom: 16 }}>
@@ -497,7 +739,8 @@ export default function CumulativeShopwiseReport() {
         <h2>Comparitive Shopsales</h2>
         <Space>
           <Button onClick={handleRefresh}>Refresh Data</Button>
-          <Button type="primary" onClick={downloadExcel}>Download Excel</Button>
+          <Button type="primary" onClick={downloadExcel} disabled={processedData.length === 0}>Download Excel</Button>
+          <Button type="primary" onClick={downloadPdf} disabled={processedData.length === 0}>Download PDF</Button>
         </Space>
       </div>
 
@@ -595,7 +838,7 @@ export default function CumulativeShopwiseReport() {
         loading={loading}
         columns={view === "cumulative" ? cumulativeColumns : daywiseColumns}
         dataSource={processedData}
-        rowKey={(record) => `${record.warehouse}-${record.shop_code || "none"}-${record.bond || "none"}`}
+        rowKey={(record) => record.key || `${record.warehouse}-${record.shop_code || "none"}-${record.bond || "none"}`}
         scroll={{ x: "max-content" }}
         pagination={false}
         summary={(pageData) => {
@@ -608,7 +851,7 @@ export default function CumulativeShopwiseReport() {
             let totalClosing = 0;
 
             // Compute accurate overall mathematically-correct percentage & variance totals
-            pageData.forEach(({ opening, receipt, sales, closing }) => {
+            pageData.filter(d => !d.isClusterTotal).forEach(({ opening, receipt, sales, closing }) => {
               totalOpening += opening || 0;
               totalReceipt += receipt || 0;
               totalSales += sales || 0;
@@ -621,7 +864,7 @@ export default function CumulativeShopwiseReport() {
             const totalAvgSalesPerDay = netDays ? totalSales / netDays : 0;
 
             let totalLastMonthSales = 0;
-            pageData.forEach(({ last_month_sales }) => {
+            pageData.filter(d => !d.isClusterTotal).forEach(({ last_month_sales }) => {
               totalLastMonthSales += last_month_sales || 0;
             });
             const totalLastMonthAvg = lastMonthNetDays ? totalLastMonthSales / lastMonthNetDays : 0;
@@ -652,7 +895,7 @@ export default function CumulativeShopwiseReport() {
 
             labels.forEach(l => colTotals[l] = 0);
 
-            pageData.forEach(row => {
+            pageData.filter(d => !d.isClusterTotal).forEach(row => {
               labels.forEach(l => {
                 colTotals[l] += row[l] || 0;
               });

@@ -131,7 +131,8 @@ export const exportUnifiedWithDropdown = async ({
   sumCols = [],
   dropdownLabel = "Warehouse",
   filterColumnName = "Warehouse",
-  theme = null
+  theme = null,
+  reportColumns = null
 }) => {
   const getColLetter = (c) => {
     let temp = c;
@@ -162,7 +163,10 @@ export const exportUnifiedWithDropdown = async ({
   });
   const warehousesRange = `RawData!$${dropdownColLetter}$1:$${dropdownColLetter}$${allWarehouses.length}`;
 
-  reportSheet.mergeCells("A1:F1");
+  const displayColumns = reportColumns || columns;
+  const lastColLetter = getColLetter(displayColumns.length);
+
+  reportSheet.mergeCells(`A1:${lastColLetter}1`);
   const titleCell = reportSheet.getCell("A1");
   titleCell.value = reportTitle;
   titleCell.font = { name: "Arial", size: 14, bold: true, color: { argb: "FFD00000" } };
@@ -181,7 +185,7 @@ export const exportUnifiedWithDropdown = async ({
 
   reportSheet.getCell("A3").value = periodLabel;
   reportSheet.getCell("A3").font = { italic: true };
-  reportSheet.mergeCells("A3:F3");
+  reportSheet.mergeCells(`A3:${lastColLetter}3`);
 
   reportSheet.getCell("A5").value = "Total (Filtered):";
   reportSheet.getCell("A5").font = { bold: true };
@@ -189,16 +193,16 @@ export const exportUnifiedWithDropdown = async ({
   const lastDataRow = 7 + data.length;
 
   sumCols.forEach(colKey => {
-    const colIdx = columns.indexOf(colKey);
+    const colIdx = displayColumns.indexOf(colKey);
     if (colIdx !== -1) {
-      const colLetter = String.fromCharCode(65 + colIdx);
+      const colLetter = getColLetter(colIdx + 1);
       reportSheet.getCell(`${colLetter}5`).value = { formula: `SUM(${colLetter}7:${colLetter}${lastDataRow})` };
       reportSheet.getCell(`${colLetter}5`).font = { bold: true };
     }
   });
 
   const headerRow = reportSheet.getRow(6);
-  headerRow.values = columns;
+  headerRow.values = displayColumns;
   if (theme === "navy") {
     headerRow.font = { bold: true, color: { argb: "FFFFBD31" } };
   } else {
@@ -226,33 +230,32 @@ export const exportUnifiedWithDropdown = async ({
     }
   });
 
-  const lastColLetter = getColLetter(columns.length);
   const targetColLower = filterColumnName.toLowerCase();
   const foundIdx = columns.findIndex(col => col.toLowerCase() === targetColLower);
   const whColIdx = foundIdx !== -1 ? foundIdx + 1 : 1;
   const whColLetter = getColLetter(whColIdx);
   const lastRawRow = data.length + 1;
 
-  for (let r = 7; r <= lastDataRow; r++) {
-    const k = r - 6; 
-    for (let c = 1; c <= columns.length; c++) {
-      const colLetter = getColLetter(c);
-      const formula = `IFERROR(INDEX(RawData!${colLetter}:${colLetter}, SMALL(IF($B$2="All", ROW(RawData!$A$2:$A$${lastRawRow}), IF(RawData!$${whColLetter}$2:$${whColLetter}$${lastRawRow}=$B$2, ROW(RawData!$A$2:$A$${lastRawRow}))), ${k})), "")`;
-      reportSheet.getCell(r, c).value = {
-        formula,
-        shareType: "array",
-        ref: `${colLetter}${r}`
-      };
-    }
+  for (let c = 1; c <= displayColumns.length; c++) {
+    const colLetter = getColLetter(c);
+    const rawDataColIdx = columns.indexOf(displayColumns[c - 1]) + 1;
+    const rawDataColLetter = getColLetter(rawDataColIdx);
+    
+    const formula = `IFERROR(INDEX(RawData!${rawDataColLetter}:${rawDataColLetter}, SMALL(IF($B$2="All", ROW(RawData!$A$2:$A$${lastRawRow}), IF(RawData!$${whColLetter}$2:$${whColLetter}$${lastRawRow}=$B$2, ROW(RawData!$A$2:$A$${lastRawRow}))), ROW() - 6)), "")`;
+    reportSheet.getCell(7, c).value = {
+      formula,
+      shareType: "array",
+      ref: `${colLetter}7:${colLetter}${lastDataRow}`
+    };
   }
 
   // Set column widths
-  reportSheet.columns = columns.map(col => ({
+  reportSheet.columns = displayColumns.map(col => ({
     width: Math.max(col.length + 5, 15)
   }));
 
   for (let r = 7; r <= lastDataRow; r++) {
-    for (let c = 1; c <= columns.length; c++) {
+    for (let c = 1; c <= displayColumns.length; c++) {
       const cell = reportSheet.getCell(r, c);
       cell.border = {
         top: { style: "thin", color: { argb: "FFE0E0E0" } },
@@ -261,6 +264,34 @@ export const exportUnifiedWithDropdown = async ({
         right: { style: "thin", color: { argb: "FFE0E0E0" } }
       };
     }
+  }
+
+  // Add Conditional Formatting to highlight totals and bold headers
+  try {
+    reportSheet.addConditionalFormatting({
+      ref: `A7:${lastColLetter}${lastDataRow}`,
+      rules: [
+        // Bold and highlight rows containing "Total" (totals)
+        {
+          type: 'expression',
+          formulae: ['NOT(ISERR(SEARCH("Total", $A7)))'],
+          style: {
+            font: { bold: true },
+            fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFD6E9C6' } }
+          }
+        },
+        // Bold headers (non-indented, non-empty, non-totals)
+        {
+          type: 'expression',
+          formulae: ['AND($A7<>"", LEFT($A7, 2)<>"  ", ISERR(SEARCH("Total", $A7)))'],
+          style: {
+            font: { bold: true }
+          }
+        }
+      ]
+    });
+  } catch (err) {
+    console.warn("Failed to apply conditional formatting:", err);
   }
 
   workbook.calcProperties.fullCalcOnLoad = true;
