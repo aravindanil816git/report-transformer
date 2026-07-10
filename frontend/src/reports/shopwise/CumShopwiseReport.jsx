@@ -194,8 +194,8 @@ export default function CumulativeShopwiseReport() {
 
   const uniqueWarehouses = [...new Set(data.map(d => d.warehouse))];
 
-  const activeStartStr = config.start_date || config.date1;
-  const activeEndStr = config.end_date || config.date2;
+  const activeStartStr = dateRange.length === 2 && dateRange[0] ? dateRange[0].format("YYYY-MM-DD") : (config.start_date || config.date1);
+  const activeEndStr = dateRange.length === 2 && dateRange[1] ? dateRange[1].format("YYYY-MM-DD") : (config.end_date || config.date2);
 
   const netDays = useMemo(() => {
     if (activeStartStr && activeEndStr) {
@@ -285,10 +285,10 @@ export default function CumulativeShopwiseReport() {
   const getPdfDataAndColumns = (sourceRows) => {
     const firstColTitle = getTitle();
     const firstColKey = getDataIndex();
-    
+
     const pdfCols = [firstColTitle];
     const mappingCols = [{ title: firstColTitle, key: firstColKey }];
-    
+
     if (view === "daywise" || view === "daywise_sales") {
       labels.forEach(l => {
         const parsedDate = dayjs(l.split(" ")[0], "DD-MMM");
@@ -312,7 +312,7 @@ export default function CumulativeShopwiseReport() {
         { title: "Avg Sales / Day", key: "avg_sales_per_day" }
       );
     }
-    
+
     const pdfData = sourceRows.map(row => {
       const pdfRow = {};
       mappingCols.forEach(col => {
@@ -332,7 +332,7 @@ export default function CumulativeShopwiseReport() {
       grandTotalRow[col.title] = "";
     });
     grandTotalRow[firstColTitle] = "Grand Total";
-    
+
     if (view === "daywise" || view === "daywise_sales") {
       labels.forEach(l => {
         const parsedDate = dayjs(l.split(" ")[0], "DD-MMM");
@@ -358,13 +358,13 @@ export default function CumulativeShopwiseReport() {
       grandTotalRow["Sales"] = useWholeNumbers ? Math.round(tSales) : tSales.toFixed(2);
       grandTotalRow["Closing"] = useWholeNumbers ? Math.round(tClosing) : tClosing.toFixed(2);
       grandTotalRow["Difference"] = useWholeNumbers ? Math.round(tDiff) : tDiff.toFixed(2);
-      
+
       const totalAvgSalesPerDay = netDays ? tSales / netDays : 0;
       grandTotalRow["Avg Sales / Day"] = useWholeNumbers ? Math.round(totalAvgSalesPerDay) : totalAvgSalesPerDay.toFixed(2);
     }
-    
+
     pdfData.push(grandTotalRow);
-    
+
     return { columns: pdfCols, data: pdfData };
   };
 
@@ -404,7 +404,7 @@ export default function CumulativeShopwiseReport() {
         Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
         "Date Range": dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
         "Start Date": config.start_date ? dayjs(config.start_date).format("DD-MM-YYYY") : null,
-        "Total Days": config.num_days,
+        "Net Days": netDays,
         "Round off": useWholeNumbers ? "Yes" : "No"
       },
       "cumulative_shopwise_report.xlsx",
@@ -421,10 +421,10 @@ export default function CumulativeShopwiseReport() {
         try {
           const d1 = dateRange[0]?.format("YYYY-MM-DD");
           const d2 = dateRange[1]?.format("YYYY-MM-DD");
-          
+
           const isBondMode = mode === "bond";
           const filterField = isBondMode ? "Bond" : "Warehouse";
-          
+
           const params = {
             mode: "shop"
           };
@@ -432,7 +432,7 @@ export default function CumulativeShopwiseReport() {
             params.start_date = d1;
             params.end_date = d2;
           }
-          
+
           const res = await getReport(id, null, view, params);
           const fullData = (res.data.data || []).filter(d => d.warehouse || d.shop_code || d.bond);
 
@@ -497,7 +497,7 @@ export default function CumulativeShopwiseReport() {
       setLoading(true);
       try {
         const period = dateRange.length === 2 ? `Period: ${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "Period: All";
-        
+
         const sumCols = [];
         if (view === "cumulative") {
           sumCols.push("Opening", "Receipt", "Sales", "Closing", "Difference", "Avg Sales / Day");
@@ -664,8 +664,8 @@ export default function CumulativeShopwiseReport() {
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <b>Start Date:</b> {config.start_date ? dayjs(config.start_date).format("DD-MM-YYYY") : ""} &nbsp;&nbsp;
-        <b>Days:</b> {config.num_days}
+        {/* <b>Start Date:</b> {config.start_date ? dayjs(config.start_date).format("DD-MM-YYYY") : ""} &nbsp;&nbsp; */}
+        <b>Days (Excl. Leaves):</b> {netDays}
       </div>
 
       {/* 🔥 FILTERS */}
