@@ -464,7 +464,7 @@ def create_report(
             "monthly_summary": ["daily_warehouse_offtake", "shop_sales_cumulative", "combined_shopwise", "cumulative_shopwise"],
             "pi_variance": ["pi_variance_raw"]
         }
-        report["all_reports"] = get_all_reports(types=dependency_map.get(type, []), columns="id, name, type, status, config, uploads, created_at, path, file, storage_path")
+        report["all_reports"] = get_all_reports(types=dependency_map.get(type, []), columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, processed")
 
         svc.process(report)
 
@@ -1170,9 +1170,11 @@ def get_report(
     bond: str = None,
     mode: str = "warehouse",
     start_idx: int = None,
-        end_idx: int = None,
-        start_date: str = None,
-        end_date: str = None
+    end_idx: int = None,
+    start_date: str = None,
+    end_date: str = None,
+    start_date2: str = None,
+    end_date2: str = None
 ):
     report = get_report_by_id(rid)
 
@@ -1220,6 +1222,8 @@ def get_report(
             if end_idx is not None: kwargs["end_idx"] = end_idx
             if start_date and start_date != "RESET": kwargs["start_date"] = start_date
             if end_date and end_date != "RESET": kwargs["end_date"] = end_date
+            if start_date2 and start_date2 != "RESET": kwargs["start_date2"] = start_date2
+            if end_date2 and end_date2 != "RESET": kwargs["end_date2"] = end_date2
             
             result = svc.get_report(combined_report, **kwargs)
             result["name"] = report.get("name")
@@ -1257,6 +1261,8 @@ def get_report(
     if end_idx is not None: kwargs["end_idx"] = end_idx
     if start_date and start_date != "RESET": kwargs["start_date"] = start_date
     if end_date and end_date != "RESET": kwargs["end_date"] = end_date
+    if start_date2 and start_date2 != "RESET": kwargs["start_date2"] = start_date2
+    if end_date2 and end_date2 != "RESET": kwargs["end_date2"] = end_date2
     
     result = svc.get_report(report, **kwargs)
     result["name"] = report.get("name")

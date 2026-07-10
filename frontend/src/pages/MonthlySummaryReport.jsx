@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Card, Table, Button, Space, message, Typography, Checkbox } from "antd";
+import { Card, Table, Button, Space, message, Typography, Checkbox, DatePicker } from "antd";
 import { DownloadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { getReport } from "../api";
@@ -16,17 +16,28 @@ export default function MonthlySummaryReport() {
   const [loading, setLoading] = useState(false);
   const [reportInfo, setReportInfo] = useState({ name: "" });
   const [useWholeNumbers, setUseWholeNumbers] = useState(false);
+  const [dateRange1, setDateRange1] = useState(null);
+  const [dateRange2, setDateRange2] = useState(null);
 
   useEffect(() => {
     if (id) {
       loadData();
     }
-  }, [id]);
+  }, [id, dateRange1, dateRange2]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await getReport(id);
+      const params = {};
+      if (dateRange1 && dateRange1[0] && dateRange1[1]) {
+        params.start_date = dateRange1[0].format("YYYY-MM-DD");
+        params.end_date = dateRange1[1].format("YYYY-MM-DD");
+      }
+      if (dateRange2 && dateRange2[0] && dateRange2[1]) {
+        params.start_date2 = dateRange2[0].format("YYYY-MM-DD");
+        params.end_date2 = dateRange2[1].format("YYYY-MM-DD");
+      }
+      const res = await getReport(id, null, null, params);
       setData(res.data?.data || []);
       setMeta(res.data?.meta || null);
       setReportInfo({ name: res.data?.name || "Monthly Summary Report" });
@@ -277,13 +288,34 @@ export default function MonthlySummaryReport() {
   const currMonth = meta?.curr_month ? dayjs(meta.curr_month) : dayjs();
   const prevMonth = meta?.prev_month ? dayjs(meta.prev_month) : currMonth.subtract(1, 'month');
   
+  const disabledDate1 = (current) => {
+    if (!current) return false;
+    return !current.isSame(currMonth, "month");
+  };
+
+  const disabledDate2 = (current) => {
+    if (!current) return false;
+    return !current.isSame(prevMonth, "month");
+  };
+  
   const currMonthStr = currMonth.format("MMMM").toUpperCase();
   const prevMonthStr = prevMonth.format("MMMM").toUpperCase();
   const currYearStr = currMonth.format("YYYY");
   const prevYearShortStr = prevMonth.format("YY");
   
-  const currDateLabel = currMonth.endOf('month').format("DD-MMM");
-  const prevDateLabel = prevMonth.endOf('month').format("DD-MMM");
+  const currDateLabel = meta?.curr_end_date 
+    ? dayjs(meta.curr_end_date).format("DD-MMM") 
+    : currMonth.endOf('month').format("DD-MMM");
+  const prevDateLabel = meta?.prev_end_date 
+    ? dayjs(meta.prev_end_date).format("DD-MMM") 
+    : prevMonth.endOf('month').format("DD-MMM");
+
+  const currRangeLabelStr = (meta?.curr_start_date && meta?.curr_end_date)
+    ? ` (${dayjs(meta.curr_start_date).format("DD/MM")} - ${dayjs(meta.curr_end_date).format("DD/MM")})`
+    : "";
+  const prevRangeLabelStr = (meta?.prev_start_date && meta?.prev_end_date)
+    ? ` (${dayjs(meta.prev_start_date).format("DD/MM")} - ${dayjs(meta.prev_end_date).format("DD/MM")})`
+    : "";
   
   // Helper to generate the nested headers dynamically
   const makeSection = (title, dataKey, cDays, pDays) => ({
@@ -295,13 +327,13 @@ export default function MonthlySummaryReport() {
           {
             title: cDays ?? "-",
             children: [
-              { title: currDateLabel, dataIndex: `curr_${dataKey}`, align: "right", render: val => formatTableVal(val) }
+              { title: `${currDateLabel}${currRangeLabelStr}`, dataIndex: `curr_${dataKey}`, align: "right", render: val => formatTableVal(val) }
             ]
           },
           {
             title: pDays ?? "-",
             children: [
-              { title: prevDateLabel, dataIndex: `prev_${dataKey}`, align: "right", render: val => formatTableVal(val) }
+              { title: `${prevDateLabel}${prevRangeLabelStr}`, dataIndex: `prev_${dataKey}`, align: "right", render: val => formatTableVal(val) }
             ]
           }
         ]
@@ -341,6 +373,15 @@ export default function MonthlySummaryReport() {
           background-color: #e6f7ff !important;
           font-weight: bold;
         }
+        .month-only-picker .ant-picker-header-super-prev-btn,
+        .month-only-picker .ant-picker-header-prev-btn,
+        .month-only-picker .ant-picker-header-next-btn,
+        .month-only-picker .ant-picker-header-super-next-btn {
+          display: none !important;
+        }
+        .month-only-picker .ant-picker-header-view {
+          pointer-events: none !important;
+        }
       `}</style>
       <Card>
         <div style={{ marginBottom: 16 }}>
@@ -348,11 +389,38 @@ export default function MonthlySummaryReport() {
             &larr; Back
           </Button>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", justifyContent: "space-between", marginBottom: 16, alignItems: "center" }}>
           <Title level={4} style={{ margin: 0 }}>
             {reportInfo.name || "Monthly Summary Report"}
           </Title>
-          <Space>
+          <Space wrap size="middle">
+            <Space>
+              <span>1st Month Range:</span>
+              <DatePicker.RangePicker 
+                value={dateRange1} 
+                onChange={(dates) => setDateRange1(dates)} 
+                format="YYYY-MM-DD"
+                disabledDate={disabledDate1}
+                defaultPickerValue={[currMonth, currMonth]}
+                popupClassName="month-only-picker"
+              />
+            </Space>
+            <Space>
+              <span>2nd Month Range:</span>
+              <DatePicker.RangePicker 
+                value={dateRange2} 
+                onChange={(dates) => setDateRange2(dates)} 
+                format="YYYY-MM-DD"
+                disabledDate={disabledDate2}
+                defaultPickerValue={[prevMonth, prevMonth]}
+                popupClassName="month-only-picker"
+              />
+            </Space>
+            {(dateRange1 || dateRange2) && (
+              <Button onClick={() => { setDateRange1(null); setDateRange2(null); }}>
+                Clear Filters
+              </Button>
+            )}
             <Checkbox checked={useWholeNumbers} onChange={(e) => setUseWholeNumbers(e.target.checked)}>
               Round off
             </Checkbox>
