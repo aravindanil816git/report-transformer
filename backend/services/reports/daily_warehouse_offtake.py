@@ -42,9 +42,19 @@ class DailyWarehouseOfftakeService(BaseReportService):
         if not issue_col:
             issue_col = next((c for c in df.columns if "qty" in c.lower() or "quantity" in c.lower()), None)
 
+        bottle_col = next((c for c in df.columns if "issue" in c.lower() and "bottle" in c.lower()), None)
+        if not bottle_col:
+            bottle_col = next((c for c in df.columns if "inv" in c.lower() and "qty" in c.lower() and "bottle" in c.lower()), None)
+        if not bottle_col:
+            bottle_col = next((c for c in df.columns if "qty" in c.lower() and "bottle" in c.lower()), None)
+        if not bottle_col:
+            bottle_col = next((c for c in df.columns if "bottle" in c.lower()), None)
+
+        pack_col = next((c for c in df.columns if "pack" in c.lower() or "size" in c.lower()), None)
+
         brand_col = next((c for c in df.columns if "brand" in c.lower() or "item" in c.lower()), None)
 
-        print(f"[DEBUG] daily_warehouse_offtake: Detected Columns -> Shop: '{shop_col}', Issue: '{issue_col}', Brand: '{brand_col}'")
+        print(f"[DEBUG] daily_warehouse_offtake: Detected Columns -> Shop: '{shop_col}', Issue: '{issue_col}', Bottle: '{bottle_col}', Pack: '{pack_col}', Brand: '{brand_col}'")
 
         if not shop_col or not issue_col:
             report["processed"] = []
@@ -61,14 +71,45 @@ class DailyWarehouseOfftakeService(BaseReportService):
         # ✅ Remove rows where shop code is missing (e.g., empty excel rows or summary rows)
         df = df[df["shop_code"].notna() & (df["shop_code"] != "nan") & (df["shop_code"] != "")]
 
-        # ✅ Clean issues column for text formatting artifacts (like commas or hidden strings)
-        df["issues"] = (
+        # ✅ Clean issues column (incorporating bottles/packs if available)
+        cases = pd.to_numeric(
             df[issue_col]
             .astype(str)
             .str.replace(",", "", regex=False)
-            .str.replace(r"[^\d\.\-]", "", regex=True) # Keep only digits, decimals, and negative signs
-        )
-        df["issues"] = pd.to_numeric(df["issues"], errors="coerce").fillna(0)
+            .str.replace(r"[^\d\.\-]", "", regex=True),
+            errors="coerce"
+        ).fillna(0)
+
+        if bottle_col and pack_col:
+            bottles = pd.to_numeric(
+                df[bottle_col]
+                .astype(str)
+                .str.replace(",", "", regex=False)
+                .str.replace(r"[^\d\.\-]", "", regex=True),
+                errors="coerce"
+            ).fillna(0)
+            
+            def get_bpc(pack_val):
+                if pd.isna(pack_val):
+                    return 1
+                val_str = str(pack_val).upper()
+                if "180" in val_str:
+                    return 48
+                elif "375" in val_str:
+                    return 24
+                elif "500" in val_str:
+                    return 18
+                elif "750" in val_str:
+                    return 12
+                elif "1000" in val_str or "1 LTR" in val_str or "1LTR" in val_str:
+                    return 9
+                return 1
+
+            bpcs = df[pack_col].apply(get_bpc)
+            df["issues"] = cases + (bottles / bpcs).round()
+        else:
+            df["issues"] = cases
+
         df["brand"] = df[brand_col].astype(str).str.strip() if brand_col else "Unknown"
 
         # ✅ Debug specific shop code

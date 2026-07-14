@@ -1,9 +1,9 @@
 import { useEffect, useState, useMemo } from "react";
-import { Table, Button, DatePicker, Space, Card, message, Select } from "antd";
+import { Table, Button, DatePicker, Space, Card, message, Select, Input } from "antd";
 import { useNavigate } from "react-router-dom";
-import { listReports, compareLive, getAllWarehouses } from "../api";
+import { listReports, compareLive, getAllWarehouses, getJson, replaceJson } from "../api";
 import dayjs from "dayjs";
-import { exportToExcel } from "../utils/exportUtils";
+import { exportToExcel, exportToPdf } from "../utils/exportUtils";
 import { disabledFutureMonthDates } from "../utils/dateUtils";
 
 export default function ItemIssueConsolidation() {
@@ -18,6 +18,12 @@ export default function ItemIssueConsolidation() {
   const [lastMonthLabel, setLastMonthLabel] = useState("");
   const [daySales1, setDaySales1] = useState("-");
   const [daySales2, setDaySales2] = useState("-");
+  const [industrySales1, setIndustrySales1] = useState("");
+  const [industrySales2, setIndustrySales2] = useState("");
+  const [savingSales, setSavingSales] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [tempSales1, setTempSales1] = useState("");
+  const [tempSales2, setTempSales2] = useState("");
   const [hasSetDefaults, setHasSetDefaults] = useState(false);
 
   useEffect(() => {
@@ -96,11 +102,60 @@ export default function ItemIssueConsolidation() {
       setLastMonthLabel(payload?.last_month_date_label || "");
       setDaySales1(payload?.day_sales1 ?? "-");
       setDaySales2(payload?.day_sales2 ?? "-");
+
+      // Load Industry Sales
+      try {
+        const salesRes = await getJson("industry_sales");
+        const salesData = salesRes.data || {};
+        const key1 = date1.format("YYYY-MM");
+        const key2 = date2.format("YYYY-MM");
+        setIndustrySales1(salesData[key1] !== undefined ? salesData[key1] : "");
+        setIndustrySales2(salesData[key2] !== undefined ? salesData[key2] : "");
+      } catch (err) {
+        console.error("Failed to load industry sales", err);
+      }
     } catch (e) {
       message.error("Failed to fetch comparison data");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSaveIndustrySales = async () => {
+    if (!date1 || !date2) {
+      message.warning("Please select dates first");
+      return;
+    }
+    setSavingSales(true);
+    try {
+      let currentSales = {};
+      try {
+        const res = await getJson("industry_sales");
+        currentSales = res.data || {};
+      } catch (err) {
+        // file might be empty
+      }
+      const key1 = date1.format("YYYY-MM");
+      const key2 = date2.format("YYYY-MM");
+      currentSales[key1] = tempSales1;
+      currentSales[key2] = tempSales2;
+      
+      await replaceJson("industry_sales", currentSales);
+      setIndustrySales1(tempSales1);
+      setIndustrySales2(tempSales2);
+      setIsEditing(false);
+      message.success("Industry sales saved successfully");
+    } catch (err) {
+      message.error("Failed to save industry sales");
+    } finally {
+      setSavingSales(false);
+    }
+  };
+
+  const handleStartEdit = () => {
+    setTempSales1(industrySales1);
+    setTempSales2(industrySales2);
+    setIsEditing(true);
   };
 
   const filteredData = useMemo(() => {
@@ -239,6 +294,13 @@ export default function ItemIssueConsolidation() {
       [`TOTAL (${d2Label})`]: daySales2,
     });
 
+    // Add Industry Sales row
+    exportData.push({
+      Depot: "Industry Sales",
+      [`TOTAL (${d1Label})`]: industrySales1,
+      [`TOTAL (${d2Label})`]: industrySales2,
+    });
+
     exportToExcel(
       exportData,
       {
@@ -249,6 +311,115 @@ export default function ItemIssueConsolidation() {
       "item_issue_consolidation.xlsx",
       "Item Issue Consolidation"
     );
+  };
+  const downloadPdf = () => {
+    const cols = [
+      "Depot",
+      `STN (${d1Label})`,
+      `GTN (${d1Label})`,
+      `TOTAL (${d1Label})`,
+      `CFED (${d1Label})`,
+      `BAR (${d1Label})`,
+      d1Label,
+      `STN (${d2Label})`,
+      `GTN (${d2Label})`,
+      `TOTAL (${d2Label})`,
+      `CFED (${d2Label})`,
+      `BAR (${d2Label})`,
+      d2Label,
+      "Diff Cases",
+      "Diff %",
+      lmLabel,
+    ];
+
+    const exportData = filteredData.map(d => ({
+      "Depot": formatDepot(d.warehouse),
+      [`STN (${d1Label})`]: d.stn1 || 0,
+      [`GTN (${d1Label})`]: d.gtn1 || 0,
+      [`TOTAL (${d1Label})`]: d.total1 || 0,
+      [`CFED (${d1Label})`]: d.cfed1 || 0,
+      [`BAR (${d1Label})`]: d.bar1 || 0,
+      [d1Label]: d.final1 || 0,
+      [`STN (${d2Label})`]: d.stn2 || 0,
+      [`GTN (${d2Label})`]: d.gtn2 || 0,
+      [`TOTAL (${d2Label})`]: d.total2 || 0,
+      [`CFED (${d2Label})`]: d.cfed2 || 0,
+      [`BAR (${d2Label})`]: d.bar2 || 0,
+      [d2Label]: d.final2 || 0,
+      "Diff Cases": d.diff || 0,
+      "Diff %": `${d.pct || 0}%`,
+      [lmLabel]: d.last_month_final || 0,
+    }));
+
+    // Add totals row
+    exportData.push({
+      "Depot": "TOTAL",
+      [`STN (${d1Label})`]: totals.stn1,
+      [`GTN (${d1Label})`]: totals.gtn1,
+      [`TOTAL (${d1Label})`]: totals.total1,
+      [`CFED (${d1Label})`]: totals.cfed1,
+      [`BAR (${d1Label})`]: totals.bar1,
+      [d1Label]: totals.final1,
+      [`STN (${d2Label})`]: totals.stn2,
+      [`GTN (${d2Label})`]: totals.gtn2,
+      [`TOTAL (${d2Label})`]: totals.total2,
+      [`CFED (${d2Label})`]: totals.cfed2,
+      [`BAR (${d2Label})`]: totals.bar2,
+      [d2Label]: totals.final2,
+      "Diff Cases": totals.diff,
+      "Diff %": `${totals.pct}%`,
+      [lmLabel]: totals.last_month_final,
+    });
+
+    // Add Day Sales row
+    exportData.push({
+      "Depot": "Day Sales",
+      [`STN (${d1Label})`]: "",
+      [`GTN (${d1Label})`]: "",
+      [`TOTAL (${d1Label})`]: daySales1,
+      [`CFED (${d1Label})`]: "",
+      [`BAR (${d1Label})`]: "",
+      [d1Label]: "",
+      [`STN (${d2Label})`]: "",
+      [`GTN (${d2Label})`]: "",
+      [`TOTAL (${d2Label})`]: daySales2,
+      [`CFED (${d2Label})`]: "",
+      [`BAR (${d2Label})`]: "",
+      [d2Label]: "",
+      "Diff Cases": "",
+      "Diff %": "",
+      [lmLabel]: "",
+    });
+
+    // Add Industry Sales row
+    exportData.push({
+      "Depot": "Industry Sales",
+      [`STN (${d1Label})`]: "",
+      [`GTN (${d1Label})`]: "",
+      [`TOTAL (${d1Label})`]: industrySales1 || "-",
+      [`CFED (${d1Label})`]: "",
+      [`BAR (${d1Label})`]: "",
+      [d1Label]: "",
+      [`STN (${d2Label})`]: "",
+      [`GTN (${d2Label})`]: "",
+      [`TOTAL (${d2Label})`]: industrySales2 || "-",
+      [`CFED (${d2Label})`]: "",
+      [`BAR (${d2Label})`]: "",
+      [d2Label]: "",
+      "Diff Cases": "",
+      "Diff %": "",
+      [lmLabel]: "",
+    });
+
+    exportToPdf({
+      title: "Item Issue Consolidation Report",
+      periodLabel: `${d1Label} vs ${d2Label}`,
+      columns: cols,
+      data: exportData,
+      filename: `item_issue_consolidation_${date1.format("YYYY-MM")}.pdf`,
+      orientation: "landscape",
+      zeroMargin: true
+    });
   };
 
   return (
@@ -300,7 +471,10 @@ export default function ItemIssueConsolidation() {
           )}
 
           {data.length > 0 && (
-            <Button onClick={downloadExcel}>Download Excel</Button>
+            <Space>
+              <Button onClick={downloadExcel}>Download Excel</Button>
+              <Button onClick={downloadPdf}>Download PDF</Button>
+            </Space>
           )}
         </Space>
       </Card>
@@ -348,6 +522,67 @@ export default function ItemIssueConsolidation() {
                       <Table.Summary.Cell index={3}>{daySales1}</Table.Summary.Cell>
                       <Table.Summary.Cell index={4} colSpan={5} />
                       <Table.Summary.Cell index={9}>{daySales2}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={10} colSpan={6} />
+                    </Table.Summary.Row>
+                    <Table.Summary.Row style={{ backgroundColor: "#f0f2f5", fontWeight: "bold" }}>
+                      <Table.Summary.Cell index={0} fixed="left">
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <span>Industry Sales</span>
+                          {isEditing ? (
+                            <Space size="small">
+                              <Button 
+                                type="primary" 
+                                size="small" 
+                                onClick={handleSaveIndustrySales} 
+                                loading={savingSales}
+                              >
+                                Save
+                              </Button>
+                              <Button 
+                                size="small" 
+                                onClick={() => setIsEditing(false)}
+                              >
+                                Cancel
+                              </Button>
+                            </Space>
+                          ) : (
+                            <Button 
+                              size="small" 
+                              onClick={handleStartEdit}
+                            >
+                              Edit
+                            </Button>
+                          )}
+                        </div>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={1} colSpan={2} />
+                      <Table.Summary.Cell index={3}>
+                        {isEditing ? (
+                          <Input 
+                            size="small" 
+                            placeholder="Enter sales" 
+                            value={tempSales1} 
+                            onChange={(e) => setTempSales1(e.target.value)}
+                            style={{ width: "100%", fontWeight: "normal" }}
+                          />
+                        ) : (
+                          <span style={{ fontWeight: "normal" }}>{industrySales1 || "-"}</span>
+                        )}
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={4} colSpan={5} />
+                      <Table.Summary.Cell index={9}>
+                        {isEditing ? (
+                          <Input 
+                            size="small" 
+                            placeholder="Enter sales" 
+                            value={tempSales2} 
+                            onChange={(e) => setTempSales2(e.target.value)}
+                            style={{ width: "100%", fontWeight: "normal" }}
+                          />
+                        ) : (
+                          <span style={{ fontWeight: "normal" }}>{industrySales2 || "-"}</span>
+                        )}
+                      </Table.Summary.Cell>
                       <Table.Summary.Cell index={10} colSpan={6} />
                     </Table.Summary.Row>
                   </>
