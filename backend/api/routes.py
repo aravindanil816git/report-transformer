@@ -903,7 +903,7 @@ async def upload(
         svc = get_service("combined_shopwise")
         # Let the upload service infer the correct range key from the file name
         # or the file contents instead of forcing a key from the report date range.
-        svc.upload(report, path, file.filename)
+        svc.upload(report, path, file.filename, storage_path=storage_path)
         report["path"] = path
         report["file"] = file.filename
         report["storage_path"] = storage_path
