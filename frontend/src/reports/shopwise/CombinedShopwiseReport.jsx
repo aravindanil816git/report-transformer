@@ -747,9 +747,20 @@ export default function CombinedShopwiseReport() {
       <div style={{ marginBottom: 16 }}>
         {/* Date Filter Row */}
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-          <Col>
-            Date :
-            <RangePicker value={dateRange} onChange={setDateRange} style={{ width: 250 }} disabledDate={disabledDate} />
+          <Col style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>Date :</span>
+            <RangePicker 
+              value={dateRange} 
+              onChange={setDateRange} 
+              style={{ width: 250 }} 
+              disabledDate={disabledDate} 
+              disabled={loading || !dateRange || dateRange.length < 2}
+            />
+            {(loading || !dateRange || dateRange.length < 2) && (
+              <span style={{ color: '#8c8c8c', fontSize: '12px', fontStyle: 'italic' }}>
+                Loading default dates...
+              </span>
+            )}
           </Col>
         </Row>
 

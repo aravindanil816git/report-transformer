@@ -44,6 +44,7 @@ const RAW_DATA_TYPES = [
 export default function DataPage() {
   const [data, setData] = useState([]);
   const [dailyDates, setDailyDates] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -81,6 +82,7 @@ export default function DataPage() {
   };
 
   const load = () => {
+    setLoading(true);
     let currentTypeFilter = typeFilter;
     if (typeFilter === 'new_cumulative_report') {
       currentTypeFilter = 'cumulative_shopwise';
@@ -101,7 +103,8 @@ export default function DataPage() {
         if (!prev) return null;
         return reports.find((x) => x.id === prev.id) || prev;
       });
-    });
+      setLoading(false);
+    }).catch(() => setLoading(false));
     loadDailyDates();
   };
 
@@ -440,9 +443,14 @@ export default function DataPage() {
 
   return (
     <>
-      {typeFilter !== 'new_cumulative_report' && <Button onClick={handleAddReport}>Add Report</Button>}
+      {typeFilter !== 'new_cumulative_report' && (
+        <Button onClick={handleAddReport} disabled={loading}>
+          Add Report
+        </Button>
+      )}
       
       <Table
+        loading={loading}
         columns={columns}
         dataSource={filteredData}
         rowKey="id"

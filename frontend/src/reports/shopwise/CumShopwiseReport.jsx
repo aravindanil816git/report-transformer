@@ -686,19 +686,29 @@ export default function CumulativeShopwiseReport() {
           value={dateRange}
           onChange={setDateRange}
           disabledDate={disabledDate}
+          disabled={loading || !dateRange || dateRange.length < 2}
         />
 
-        <Button type="primary" onClick={handleApplyDateRange}>
+        <Button 
+          type="primary" 
+          onClick={handleApplyDateRange} 
+          disabled={loading || !dateRange || dateRange.length < 2}
+        >
           Apply Date Range
         </Button>
 
-        <Button onClick={resetFilters}>
+        <Button onClick={resetFilters} disabled={loading || !dateRange || dateRange.length < 2}>
           Reset
         </Button>
 
-        <Checkbox checked={useWholeNumbers} onChange={e => setUseWholeNumbers(e.target.checked)}>
+        <Checkbox checked={useWholeNumbers} onChange={e => setUseWholeNumbers(e.target.checked)} disabled={loading || !dateRange || dateRange.length < 2}>
           Round off
         </Checkbox>
+        {(loading || !dateRange || dateRange.length < 2) && (
+          <span style={{ color: '#8c8c8c', fontSize: '12px', fontStyle: 'italic' }}>
+            Loading default dates...
+          </span>
+        )}
       </Space>
 
       {/* 🔥 VIEW PILLS */}

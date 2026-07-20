@@ -89,16 +89,14 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         from the file name (looking for "1-16" or "17-30"). The DataFrame is
         stored under that key, overwriting any existing entry.
         """
-        # Load the Excel file
-        df = read_excel_robust(path)
-        df = clean_df(normalize(df))
-
         # Determine the key for this upload and store exact start/end day bounds
         start_day, end_day = self._parse_days(file_name, report.get("config"))
         key = f"{start_day}-{end_day}"
 
         # Ensure the uploads list exists
         report.setdefault("uploads", [])
+        
+        storage_path = kwargs.get("storage_path")
         
         upload_entry = {
             "date": key,
@@ -107,8 +105,8 @@ class CombinedShopwiseMultiReportService(BaseReportService):
             "end_day": end_day,
             "file": file_name,
             "path": path,
-            "status": "uploaded",
-            "data": df.replace({pd.NA: None}).astype(object).where(pd.notnull(df), None).to_dict("records")
+            "storage_path": storage_path,
+            "status": "uploaded"
         }
 
         # Find existing entry for this date key (or range key) and replace it.
@@ -116,6 +114,8 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         for u in report["uploads"]:
             if u.get("date") == key or u.get("range_key") == key:
                 u.update(upload_entry)
+                # Ensure we also remove any legacy data key if overwriting
+                u.pop("data", None)
                 updated = True
                 break
         if not updated:
