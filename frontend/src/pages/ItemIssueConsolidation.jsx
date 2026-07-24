@@ -107,10 +107,12 @@ export default function ItemIssueConsolidation() {
       try {
         const salesRes = await getJson("industry_sales");
         const salesData = salesRes.data || {};
-        const key1 = date1.format("YYYY-MM");
-        const key2 = date2.format("YYYY-MM");
-        setIndustrySales1(salesData[key1] !== undefined ? salesData[key1] : "");
-        setIndustrySales2(salesData[key2] !== undefined ? salesData[key2] : "");
+        const key1 = date1.format("YYYY-MM-DD");
+        const key2 = date2.format("YYYY-MM-DD");
+        const monthKey1 = date1.format("YYYY-MM");
+        const monthKey2 = date2.format("YYYY-MM");
+        setIndustrySales1(salesData[key1] !== undefined ? salesData[key1] : (salesData[monthKey1] !== undefined ? salesData[monthKey1] : ""));
+        setIndustrySales2(salesData[key2] !== undefined ? salesData[key2] : (salesData[monthKey2] !== undefined ? salesData[monthKey2] : ""));
       } catch (err) {
         console.error("Failed to load industry sales", err);
       }
@@ -135,8 +137,8 @@ export default function ItemIssueConsolidation() {
       } catch (err) {
         // file might be empty
       }
-      const key1 = date1.format("YYYY-MM");
-      const key2 = date2.format("YYYY-MM");
+      const key1 = date1.format("YYYY-MM-DD");
+      const key2 = date2.format("YYYY-MM-DD");
       currentSales[key1] = tempSales1;
       currentSales[key2] = tempSales2;
       

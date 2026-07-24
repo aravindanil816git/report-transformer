@@ -5,7 +5,7 @@ from .base import BaseReportService
 from core.utils import read_excel_robust
 from core.mapping_utils import get_shop_lookup_and_warehouse_to_bond
 
-SHOP_LOOKUP, WAREHOUSE_TO_BOND = get_shop_lookup_and_warehouse_to_bond()
+
 
 
 class CumulativeWarehouseMatrixService(BaseReportService):
@@ -106,11 +106,12 @@ class CumulativeWarehouseMatrixService(BaseReportService):
         if not wh_col:
             wh_col = next((c for c in df.columns if "warehouse" in c.lower() or "wh" == c.lower()), None)
             
+        shop_lookup, _ = get_shop_lookup_and_warehouse_to_bond()
         if wh_col:
             df["warehouse"] = df[wh_col].astype(str).str.strip()
         else:
             df["warehouse"] = df["shop_code"].apply(
-                lambda x: SHOP_LOOKUP.get(x, {}).get("warehouse")
+                lambda x: shop_lookup.get(x, {}).get("warehouse")
             )
         
         shop_name_col = next((c for c in df.columns if "license" in c.lower() and "name" in c.lower()), None)
@@ -118,11 +119,12 @@ class CumulativeWarehouseMatrixService(BaseReportService):
             df["shop_name"] = df[shop_name_col].astype(str).str.strip()
         else:
             df["shop_name"] = df["shop_code"].apply(
-                lambda x: SHOP_LOOKUP.get(x, {}).get("shop_name")
+                lambda x: shop_lookup.get(x, {}).get("shop_name")
             )
 
-        # ✅ keep only mapped
-        df = df[df["warehouse"].notna()]
+        # Fill missing values to show unmapped shops
+        df["warehouse"] = df["warehouse"].fillna("UNMAPPED")
+        df["shop_name"] = df["shop_name"].fillna("Unknown Shop")
 
         return df[["warehouse", "shop_code", "shop_name", "brand", "issues"]]
 
@@ -319,12 +321,13 @@ class CumulativeWarehouseMatrixService(BaseReportService):
 
         result = []
 
+        shop_lookup, warehouse_to_bond = get_shop_lookup_and_warehouse_to_bond()
         for row in data:
             wh = row.get("warehouse")
             sc = row.get("shop_code")
             sn = row.get("shop_name")
             
-            bond = SHOP_LOOKUP.get(sc, {}).get("bond", WAREHOUSE_TO_BOND.get(wh, "UNKNOWN")) if sc else WAREHOUSE_TO_BOND.get(wh, "UNKNOWN")
+            bond = shop_lookup.get(sc, {}).get("bond", warehouse_to_bond.get(wh, "UNKNOWN")) if sc else warehouse_to_bond.get(wh, "UNKNOWN")
             
             if bond == "UNKNOWN":
                 print(f"[DEBUG] cumulative_warehouse get_report: UNKNOWN bond for shop_code: '{sc}', name: '{sn}', warehouse: '{wh}'")

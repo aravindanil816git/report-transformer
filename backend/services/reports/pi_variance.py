@@ -18,29 +18,50 @@ def find_header_row(df, keywords):
 
 # Helper to parse a single file
 def _parse_pi_file(upload_entry):
-    if not upload_entry or upload_entry.get("status") != "uploaded" or not upload_entry.get("path"):
-        return None
+    logs = []
+    if not upload_entry:
+        logs.append("DEBUG: Skipping null upload entry")
+        print("DEBUG: Skipping null upload entry")
+        return {"df": None, "logs": logs}
+
+    shop_code = upload_entry.get("shop_code")
+    path = upload_entry.get("path")
+    status = upload_entry.get("status")
+
+    if status != "uploaded" or not path:
+        msg = f"DEBUG: Skipping file for shop {shop_code}: status={status}, path={path}"
+        logs.append(msg)
+        print(msg)
+        return {"df": None, "logs": logs}
 
     try:
         # Use a more robust way to resolve path
         temp_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "temp"))
-        file_path = os.path.join(temp_dir, os.path.basename(upload_entry["path"]))
+        file_path = os.path.join(temp_dir, os.path.basename(path))
         
         if not os.path.exists(file_path):
             # Maybe the path in DB is already absolute
-            file_path = upload_entry["path"]
+            file_path = path
             if not os.path.exists(file_path):
-                 print(f"File not found for shop {upload_entry.get('shop_code')}: {upload_entry.get('path')}")
-                 return None
+                 msg = f"DEBUG: File not found for shop {shop_code}: {path}"
+                 logs.append(msg)
+                 print(msg)
+                 return {"df": None, "logs": logs}
         # Read data part
         df_full = read_excel_robust(file_path, header=None)
+        msg = f"DEBUG: Read file for shop {shop_code}: {os.path.basename(file_path)} ({len(df_full)} raw rows)"
+        logs.append(msg)
+        print(msg)
         header_row_index = find_header_row(df_full, ["Brand Code", "Product Brand"])
 
         if header_row_index is None:
             header_row_index = find_header_row(df_full, ["Brand"])
             
         if header_row_index is None:
-            return None
+            msg = f"DEBUG: Failed to find header row in file for shop {shop_code}: {path}"
+            logs.append(msg)
+            print(msg)
+            return {"df": None, "logs": logs}
 
         # The actual headers might be split across two rows
         header1 = df_full.iloc[header_row_index].fillna('')
@@ -107,10 +128,15 @@ def _parse_pi_file(upload_entry):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-        return df
+        msg = f"DEBUG: Successfully parsed {len(df)} rows for shop {shop_code} ({path})"
+        logs.append(msg)
+        print(msg)
+        return {"df": df, "logs": logs}
     except Exception as e:
-        print(f"Error parsing file for shop {upload_entry.get('shop_code')}: {e}")
-        return None
+        msg = f"DEBUG: Error parsing file for shop {shop_code}: {e}"
+        logs.append(msg)
+        print(msg)
+        return {"df": None, "logs": logs}
 
 class PiVarianceReportService(BaseReportService):
     type_name = "pi_variance"
@@ -180,15 +206,50 @@ class PiVarianceReportService(BaseReportService):
             report["processed"] = {"error": f"No raw data found for {report_month_str}"}
             return
 
+        cm_uploads = raw_report_cm.get("uploads", [])
+        lm_uploads = raw_report_lm.get("uploads", []) if raw_report_lm else []
+        
+        report_logs = []
+        msg = f"Processing CM ({report_month_str}) with {len(cm_uploads)} uploads, LM ({prev_month_str}) with {len(lm_uploads)} uploads"
+        report_logs.append(msg)
+        print(f"DEBUG: {msg}")
+
         # Process files
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            cm_futures = [executor.submit(_parse_pi_file, u) for u in raw_report_cm.get("uploads", [])]
-            cm_dfs = [f.result() for f in cm_futures if f.result() is not None]
+            cm_futures = {executor.submit(_parse_pi_file, u): u for u in cm_uploads}
+            cm_dfs = []
+            cm_success = 0
+            for idx, future in enumerate(concurrent.futures.as_completed(cm_futures), 1):
+                res_dict = future.result()
+                if res_dict:
+                    report_logs.extend(res_dict.get("logs", []))
+                    df = res_dict.get("df")
+                    if df is not None:
+                        cm_dfs.append(df)
+                        cm_success += 1
+                if idx % 5 == 0 or idx == len(cm_uploads):
+                    msg = f"CM Progress: {idx}/{len(cm_uploads)} processed. Success count: {cm_success}"
+                    report_logs.append(msg)
+                    print(f"DEBUG: {msg}")
             
             lm_dfs = []
-            if raw_report_lm:
-                lm_futures = [executor.submit(_parse_pi_file, u) for u in raw_report_lm.get("uploads", [])]
-                lm_dfs = [f.result() for f in lm_futures if f.result() is not None]
+            if lm_uploads:
+                lm_futures = {executor.submit(_parse_pi_file, u): u for u in lm_uploads}
+                lm_success = 0
+                for idx, future in enumerate(concurrent.futures.as_completed(lm_futures), 1):
+                    res_dict = future.result()
+                    if res_dict:
+                        report_logs.extend(res_dict.get("logs", []))
+                        df = res_dict.get("df")
+                        if df is not None:
+                            lm_dfs.append(df)
+                            lm_success += 1
+                    if idx % 5 == 0 or idx == len(lm_uploads):
+                        msg = f"LM Progress: {idx}/{len(lm_uploads)} processed. Success count: {lm_success}"
+                        report_logs.append(msg)
+                        print(f"DEBUG: {msg}")
+
+        report["processed_logs"] = report_logs
 
         df_cm = pd.concat(cm_dfs, ignore_index=True) if cm_dfs else pd.DataFrame()
         df_lm = pd.concat(lm_dfs, ignore_index=True) if lm_dfs else pd.DataFrame()
@@ -301,14 +362,27 @@ class PiVarianceReportService(BaseReportService):
     def get_report(self, report, **kwargs):
         processed_data = report.get("processed", [])
         if isinstance(processed_data, dict) and "error" in processed_data:
-             return {"data": [], "config": report.get("config", {}), "error": processed_data["error"]}
+             return {
+                 "data": [], 
+                 "config": report.get("config", {}), 
+                 "error": processed_data["error"],
+                 "logs": report.get("processed_logs", [])
+             }
         
         if not processed_data:
-            return {"data": [], "config": report.get("config", {})}
+            return {
+                "data": [], 
+                "config": report.get("config", {}),
+                "logs": report.get("processed_logs", [])
+            }
 
         df = pd.DataFrame(processed_data)
         if df.empty:
-            return {"data": [], "config": report.get("config", {})}
+            return {
+                "data": [], 
+                "config": report.get("config", {}),
+                "logs": report.get("processed_logs", [])
+            }
         
         # Safely handle older processed reports that might not have these columns saved
         if 'warehouse' not in df.columns:
@@ -331,5 +405,6 @@ class PiVarianceReportService(BaseReportService):
                 "warehouses": warehouses,
                 "bonds": bonds,
                 "brands": brands
-            }
+            },
+            "logs": report.get("processed_logs", [])
         }

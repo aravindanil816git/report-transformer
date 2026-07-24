@@ -249,6 +249,14 @@ class MonthlySummaryReportService(BaseReportService):
                 if cat in ["CFD", "BAR"]:
                     bond_data[bond][period]["fed_bar"] += issues
                             
+        # Collect list of files considered
+        files_considered = {
+            "current_liq": curr_liq_files,
+            "previous_liq": prev_liq_files,
+            "current_offtake": [f"Offtake {dt}" for dt in curr_offtake_dates],
+            "previous_offtake": [f"Offtake {dt}" for dt in prev_offtake_dates]
+        }
+        
         # --- Calculate Totals & Variances ---
         results = []
         for bond, metrics in bond_data.items():
@@ -284,6 +292,7 @@ class MonthlySummaryReportService(BaseReportService):
                 "curr_start_date": start_date,
                 "curr_end_date": end_date,
                 "prev_start_date": start_date2,
-                "prev_end_date": end_date2
+                "prev_end_date": end_date2,
+                "files_considered": files_considered
             }
         }
