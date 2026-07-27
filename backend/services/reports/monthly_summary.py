@@ -124,7 +124,6 @@ class MonthlySummaryReportService(BaseReportService):
         # --- Data Collection Logic ---
         # Deduplicate reports dynamically
         offtake_by_date = {}
-        shop_sales_by_range = {}
         
         for r in all_reports:
             r_type = r.get("type")
@@ -133,52 +132,45 @@ class MonthlySummaryReportService(BaseReportService):
             
             if r_type == "daily_warehouse_offtake":
                 r_date = str(r.get("config", {}).get("date", ""))
-                if start_date and end_date:
-                    if start_date <= r_date <= end_date:
-                        offtake_by_date[r_date] = ("curr", r)
-                else:
-                    if r_date.startswith(target_month_str):
-                        offtake_by_date[r_date] = ("curr", r)
-                        
-                if start_date2 and end_date2:
-                    if start_date2 <= r_date <= end_date2:
-                        offtake_by_date[r_date] = ("prev", r)
-                else:
-                    if r_date.startswith(prev_month_str):
-                        offtake_by_date[r_date] = ("prev", r)
+                # Match Cumulative Warehouse Report's whole-month behavior (which ignores sub-range filtering when indices are not specified)
+                if r_date.startswith(target_month_str):
+                    offtake_by_date[r_date] = ("curr", r)
+                elif r_date.startswith(prev_month_str):
+                    offtake_by_date[r_date] = ("prev", r)
+        
+        # Select correct shop liquidation reports (combined_shopwise or fallback to shop_sales_cumulative)
+        combined_reports = [r for r in all_reports if r.get("type") == "combined_shopwise" and r.get("status") in ["Processed", "Ready", "Uploaded"]]
+        shop_sales_reports = [r for r in all_reports if r.get("type") == "shop_sales_cumulative" and r.get("status") in ["Processed", "Ready", "Uploaded"]]
+        
+        selected_liq_reports = []
+        
+        # Current month liquidation reports selection
+        curr_combined = [r for r in combined_reports if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))).startswith(target_month_str)]
+        if curr_combined:
+            curr_combined.sort(key=lambda x: len(x.get("uploads", [])), reverse=True)
+            selected_liq_reports.append(("curr", curr_combined[0]))
+        else:
+            curr_sales = [r for r in shop_sales_reports if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))).startswith(target_month_str)]
+            for r in curr_sales:
+                selected_liq_reports.append(("curr", r))
                 
-            elif r_type in ["shop_sales_cumulative", "combined_shopwise", "cumulative_shopwise"]:
-                r_start = str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", "")))
-                r_end = str(r.get("config", {}).get("date2", ""))
-                
-                period = None
-                if start_date and end_date:
-                    if start_date <= r_start <= end_date:
-                        period = "curr"
-                else:
-                    if r_start.startswith(target_month_str):
-                        period = "curr"
-                        
-                if start_date2 and end_date2:
-                    if start_date2 <= r_start <= end_date2:
-                        period = "prev"
-                else:
-                    if r_start.startswith(prev_month_str):
-                        period = "prev"
-                
-                if period:
-                    range_key = f"{period}_{r_start}_{r_end}"
-                    existing = shop_sales_by_range.get(range_key)
-                    if not existing or len(r.get("uploads", [])) > len(existing[1].get("uploads", [])):
-                        shop_sales_by_range[range_key] = (period, r)
+        # Previous month liquidation reports selection
+        prev_combined = [r for r in combined_reports if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))).startswith(prev_month_str)]
+        if prev_combined:
+            prev_combined.sort(key=lambda x: len(x.get("uploads", [])), reverse=True)
+            selected_liq_reports.append(("prev", prev_combined[0]))
+        else:
+            prev_sales = [r for r in shop_sales_reports if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))).startswith(prev_month_str)]
+            for r in prev_sales:
+                selected_liq_reports.append(("prev", r))
         
         # --- Print Condensed Debug Logs of Files Used ---
         print("\n=== [DEBUG] Monthly Summary Data Sources ===")
         
-        curr_liq_files = [f"{v[1].get('file') or v[1].get('name')} ({v[1].get('config', {}).get('date1') or v[1].get('config', {}).get('start_date')} to {v[1].get('config', {}).get('date2') or v[1].get('config', {}).get('end_date')})" 
-                           for k, v in shop_sales_by_range.items() if v[0] == "curr"]
-        prev_liq_files = [f"{v[1].get('file') or v[1].get('name')} ({v[1].get('config', {}).get('date1') or v[1].get('config', {}).get('start_date')} to {v[1].get('config', {}).get('date2') or v[1].get('config', {}).get('end_date')})" 
-                           for k, v in shop_sales_by_range.items() if v[0] == "prev"]
+        curr_liq_files = [f"{r.get('file') or r.get('name')} ({r.get('config', {}).get('date1') or r.get('config', {}).get('start_date')} to {r.get('config', {}).get('date2') or r.get('config', {}).get('end_date')})" 
+                           for period, r in selected_liq_reports if period == "curr"]
+        prev_liq_files = [f"{r.get('file') or r.get('name')} ({r.get('config', {}).get('date1') or r.get('config', {}).get('start_date')} to {r.get('config', {}).get('date2') or r.get('config', {}).get('end_date')})" 
+                           for period, r in selected_liq_reports if period == "prev"]
         
         print(f"Shop Liquidation Month 1 (Current): {', '.join(curr_liq_files) if curr_liq_files else 'None'}")
         print(f"Shop Liquidation Month 2 (Previous): {', '.join(prev_liq_files) if prev_liq_files else 'None'}")
@@ -197,7 +189,7 @@ class MonthlySummaryReportService(BaseReportService):
             print("Secondary Sales Month 2 (Previous): None")
             
         print("============================================\n")
-
+ 
         def get_default_metrics():
             return {
                 "curr": {"shop_liq": 0, "sec_sales": 0, "fed_bar": 0, "total": 0},
@@ -205,12 +197,12 @@ class MonthlySummaryReportService(BaseReportService):
             }
             
         bond_data = {}
-
+ 
         # Parse Combined Shopwise (For Shop Liquidation)
         from services.registry import get_service
         combined_svc = get_service("combined_shopwise_multi")
         if combined_svc:
-            for range_key, (period, r) in shop_sales_by_range.items():
+            for period, r in selected_liq_reports:
                 try:
                     svc_kwargs = {"view": "case"}
                     if period == "curr" and start_date and end_date:
