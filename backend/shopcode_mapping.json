@@ -225,11 +225,6 @@
   ],
   "ATTINGAL": [
     {
-      "shop_code": "101011",
-      "shop_name": "1011-POWERHOUSE ROAD",
-      "category": "KSBC"
-    },
-    {
       "shop_code": "101015",
       "shop_name": "1015-GOWREESAPATTOM",
       "category": "KSBC"
@@ -940,11 +935,6 @@
       "category": "BAR"
     },
     {
-      "shop_code": "411011",
-      "shop_name": "QUEENS TOURIST HOME VADAKARA",
-      "category": "BAR"
-    },
-    {
       "shop_code": "411049",
       "shop_name": "HOTEL INDRAPRASTHA",
       "category": "BAR"
@@ -1003,6 +993,16 @@
       "shop_code": "112003",
       "shop_name": "12003-PADINHARATHARA (KAVUMMANNAM)",
       "category": "KSBC"
+    },
+    {
+      "shop_code": "411011",
+      "shop_name": "QUEENS TOURIST HOME VADAKARA",
+      "category": "BAR"
+    },
+    {
+      "shop_code": "411001",
+      "shop_name": "QUEENS HOTEL",
+      "category": "BAR"
     }
   ],
   "NEDUMANGAD": [
@@ -1140,6 +1140,11 @@
       "shop_code": "401010",
       "shop_name": "Hotel New Indraprastha",
       "category": "BAR"
+    },
+    {
+      "shop_code": "101011",
+      "shop_name": "1011-POWERHOUSE ROAD",
+      "category": "KSBC"
     }
   ],
   "PALAKKAD": [

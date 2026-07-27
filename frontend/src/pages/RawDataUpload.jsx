@@ -25,6 +25,7 @@ function RawDataView({ type, onOpenCreate }) {
   const [data, setData] = useState([]);
   const [current, setCurrent] = useState(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(null);
   const navigate = useNavigate();
   
   const [currentPage, setCurrentPage] = useState(1);
@@ -35,7 +36,7 @@ function RawDataView({ type, onOpenCreate }) {
 
   const load = () => {
     setLoading(true);
-    listReports({ type, skip: (currentPage - 1) * pageSize, limit: pageSize }).then((r) => {
+    listReports({ type, skip: 0, limit: 2000 }).then((r) => {
       const reports = r.data?.items || r.data || [];
       setData(reports);
       setTotal(r.data?.total || reports.length);
@@ -46,11 +47,11 @@ function RawDataView({ type, onOpenCreate }) {
   
   useEffect(() => {
     setCurrentPage(1);
-  }, [type]);
+  }, [type, selectedMonth]);
 
   useEffect(() => {
     load();
-  }, [type, currentPage, pageSize]);
+  }, [type]);
 
   const handleDelete = async (id) => {
     try {
@@ -79,6 +80,52 @@ function RawDataView({ type, onOpenCreate }) {
       message.error("Failed to download report");
     }
   };
+
+  const getReportDate = (r) => {
+    if (!r) return null;
+    if (r.config?.date) return dayjs(r.config.date);
+    if (r.config?.month) return dayjs(r.config.month + "-01");
+    if (r.config?.date1) return dayjs(r.config.date1);
+    if (r.config?.start_date) return dayjs(r.config.start_date);
+    if (r.created_at) return dayjs(r.created_at);
+    return null;
+  };
+
+  const filteredAndSortedData = useState(() => {
+    // We'll calculate it using useMemo below, so we can ignore this.
+  });
+
+  const processedData = useState(() => {
+    // Ignore as well
+  });
+
+  const getFilteredAndSorted = () => {
+    let list = [...data];
+    if (selectedMonth) {
+      const targetYear = selectedMonth.year();
+      const targetMonth = selectedMonth.month(); // 0-11
+      list = list.filter((r) => {
+        const rDate = getReportDate(r);
+        if (!rDate) return false;
+        return rDate.year() === targetYear && rDate.month() === targetMonth;
+      });
+    }
+    
+    // Sort in ascending order (oldest first, newest last)
+    list.sort((a, b) => {
+      const dA = getReportDate(a);
+      const dB = getReportDate(b);
+      if (!dA && !dB) return 0;
+      if (!dA) return 1;
+      if (!dB) return -1;
+      return dA.isBefore(dB) ? -1 : dA.isAfter(dB) ? 1 : 0;
+    });
+    
+    return list;
+  };
+
+  const currentFilteredAndSorted = getFilteredAndSorted();
+  const paginatedData = currentFilteredAndSorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const columns = [
     { title: "Name", dataIndex: "name" },
@@ -147,18 +194,28 @@ function RawDataView({ type, onOpenCreate }) {
 
   return (
     <div>
-      <Button type="primary" onClick={() => onOpenCreate(type)} style={{ marginBottom: 16 }}>
-        Add New Upload
-      </Button>
+      <Space style={{ marginBottom: 16 }}>
+        <Button type="primary" onClick={() => onOpenCreate(type)}>
+          Add New Upload
+        </Button>
+        <DatePicker 
+          picker="month" 
+          placeholder="Filter by Month/Year" 
+          value={selectedMonth} 
+          onChange={setSelectedMonth} 
+          allowClear 
+          style={{ width: 220 }}
+        />
+      </Space>
       <Table 
         columns={columns} 
-        dataSource={data} 
+        dataSource={paginatedData} 
         rowKey="id" 
         loading={loading}
         pagination={{
           current: currentPage,
           pageSize: pageSize,
-          total: total,
+          total: currentFilteredAndSorted.length,
           onChange: (page, size) => {
             setCurrentPage(page);
             setPageSize(size);

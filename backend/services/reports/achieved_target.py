@@ -114,22 +114,39 @@ class AchievedTargetReportService(BaseReportService):
                     if start_date and end_date and not (start_date <= str(r_date) <= end_date): continue
                     if r.get("processed"):
                         offtake_by_date[r_date] = r
-            elif r_type == "shop_sales_cumulative":
+
+        # Select the single widest cumulative report(s) to avoid double-counting subset reports
+        cum_reports = []
+        for r in reports_list:
+            if r.get("type") == "shop_sales_cumulative":
                 r_start = r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))
                 r_end = r.get("config", {}).get("date2", "")
                 if str(r_start)[:7] == month:
-                    if start_date and end_date and r_start and r_end:
-                        if not (start_date <= r_start and r_end <= end_date): continue
-                    
-                    range_key = f"{r_start}_{r_end}"
-                    existing = shop_sales_by_month.get(range_key)
-                    if not existing or len(r.get("uploads", [])) > len(existing.get("uploads", [])):
-                        shop_sales_by_month[range_key] = r
+                    if start_date and end_date:
+                        if start_date <= r_start and r_end <= end_date:
+                            cum_reports.append((r, r_start, r_end))
+                    else:
+                        cum_reports.append((r, r_start, r_end))
+
+        best_cum_reports = {}
+        for r, r_start, r_end in cum_reports:
+            if r_start not in best_cum_reports:
+                best_cum_reports[r_start] = (r, r_end)
+            else:
+                if r_end > best_cum_reports[r_start][1]:
+                    best_cum_reports[r_start] = (r, r_end)
+
+        for r_start, (r, r_end) in best_cum_reports.items():
+            shop_sales_by_month[f"{r_start}_{r_end}"] = r
 
         valid_reports.extend(offtake_by_date.values())
         valid_reports.extend(shop_sales_by_month.values())
         
-        print(f"[DEBUG] achieved_target: Deduplicated to {len(offtake_by_date)} offtake reports and {len(shop_sales_by_month)} shop_sales reports.")
+        print(f"[DEBUG] achieved_target: Deduplicated to {len(offtake_by_date)} offtake reports and {len(shop_sales_by_month)} shop_sales reports. Selected keys: {list(shop_sales_by_month.keys())}")
+
+        # Aggregation maps
+        achieved_map = {}
+        shop_achieved_map = {}
 
         for r in valid_reports:
             r_type = r.get("type")
@@ -151,6 +168,12 @@ class AchievedTargetReportService(BaseReportService):
                         if bond not in achieved_map: achieved_map[bond] = {}
                         if brand not in achieved_map[bond]: achieved_map[bond][brand] = 0
                         achieved_map[bond][brand] += issues
+                        
+                        # Shop level aggregation
+                        if shop_code not in shop_achieved_map: shop_achieved_map[shop_code] = {}
+                        if brand not in shop_achieved_map[shop_code]: shop_achieved_map[shop_code][brand] = 0
+                        shop_achieved_map[shop_code][brand] += issues
+                        
                         rows_processed += 1
                     else:
                         rows_skipped += 1
@@ -161,7 +184,10 @@ class AchievedTargetReportService(BaseReportService):
                 r_end = r.get("config", {}).get("date2", "")
                 
                 svc = get_service("combined_shopwise_multi")
-                res = svc.get_report(r, view="case")
+                svc_kwargs = {"view": "case"}
+                if start_date: svc_kwargs["start_date"] = start_date
+                if end_date: svc_kwargs["end_date"] = end_date
+                res = svc.get_report(r, **svc_kwargs)
                 rows_processed = 0
                 rows_skipped = 0
                 for row in res.get("data", []):
@@ -174,6 +200,12 @@ class AchievedTargetReportService(BaseReportService):
                         if bond not in achieved_map: achieved_map[bond] = {}
                         if brand not in achieved_map[bond]: achieved_map[bond][brand] = 0
                         achieved_map[bond][brand] += outward
+                        
+                        # Shop level aggregation
+                        if shop_code not in shop_achieved_map: shop_achieved_map[shop_code] = {}
+                        if brand not in shop_achieved_map[shop_code]: shop_achieved_map[shop_code][brand] = 0
+                        shop_achieved_map[shop_code][brand] += outward
+                        
                         rows_processed += 1
                     else:
                         rows_skipped += 1
@@ -251,6 +283,7 @@ class AchievedTargetReportService(BaseReportService):
             for brnd, val in bnd_data.items():
                 clean_targets_map[bnd][self._clean_brand(brnd)] = val
 
+        # 1. Bond level rows
         results = []
         for bond in sorted(all_bonds):
             row = {
@@ -265,7 +298,37 @@ class AchievedTargetReportService(BaseReportService):
                 }
             results.append(row)
 
+        # 2. Load Shop Names for Shop-Level Details
+        shop_names = {}
+        try:
+            with open(os.path.join(base_dir, "shops.json"), "r", encoding="utf-8") as f:
+                shops_data = json.load(f)
+                for code, details in shops_data.items():
+                    shop_names[str(code).replace(".0", "").strip()] = details.get("shop_name", "Unknown Shop")
+        except Exception:
+            pass
+
+        # 3. Shop level rows
+        shop_results = []
+        for shop_code, brands_map in shop_achieved_map.items():
+            cat = shop_type_lookup.get(shop_code, "ksbc").upper()
+            display_cat = "BAR/CFD" if cat in ["BAR", "CFD"] else "KSBC"
+            row = {
+                "shop_code": shop_code,
+                "shop_name": shop_names.get(shop_code, f"Shop {shop_code}"),
+                "bond": shop_to_bond.get(shop_code, "UNKNOWN"),
+                "category": display_cat,
+                "brands": {}
+            }
+            for brand in sorted(all_brands):
+                row["brands"][brand] = {
+                    "achieved": round(brands_map.get(brand, 0), 2),
+                    "target": 0
+                }
+            shop_results.append(row)
+
         return {
             "data": results,
+            "shop_data": shop_results,
             "config": report.get("config", {})
         }

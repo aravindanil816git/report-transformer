@@ -3,9 +3,9 @@
     "ALAPPUZHA": {
       "staffs": "PRATHYUSH T S",
       "warehouses": {
-        "WH-THIRUVALLA": {
-          "warehouse_name": "WH-THIRUVALLA RFL9",
-          "warehouse_code": 14,
+        "UNKNOWN": {
+          "warehouse_name": "UNKNOWN",
+          "warehouse_code": null,
           "shops": {
             "102016": {
               "shop_name": "2016-KARUNAGAPALLY",
@@ -38,13 +38,7 @@
             "104025": {
               "shop_name": "4025-KAYAMKULAM",
               "staffs": "PRATHYUSH T S"
-            }
-          }
-        },
-        "WH-ALAPPUZHA": {
-          "warehouse_name": "WH-ALAPPUZHA RFL9",
-          "warehouse_code": 8,
-          "shops": {
+            },
             "104001": {
               "shop_name": "4001-ANDHAKARANAZHI",
               "staffs": "PRATHYUSH T S"
@@ -90,25 +84,15 @@
               "staffs": "PRATHYUSH T S"
             }
           }
-        },
-        "WH-KARUNAGAPPALLY": {
-          "warehouse_name": "WH-KARUNAGAPPALLY FL9-KLM-03/2025-26",
-          "warehouse_code": 27,
-          "shops": {
-            "102018": {
-              "shop_name": "2018-AALUMPEDIKA (Ochira)",
-              "staffs": "PRATHYUSH T S"
-            }
-          }
         }
       }
     },
     "ALUVA": {
       "staffs": "MARSHAL",
       "warehouses": {
-        "WH-ALUVA": {
-          "warehouse_name": "WH-ALUVA RFL9",
-          "warehouse_code": 9,
+        "UNKNOWN": {
+          "warehouse_name": "UNKNOWN",
+          "warehouse_code": null,
           "shops": {
             "107016": {
               "shop_name": "7016-KALAMASSERY",
@@ -165,13 +149,7 @@
             "207050": {
               "shop_name": "FL1-7050 Muvattupuzha",
               "staffs": "MARSHAL"
-            }
-          }
-        },
-        "WH-PERUMBAVOOR": {
-          "warehouse_name": "WH-PERUMBAVOOR RFL9",
-          "warehouse_code": 17,
-          "shops": {
+            },
             "107035": {
               "shop_name": "7035-MANJAPRA",
               "staffs": "MARSHAL"
@@ -211,13 +189,7 @@
             "407119": {
               "shop_name": "VKG GROUP HOLIDAY HOTEL",
               "staffs": "MARSHAL"
-            }
-          }
-        },
-        "WH-TRIPUNITHURA": {
-          "warehouse_name": "WH-TRIPUNITHURA RFL9",
-          "warehouse_code": 2,
-          "shops": {
+            },
             "107049": {
               "shop_name": "7049-RAMAMANGALAM",
               "staffs": "MARSHAL"
@@ -229,14 +201,10 @@
     "ATTINGAL": {
       "staffs": "ANOOP D S",
       "warehouses": {
-        "WH-MENAMKULAM": {
-          "warehouse_name": "WH-MENAMKULAM LFL9/2024/00022",
-          "warehouse_code": 26,
+        "UNKNOWN": {
+          "warehouse_name": "UNKNOWN",
+          "warehouse_code": null,
           "shops": {
-            "101011": {
-              "shop_name": "1011-POWERHOUSE ROAD",
-              "staffs": "ANOOP D S"
-            },
             "101015": {
               "shop_name": "1015-GOWREESAPATTOM",
               "staffs": "ANOOP D S"
@@ -276,13 +244,7 @@
             "401114": {
               "shop_name": "AMBARA SUITES",
               "staffs": "ANOOP D S"
-            }
-          }
-        },
-        "WH-ATTINGAL": {
-          "warehouse_name": "WH-ATTINGAL RFL9",
-          "warehouse_code": 5,
-          "shops": {
+            },
             "101034": {
               "shop_name": "1034-KALLARA",
               "staffs": "ANOOP D S"
@@ -326,9 +288,9 @@
     "KANNUR": {
       "staffs": "HARIDAS",
       "warehouses": {
-        "WH-KANNUR": {
-          "warehouse_name": "WH-KANNUR RFL9",
-          "warehouse_code": 4,
+        "UNKNOWN": {
+          "warehouse_name": "UNKNOWN",
+          "warehouse_code": null,
           "shops": {
             "113001": {
               "shop_name": "13001-CHIRAKKUNI",
@@ -410,16 +372,6 @@
               "shop_name": "BROADBEAN HOTEL, CHAKKARAKKAL",
               "staffs": "HARIDAS"
             },
-            "nan": {
-              "shop_name": "J K PARK RESIDENCY PUTHIYATHERU",
-              "staffs": "HARIDAS"
-            }
-          }
-        },
-        "WH-BATTATHUR": {
-          "warehouse_name": "WH-BATTATHUR RFL9",
-          "warehouse_code": 20,
-          "shops": {
             "113016": {
               "shop_name": "13016-PAYYANNUR",
               "staffs": "HARIDAS"
@@ -463,9 +415,9 @@
     "KOLLAM": {
       "staffs": "SURJIT S",
       "warehouses": {
-        "WH-KOLLAM": {
-          "warehouse_name": "WH-KOLLAM RFL9",
-          "warehouse_code": 1,
+        "UNKNOWN": {
+          "warehouse_name": "UNKNOWN",
+          "warehouse_code": null,
           "shops": {
             "102001": {
               "shop_name": "2001-HQ KOLLAM",
@@ -534,9 +486,9 @@
     "KOTTARAKARA": {
       "staffs": "BIJU W",
       "warehouses": {
-        "WH-KOTTARAKARA": {
-          "warehouse_name": "WH-KOTTARAKARA RFL9",
-          "warehouse_code": 18,
+        "UNKNOWN": {
+          "warehouse_name": "UNKNOWN",
+          "warehouse_code": null,
           "shops": {
             "202035": {
               "shop_name": "FL-01 2035 KULATHUPUZHA",
@@ -621,9 +573,9 @@
     "KOTTAYAM": {
       "staffs": "RAHUL",
       "warehouses": {
-        "WH-AYARKKUNNAM": {
-          "warehouse_name": "WH-AYARKKUNNAM RFL9",
-          "warehouse_code": 19,
+        "UNKNOWN": {
+          "warehouse_name": "UNKNOWN",
+          "warehouse_code": null,
           "shops": {
             "105001": {
               "shop_name": "5001-KARUKACHAL",
@@ -680,13 +632,7 @@
             "105008": {
               "shop_name": "5008-KANJIRAPALLY",
               "staffs": "RAHUL"
-            }
-          }
-        },
-        "WH-KOTTAYAM": {
-          "warehouse_name": "WH-KOTTAYAM RFL9",
-          "warehouse_code": 6,
-          "shops": {
+            },
             "105002": {
               "shop_name": "5002- CHANGANASSERY",
               "staffs": "RAHUL"
@@ -742,13 +688,7 @@
             "205016": {
               "shop_name": "FL1- 5016 ELAMPUNKAL",
               "staffs": "RAHUL"
-            }
-          }
-        },
-        "WH-TRIPUNITHURA": {
-          "warehouse_name": "WH-TRIPUNITHURA RFL9",
-          "warehouse_code": 2,
-          "shops": {
+            },
             "105031": {
               "shop_name": "5031-VAIKKOM",
               "staffs": "RAHUL"
@@ -760,9 +700,9 @@
     "KOZHIKODE": {
       "staffs": "AMALJITH V T",
       "warehouses": {
-        "WH-KOZHIKODE": {
-          "warehouse_name": "WH-KOZHIKODE RFL9",
-          "warehouse_code": 12,
+        "UNKNOWN": {
+          "warehouse_name": "UNKNOWN",
+          "warehouse_code": null,
           "shops": {
             "111001": {
               "shop_name": "11001-KOTTAKADAVU",
@@ -804,10 +744,6 @@
               "shop_name": "HOTEL SASTHAPURI",
               "staffs": "AMALJITH V T"
             },
-            "nan": {
-              "shop_name": "KINGS REGENCY LLP",
-              "staffs": "AMALJITH V T"
-            },
             "411048": {
               "shop_name": "HOTEL BEYFORT",
               "staffs": "AMALJITH V T"
@@ -827,13 +763,7 @@
             "411030": {
               "shop_name": "SEAQUEEN HOTEL",
               "staffs": "AMALJITH V T"
-            }
-          }
-        },
-        "WH-NADUVANNUR": {
-          "warehouse_name": "WH-NADUVANNUR LFL9/2024/00020",
-          "warehouse_code": 24,
-          "shops": {
+            },
             "111013": {
               "shop_name": "11013-THIRUVAMBADI",
               "staffs": "AMALJITH V T"
@@ -882,10 +812,6 @@
               "shop_name": "KALYAN RESIDENCY",
               "staffs": "AMALJITH V T"
             },
-            "411011": {
-              "shop_name": "QUEENS TOURIST HOME VADAKARA",
-              "staffs": "AMALJITH V T"
-            },
             "411049": {
               "shop_name": "HOTEL INDRAPRASTHA",
               "staffs": "AMALJITH V T"
@@ -897,13 +823,7 @@
             "410029": {
               "shop_name": "Luxora Hotel And Spa, Corniche Hospitality P Ltd",
               "staffs": "AMALJITH V T"
-            }
-          }
-        },
-        "WH-KALPETTA": {
-          "warehouse_name": "WH-KALPETTA RFL9",
-          "warehouse_code": 22,
-          "shops": {
+            },
             "112001": {
               "shop_name": "12001-VYTHIRI",
               "staffs": "AMALJITH V T"
@@ -939,6 +859,14 @@
             "112003": {
               "shop_name": "12003-PADINHARATHARA (KAVUMMANNAM)",
               "staffs": "AMALJITH V T"
+            },
+            "411011": {
+              "shop_name": "QUEENS TOURIST HOME VADAKARA",
+              "staffs": "AMALJITH V T"
+            },
+            "411001": {
+              "shop_name": "QUEENS HOTEL",
+              "staffs": "AMALJITH V T"
             }
           }
         }
@@ -947,9 +875,9 @@
     "NEDUMANGAD": {
       "staffs": "SARATH GOPAN",
       "warehouses": {
-        "WH-BALARAMAPURAM": {
-          "warehouse_name": "WH-BALARAMAPURAM RFL9",
-          "warehouse_code": 21,
+        "UNKNOWN": {
+          "warehouse_name": "UNKNOWN",
+          "warehouse_code": null,
           "shops": {
             "101001": {
               "shop_name": "1001-PARASSALA",
@@ -998,13 +926,7 @@
             "401015": {
               "shop_name": "HOTEL PORT PALACE",
               "staffs": "SARATH GOPAN"
-            }
-          }
-        },
-        "WH-NEDUMANGAD": {
-          "warehouse_name": "WH-NEDUMANGAD RFL9",
-          "warehouse_code": 13,
-          "shops": {
+            },
             "101018": {
               "shop_name": "1018-NETTAYAM MUKKOLA",
               "staffs": "SARATH GOPAN"
@@ -1056,29 +978,17 @@
             "401020": {
               "shop_name": "AMALAS RESIDENCY",
               "staffs": "SARATH GOPAN"
-            }
-          }
-        },
-        "WH-MENAMKULAM": {
-          "warehouse_name": "WH-MENAMKULAM LFL9/2024/00022",
-          "warehouse_code": 21,
-          "shops": {
+            },
             "401064": {
               "shop_name": "PATTOM ROYAL",
               "staffs": "SARATH GOPAN"
             },
-            "401020": {
-              "shop_name": "AMALA RESIDENCY",
-              "staffs": "SARATH GOPAN"
-            }
-          }
-        },
-        "WH-ATTINGAL": {
-          "warehouse_name": "WH-ATTINGAL RFL9",
-          "warehouse_code": 5,
-          "shops": {
             "401010": {
               "shop_name": "Hotel New Indraprastha",
+              "staffs": "SARATH GOPAN"
+            },
+            "101011": {
+              "shop_name": "1011-POWERHOUSE ROAD",
               "staffs": "SARATH GOPAN"
             }
           }
@@ -1088,9 +998,9 @@
     "PALAKKAD": {
       "staffs": "SHAJI R",
       "warehouses": {
-        "WH-MENONPARA": {
-          "warehouse_name": "WH-MENONPARA RFL9",
-          "warehouse_code": 23,
+        "UNKNOWN": {
+          "warehouse_name": "UNKNOWN",
+          "warehouse_code": null,
           "shops": {
             "109001": {
               "shop_name": "9001-KOLLENGODE",
@@ -1143,13 +1053,7 @@
             "409003": {
               "shop_name": "HOTEL GOPALAPURAM INTERNATIONAL",
               "staffs": "SHAJI R"
-            }
-          }
-        },
-        "WH-PALAKKAD": {
-          "warehouse_name": "WH-PALAKKAD RFL9",
-          "warehouse_code": 3,
-          "shops": {
+            },
             "109006": {
               "shop_name": "9006-OLD SHOP PALAKKAD",
               "staffs": "SHAJI R"
@@ -1209,9 +1113,9 @@
     "PATHANAMTHITTA": {
       "staffs": "ANEESH R",
       "warehouses": {
-        "WH-PATHANAMTHITA": {
-          "warehouse_name": "WH-PATHANAMTHITA RFL9",
-          "warehouse_code": 11,
+        "UNKNOWN": {
+          "warehouse_name": "UNKNOWN",
+          "warehouse_code": null,
           "shops": {
             "103001": {
               "shop_name": "3001-PATHANAMTHITTA OLD SHOP",
@@ -1264,13 +1168,7 @@
             "403010": {
               "shop_name": "HOTEL CENTRAL PARK",
               "staffs": "ANEESH R"
-            }
-          }
-        },
-        "WH-THIRUVALLA": {
-          "warehouse_name": "WH-THIRUVALLA RFL9",
-          "warehouse_code": 14,
-          "shops": {
+            },
             "103011": {
               "shop_name": "3011-MALLAPPALLY",
               "staffs": "ANEESH R"
@@ -1312,25 +1210,15 @@
               "staffs": "ANEESH R"
             }
           }
-        },
-        "WH-KARUNAGAPPALLY": {
-          "warehouse_name": "WH-KARUNAGAPPALLY FL9-KLM-03/2025-26",
-          "warehouse_code": 27,
-          "shops": {
-            "102019": {
-              "shop_name": "2019-VAVVAKKAVU (Pavumba)",
-              "staffs": "ANEESH R"
-            }
-          }
         }
       }
     },
     "PERINTHALMANNA": {
       "staffs": "JISHNU",
       "warehouses": {
-        "WH-PERINTHALMANNA": {
-          "warehouse_name": "WH-PERINTHALMANNA RFL9",
-          "warehouse_code": 15,
+        "UNKNOWN": {
+          "warehouse_name": "UNKNOWN",
+          "warehouse_code": null,
           "shops": {
             "110001": {
               "shop_name": "10001-PONNANI",
@@ -1392,10 +1280,6 @@
               "shop_name": "FL1-10007-MALAPPURAM",
               "staffs": "JISHNU"
             },
-            "nan": {
-              "shop_name": "MOSA & SONS TOWER INN PVT.LTD, HOTEL OAK TREE",
-              "staffs": "JISHNU"
-            },
             "410034": {
               "shop_name": "Le Moshe Inn (A Unit of Neelambary)",
               "staffs": "JISHNU"
@@ -1411,23 +1295,11 @@
             "410036": {
               "shop_name": "VALLUVANAD RESIDENCY",
               "staffs": "JISHNU"
-            }
-          }
-        },
-        "WH-MENONPARA": {
-          "warehouse_name": "WH-MENONPARA RFL9",
-          "warehouse_code": 23,
-          "shops": {
+            },
             "410023": {
               "shop_name": "Hotel Saayooj",
               "staffs": "JISHNU"
-            }
-          }
-        },
-        "WH-NADUVANNUR": {
-          "warehouse_name": "WH-NADUVANNUR LFL9/2024/00020",
-          "warehouse_code": 24,
-          "shops": {
+            },
             "410017": {
               "shop_name": "Hotel Rydges Inn, Corniche Hospitality P Ltd",
               "staffs": "JISHNU"
@@ -1439,9 +1311,9 @@
     "THODUPUZHA": {
       "staffs": "AMAL GEORGE",
       "warehouses": {
-        "WH-THODUPUZHA": {
-          "warehouse_name": "WH-THODUPUZHA RFL9",
-          "warehouse_code": 7,
+        "UNKNOWN": {
+          "warehouse_name": "UNKNOWN",
+          "warehouse_code": null,
           "shops": {
             "106001": {
               "shop_name": "6001-THODUPUZHA",
@@ -1543,10 +1415,6 @@
               "shop_name": "JOANCE REGENCY",
               "staffs": "AMAL GEORGE"
             },
-            "nan": {
-              "shop_name": "SONA BENNETT",
-              "staffs": "AMAL GEORGE"
-            },
             "406011": {
               "shop_name": "AMBADY TOURIST HOME",
               "staffs": "AMAL GEORGE"
@@ -1558,13 +1426,7 @@
             "106026": {
               "shop_name": "6026-VAGAMON",
               "staffs": "AMAL GEORGE"
-            }
-          }
-        },
-        "WH-AYARKKUNNAM": {
-          "warehouse_name": "WH-AYARKKUNNAM RFL9",
-          "warehouse_code": 19,
-          "shops": {
+            },
             "106028": {
               "shop_name": "6028- PEERUMEDU 35TH MILE",
               "staffs": "AMAL GEORGE"
@@ -1588,9 +1450,9 @@
     "THRISSUR": {
       "staffs": "SOURAV",
       "warehouses": {
-        "WH-THRISSUR": {
-          "warehouse_name": "WH-THRISSUR RFL9",
-          "warehouse_code": 10,
+        "UNKNOWN": {
+          "warehouse_name": "UNKNOWN",
+          "warehouse_code": null,
           "shops": {
             "108001": {
               "shop_name": "8001-PATTIKKAD",
@@ -1659,13 +1521,7 @@
             "208026": {
               "shop_name": "FL1-8026-WADAKKANCHERY",
               "staffs": "SOURAV"
-            }
-          }
-        },
-        "WH-CHALAKUDY": {
-          "warehouse_name": "WH-CHALAKUDY RFL9",
-          "warehouse_code": 16,
-          "shops": {
+            },
             "108017": {
               "shop_name": "8017-POKLAI",
               "staffs": "SOURAV"
@@ -1721,9 +1577,9 @@
     "TRIPUNITHURA": {
       "staffs": "OMANAKKUTTAN S K",
       "warehouses": {
-        "WH-KADAVANTHRA": {
-          "warehouse_name": "WH-KADAVANTHRA LFL9/2024/00018",
-          "warehouse_code": 25,
+        "UNKNOWN": {
+          "warehouse_name": "UNKNOWN",
+          "warehouse_code": null,
           "shops": {
             "107005": {
               "shop_name": "7005- (Edappally)-KADAVANTHRA",
@@ -1756,13 +1612,7 @@
             "207003": {
               "shop_name": "FL1-7003 Gandhinagar",
               "staffs": "OMANAKKUTTAN S K"
-            }
-          }
-        },
-        "WH-TRIPUNITHURA": {
-          "warehouse_name": "WH-TRIPUNITHURA RFL9",
-          "warehouse_code": 2,
-          "shops": {
+            },
             "107007": {
               "shop_name": "7007-Kadavanthra (Puthiyakavu)",
               "staffs": "OMANAKKUTTAN S K"

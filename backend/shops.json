@@ -220,9 +220,11 @@
     "category": "KSBC"
   },
   "101011": {
-    "shop_name": "1011-POWERHOUSE ROAD",
+    "category": "KSBC",
+    "warehouse": "",
+    "address": "",
     "shop_code": "101011",
-    "category": "KSBC"
+    "shop_name": "1011-POWERHOUSE ROAD"
   },
   "101015": {
     "shop_name": "1015-GOWREESAPATTOM",
@@ -914,10 +916,19 @@
     "shop_code": "411031",
     "category": "BAR"
   },
+  "411001": {
+    "category": "BAR",
+    "warehouse": "",
+    "address": "Queens",
+    "shop_code": "411001",
+    "shop_name": "QUEENS HOTEL"
+  },
   "411011": {
-    "shop_name": "QUEENS TOURIST HOME VADAKARA",
+    "category": "BAR",
+    "warehouse": "",
+    "address": "",
     "shop_code": "411011",
-    "category": "BAR"
+    "shop_name": "QUEENS TOURIST HOME VADAKARA"
   },
   "411049": {
     "shop_name": "HOTEL INDRAPRASTHA",
@@ -1889,17 +1900,17 @@
     "shop_code": "107020",
     "category": "KSBC"
   },
-    "1": {
+  "1": {
     "shop_name": "KINGS REGENCY LLP",
     "shop_code": "1",
     "category": "BAR"
   },
-    "2": {
+  "2": {
     "shop_name": "MOSA & SONS",
     "shop_code": "2",
     "category": "BAR"
   },
-    "3": {
+  "3": {
     "shop_name": "SONA BENETT",
     "shop_code": "3",
     "category": "BAR"

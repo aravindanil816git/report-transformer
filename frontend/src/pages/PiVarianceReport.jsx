@@ -17,6 +17,7 @@ export default function PiVarianceReport() {
   const [data, setData] = useState([]);
   const [meta, setMeta] = useState({ brands: [], warehouses: [], bonds: [] });
   const [config, setConfig] = useState({});
+  const [logs, setLogs] = useState([]);
 
   const [mode, setMode] = useState("warehouse"); // warehouse or bond
   const [reportInfo, setReportInfo] = useState({ name: "PI Variance Report" });
@@ -34,10 +35,12 @@ export default function PiVarianceReport() {
         if (res.data?.error) {
           setError(res.data.error);
           setData([]);
+          setLogs(res.data?.logs || []);
         } else {
           setData(res.data.data || []);
           setMeta(res.data.meta || { brands: [], warehouses: [], bonds: [] });
           setConfig(res.data.config || {});
+          setLogs(res.data?.logs || []);
           setReportInfo({ name: res.data?.name || "PI Variance Report" });
         }
       })
@@ -316,6 +319,21 @@ export default function PiVarianceReport() {
           </Col>
         </Row>
 
+        {logs && logs.length > 0 && (
+          <details style={{ marginBottom: 20, border: '1px solid #d9d9d9', borderRadius: '6px', padding: '10px', backgroundColor: '#fafafa' }}>
+            <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#1890ff', outline: 'none' }}>
+              View Processing & Diagnostics Logs ({logs.length} entries)
+            </summary>
+            <div style={{ marginTop: '10px', fontFamily: 'monospace', fontSize: '12px', whiteSpace: 'pre-wrap', maxHeight: '250px', overflowY: 'auto', backgroundColor: '#1e1e1e', color: '#d4d4d4', padding: '12px', borderRadius: '4px' }}>
+              {logs.map((log, i) => (
+                <div key={i} style={{ color: log.includes('Error') || log.includes('not found') || log.includes('Skipping') || log.includes('Failed') ? '#ff6b6b' : (log.includes('Successfully') || log.includes('Success') ? '#a8ffb2' : '#d4d4d4'), padding: '2px 0' }}>
+                  {log}
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+
         <Table
           columns={columns}
           dataSource={tableData}
@@ -323,6 +341,7 @@ export default function PiVarianceReport() {
           bordered
           size="small"
           scroll={{ x: 'max-content' }}
+          sticky
           rowClassName={(record) => {
             if (record.isSpacer) return "spacer-row";
             if (record.isGrandTotal) return "grand-total-row";

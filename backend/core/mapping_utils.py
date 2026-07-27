@@ -187,38 +187,38 @@ def get_shop_lookup_and_warehouse_to_bond():
     shop_to_warehouse = {}
     for wh_name, wh_data in warehouse_mapping.items():
         for code in [shop.get("shop_code") for shop in wh_data.get("shops", [])]:
-                shop_to_warehouse[str(code)] = wh_name
+            shop_to_warehouse[str(code)] = wh_name
 
-        shop_to_bond = {}
-        warehouse_to_bond = {}
-        
-        for bond_name, bond_info in bond_mapping.items():
-            for shop in bond_info.get('shops', []):
-                if isinstance(shop, dict):
-                    shop_code = str(shop.get('shop_code'))
-                else:
-                    shop_code = str(shop)
-                shop_to_bond[shop_code] = bond_name
-                
-                wh_name = shop_to_warehouse.get(shop_code)
-                if wh_name:
-                    warehouse_to_bond[wh_name] = bond_name
-
-        shop_lookup = {}
-        all_shop_codes = set(shop_to_warehouse.keys()).union(set(shop_to_bond.keys()))
-        
-        for shop_code in all_shop_codes:
-            wh_name = shop_to_warehouse.get(shop_code)
-            bond_name = shop_to_bond.get(shop_code)
-            staffs = bond_mapping.get(bond_name, {}).get('staffs') if bond_name else None
+    shop_to_bond = {}
+    warehouse_to_bond = {}
+    
+    for bond_name, bond_info in bond_mapping.items():
+        for shop in bond_info.get('shops', []):
+            if isinstance(shop, dict):
+                shop_code = str(shop.get('shop_code'))
+            else:
+                shop_code = str(shop)
+            shop_to_bond[shop_code] = bond_name
             
-            shop_lookup[shop_code] = {
-                "warehouse": wh_name,
-                "bond": bond_name,
-                "shop_name": shop_master.get(shop_code, {}).get('shop_name'),
-                "staffs": staffs,
-                "warehouse_code": warehouse_master.get(wh_name, {}).get('warehouse_code') if wh_name else None
-            }
+            wh_name = shop_to_warehouse.get(shop_code)
+            if wh_name:
+                warehouse_to_bond[wh_name] = bond_name
+
+    shop_lookup = {}
+    all_shop_codes = set(shop_to_warehouse.keys()).union(set(shop_to_bond.keys()))
+    
+    for shop_code in all_shop_codes:
+        wh_name = shop_to_warehouse.get(shop_code)
+        bond_name = shop_to_bond.get(shop_code)
+        staffs = bond_mapping.get(bond_name, {}).get('staffs') if bond_name else None
+        
+        shop_lookup[shop_code] = {
+            "warehouse": wh_name,
+            "bond": bond_name,
+            "shop_name": shop_master.get(shop_code, {}).get('shop_name'),
+            "staffs": staffs,
+            "warehouse_code": warehouse_master.get(wh_name, {}).get('warehouse_code') if wh_name else None
+        }
 
     return shop_lookup, warehouse_to_bond
 
@@ -289,6 +289,47 @@ def get_filters_from_mapping():
         "bond_mapping": bond_to_warehouses_map
     }
 
+def rebuild_legacy_mapping_file():
+    """Rebuilds the legacy unified mapping.json from split master files to keep it in sync."""
+    try:
+        shops = _load_json(SHOPS_MASTER_PATH)
+        bond_mapping = _load_json(BOND_MAPPING_PATH)
+        warehouses = _load_json(WAREHOUSES_MASTER_PATH)
+        bonds = _load_json(BONDS_MASTER_PATH)
+        
+        legacy_data = {"bonds": {}}
+        
+        for bond_name, bond_info in bond_mapping.items():
+            staffs = bond_info.get("staffs", bonds.get(bond_name, {}).get("staffs", ""))
+            legacy_data["bonds"][bond_name] = {
+                "staffs": staffs,
+                "warehouses": {}
+            }
+            
+            for shop_code in bond_info.get("shops", []):
+                shop_code_str = str(shop_code)
+                shop_info = shops.get(shop_code_str, {})
+                wh_name = shop_info.get("warehouse") or "UNKNOWN"
+                wh_code = warehouses.get(wh_name, {}).get("warehouse_code")
+                
+                if wh_name not in legacy_data["bonds"][bond_name]["warehouses"]:
+                    legacy_data["bonds"][bond_name]["warehouses"][wh_name] = {
+                        "warehouse_name": wh_name,
+                        "warehouse_code": wh_code,
+                        "shops": {}
+                    }
+                    
+                legacy_data["bonds"][bond_name]["warehouses"][wh_name]["shops"][shop_code_str] = {
+                    "shop_name": shop_info.get("shop_name") or shop_info.get("name") or "",
+                    "staffs": staffs
+                }
+                
+        with open(MAPPING_FILE_PATH, "w", encoding="utf-8") as f:
+            json.dump(legacy_data, f, ensure_ascii=False, indent=2)
+        print("DEBUG: Successfully rebuilt legacy mapping.json")
+    except Exception as e:
+        print(f"DEBUG: Failed to rebuild legacy mapping: {e}")
+
 def clear_mapping_caches():
     """Clears all LRU caches for mapping data to ensure fresh reads after updates."""
     get_mapping_data.cache_clear()
@@ -299,3 +340,4 @@ def clear_mapping_caches():
     get_warehouse_mapping_data.cache_clear()
     get_shop_lookup_and_warehouse_to_bond.cache_clear()
     get_shop_to_parent_maps.cache_clear()
+    rebuild_legacy_mapping_file()
