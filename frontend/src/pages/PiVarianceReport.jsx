@@ -271,7 +271,14 @@ export default function PiVarianceReport() {
           </Button>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <Title level={4} style={{ margin: 0 }}>{reportInfo.name}</Title>
+          <div>
+            <Title level={4} style={{ margin: 0 }}>{reportInfo.name}</Title>
+            {config.processed_meta && (
+              <div style={{ fontSize: '13px', color: '#8c8c8c', marginTop: 4 }}>
+                📁 Processed: <b>{config.processed_meta.success_files}</b> | Blanks: <b style={{ color: '#faad14' }}>{config.processed_meta.blank_files || 0}</b> | Pending: <b>{config.processed_meta.total_files - config.processed_meta.uploaded_files}</b>
+              </div>
+            )}
+          </div>
         </div>
 
         <Row gutter={[16, 16]} style={{ marginBottom: 24 }} align="middle">

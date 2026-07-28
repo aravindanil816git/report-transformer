@@ -63,24 +63,39 @@ def _parse_pi_file(upload_entry):
             print(msg)
             return {"df": None, "logs": logs}
 
-        # The actual headers might be split across two rows
-        header1 = df_full.iloc[header_row_index].fillna('')
-        header2 = df_full.iloc[header_row_index + 1].fillna('') if header_row_index + 1 < len(df_full) else pd.Series(['']*len(header1))
-        
-        # Combine headers
-        new_columns = []
-        for i in range(len(header1)):
-            h1 = str(header1[i]).replace('\n', ' ').strip()
-            h2 = str(header2[i]).replace('\n', ' ').strip()
-            if h1 and h2 and h1 != h2:
-                new_columns.append(f"{h1} {h2}")
-            elif h1:
-                new_columns.append(h1)
+        # Check if the next row is a split header or if it is the first data row
+        is_split_header = False
+        if header_row_index + 1 < len(df_full):
+            next_row = df_full.iloc[header_row_index + 1]
+            val_0 = str(next_row.iloc[0]).strip()
+            val_1 = str(next_row.iloc[1]).strip() if len(next_row) > 1 else ""
+            # If the next row starts with a number (like serial 1) or has a brand code (numeric), it is a data row
+            if val_0.isdigit() or val_1.isdigit() or val_0.replace('.', '', 1).isdigit():
+                is_split_header = False
             else:
-                new_columns.append(h2)
+                # Check if it contains units/text like c/s, cases, ltrs, etc.
+                is_split_header = any(x in str(val).lower() for val in next_row for x in ['c/s', 'cases', 'ltrs', 'qty'])
 
-        df = df_full.iloc[header_row_index + 2:].copy()
-        df.columns = new_columns
+        header1 = df_full.iloc[header_row_index].fillna('')
+        if is_split_header:
+            header2 = df_full.iloc[header_row_index + 1].fillna('')
+            new_columns = []
+            for i in range(len(header1)):
+                h1 = str(header1[i]).replace('\n', ' ').strip()
+                h2 = str(header2[i]).replace('\n', ' ').strip()
+                if h1 and h2 and h1 != h2:
+                    new_columns.append(f"{h1} {h2}")
+                elif h1:
+                    new_columns.append(h1)
+                else:
+                    new_columns.append(h2)
+            df = df_full.iloc[header_row_index + 2:].copy()
+            df.columns = new_columns
+        else:
+            new_columns = [str(h).replace('\n', ' ').strip() for h in header1]
+            df = df_full.iloc[header_row_index + 1:].copy()
+            df.columns = new_columns
+
         df = df.dropna(how='all')
         
         # Find serial number column robustly to filter out junk rows
@@ -147,7 +162,7 @@ class PiVarianceReportService(BaseReportService):
 
     def _load_brand_mapping(self):
         try:
-            mapping_path = os.path.join(os.path.dirname(__file__), "..", "brand_pi_mapping.json")
+            mapping_path = os.path.join(os.path.dirname(__file__), "..", "..", "brand_pi_mapping.json")
             with open(mapping_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
@@ -220,6 +235,7 @@ class PiVarianceReportService(BaseReportService):
             cm_dfs = []
             cm_success = 0
             for idx, future in enumerate(concurrent.futures.as_completed(cm_futures), 1):
+                u = cm_futures[future]
                 res_dict = future.result()
                 if res_dict:
                     report_logs.extend(res_dict.get("logs", []))
@@ -227,11 +243,19 @@ class PiVarianceReportService(BaseReportService):
                     if df is not None:
                         cm_dfs.append(df)
                         cm_success += 1
+                        u["status"] = "uploaded"
+                    else:
+                        if u.get("status") == "uploaded":
+                            u["status"] = "blank"
                 if idx % 5 == 0 or idx == len(cm_uploads):
                     msg = f"CM Progress: {idx}/{len(cm_uploads)} processed. Success count: {cm_success}"
                     report_logs.append(msg)
                     print(f"DEBUG: {msg}")
             
+            # Save raw report with updated statuses (blanks)
+            from api.routes import save_report
+            save_report(raw_report_cm)
+
             lm_dfs = []
             if lm_uploads:
                 lm_futures = {executor.submit(_parse_pi_file, u): u for u in lm_uploads}
@@ -358,6 +382,15 @@ class PiVarianceReportService(BaseReportService):
         merged_df = master_df.merge(final_df, on=['shop_code', 'shop_name', 'warehouse', 'bond'], how='left').fillna(0)
 
         report["processed"] = merged_df.to_dict('records')
+
+        if "config" not in report or not isinstance(report["config"], dict):
+            report["config"] = {}
+        report["config"]["processed_meta"] = {
+            "total_files": len(cm_uploads),
+            "uploaded_files": len([u for u in cm_uploads if u.get("status") in ["uploaded", "blank"]]),
+            "success_files": cm_success,
+            "blank_files": len([u for u in cm_uploads if u.get("status") == "blank"])
+        }
 
     def get_report(self, report, **kwargs):
         processed_data = report.get("processed", [])

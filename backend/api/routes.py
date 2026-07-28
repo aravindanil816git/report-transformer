@@ -110,6 +110,10 @@ def get_report_by_id(rid: str):
 
 def save_report(report: dict):
     clean_rep = clean_nan(report)
+    # Remove transient fields that do not exist as database columns
+    clean_rep.pop("processed_logs", None)
+    clean_rep.pop("all_reports", None)
+    clean_rep.pop("_live_source", None)
     # 🔥 Optimization 1: Upsert halves the database save time
     supabase.table("reports").upsert(clean_rep).execute()
 
@@ -876,6 +880,16 @@ async def upload(
     elif report["type"] == "pi_variance_raw":
         for u in report["uploads"]:
             if str(u.get("shop_code", "")).strip().upper() == str(detected_key).strip().upper():
+                existing_file = u.get("file", "")
+                if existing_file == file.filename:
+                    print(f"Skipping overwrite for shop {detected_key} because the filename is identical: {file.filename}")
+                    try:
+                        os.remove(path)
+                    except Exception:
+                        pass
+                    match_found = True
+                    break
+
                 report_month = report.get("config", {}).get("month")
                 u["file"] = file.filename
                 u["from"] = report_month
