@@ -164,10 +164,10 @@ class CombinedShopwiseMultiReportService(BaseReportService):
             
             print(f"[DEBUG] Upload '{u.get('file')}' -> key={r_key}, u_start_day={u_start_day}, u_end_day={u_end_day}")
 
-            # Adhere strictly to date filter: the upload must fall within the selected date range
+            # Relaxed overlap date check: upload range must overlap with the selected range
             if sel_start_day is not None and sel_end_day is not None:
-                if u_start_day < sel_start_day or u_end_day > sel_end_day:
-                    print(f"[DEBUG] Excluding upload '{u.get('file')}' because it is outside the selected range [{sel_start_day}, {sel_end_day}]")
+                if u_end_day < sel_start_day or u_start_day > sel_end_day:
+                    print(f"[DEBUG] Excluding upload '{u.get('file')}' because it does not overlap with selected range [{sel_start_day}, {sel_end_day}]")
                     continue
                         
             u_copied = dict(u)
@@ -181,13 +181,24 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                 
         selected_uploads = []
         if set1_uploads:
-            set1_uploads_sorted = sorted(set1_uploads, key=lambda x: (x.get("end_day") or 0))
-            selected_uploads.append(set1_uploads_sorted[-1])
-            print(f"[DEBUG] Set 1 uploads: {[x.get('file') for x in set1_uploads_sorted]} -> Selected latest: '{set1_uploads_sorted[-1].get('file')}'")
+            if sel_end_day is not None:
+                # Sort by absolute difference between end_day and sel_end_day to find closest match
+                set1_uploads_sorted = sorted(set1_uploads, key=lambda x: abs((x.get("end_day") or 0) - sel_end_day))
+                selected_uploads.append(set1_uploads_sorted[0])
+            else:
+                set1_uploads_sorted = sorted(set1_uploads, key=lambda x: (x.get("end_day") or 0))
+                selected_uploads.append(set1_uploads_sorted[-1])
+            print(f"[DEBUG] Set 1 uploads sorted: {[x.get('file') for x in set1_uploads_sorted]} -> Selected: '{selected_uploads[-1].get('file')}'")
+            
         if set2_uploads:
-            set2_uploads_sorted = sorted(set2_uploads, key=lambda x: (x.get("end_day") or 0))
-            selected_uploads.append(set2_uploads_sorted[-1])
-            print(f"[DEBUG] Set 2 uploads: {[x.get('file') for x in set2_uploads_sorted]} -> Selected latest: '{set2_uploads_sorted[-1].get('file')}'")
+            if sel_end_day is not None:
+                # Sort by absolute difference between end_day and sel_end_day to find closest match
+                set2_uploads_sorted = sorted(set2_uploads, key=lambda x: abs((x.get("end_day") or 0) - sel_end_day))
+                selected_uploads.append(set2_uploads_sorted[0])
+            else:
+                set2_uploads_sorted = sorted(set2_uploads, key=lambda x: (x.get("end_day") or 0))
+                selected_uploads.append(set2_uploads_sorted[-1])
+            print(f"[DEBUG] Set 2 uploads sorted: {[x.get('file') for x in set2_uploads_sorted]} -> Selected: '{selected_uploads[-1].get('file')}'")
 
         # Build DataFrames from selected upload entries
         dfs = []

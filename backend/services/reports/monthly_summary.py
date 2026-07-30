@@ -142,38 +142,66 @@ class MonthlySummaryReportService(BaseReportService):
         combined_reports = [r for r in all_reports if r.get("type") == "combined_shopwise" and r.get("status") in ["Processed", "Ready", "Uploaded"]]
         shop_sales_reports = [r for r in all_reports if r.get("type") == "shop_sales_cumulative" and r.get("status") in ["Processed", "Ready", "Uploaded"]]
         
-        selected_liq_reports = []
-        
-        # Current month liquidation reports selection
+        curr_uploads = []
+        curr_files = []
         curr_combined = [r for r in combined_reports if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))).startswith(target_month_str)]
-        if curr_combined:
-            curr_combined.sort(key=lambda x: len(x.get("uploads", [])), reverse=True)
-            selected_liq_reports.append(("curr", curr_combined[0]))
-        else:
-            curr_sales = [r for r in shop_sales_reports if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))).startswith(target_month_str)]
-            for r in curr_sales:
-                selected_liq_reports.append(("curr", r))
+        for r in curr_combined:
+            for u in r.get("uploads", []):
+                u_copy = dict(u)
+                if not u_copy.get("storage_path") and r.get("id") and u_copy.get("file"):
+                    u_copy["storage_path"] = f"{r.get('id')}/{u_copy.get('file')}"
+                curr_uploads.append(u_copy)
+                curr_files.append(u.get("file"))
                 
-        # Previous month liquidation reports selection
+        curr_sales = [r for r in shop_sales_reports if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))).startswith(target_month_str)]
+        for r in curr_sales:
+            for u in r.get("uploads", []):
+                u_copy = dict(u)
+                if not u_copy.get("storage_path") and r.get("id") and u_copy.get("file"):
+                    u_copy["storage_path"] = f"{r.get('id')}/{u_copy.get('file')}"
+                curr_uploads.append(u_copy)
+                curr_files.append(u.get("file"))
+                
+        prev_uploads = []
+        prev_files = []
         prev_combined = [r for r in combined_reports if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))).startswith(prev_month_str)]
-        if prev_combined:
-            prev_combined.sort(key=lambda x: len(x.get("uploads", [])), reverse=True)
-            selected_liq_reports.append(("prev", prev_combined[0]))
-        else:
-            prev_sales = [r for r in shop_sales_reports if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))).startswith(prev_month_str)]
-            for r in prev_sales:
-                selected_liq_reports.append(("prev", r))
+        for r in prev_combined:
+            for u in r.get("uploads", []):
+                u_copy = dict(u)
+                if not u_copy.get("storage_path") and r.get("id") and u_copy.get("file"):
+                    u_copy["storage_path"] = f"{r.get('id')}/{u_copy.get('file')}"
+                prev_uploads.append(u_copy)
+                prev_files.append(u.get("file"))
+                
+        prev_sales = [r for r in shop_sales_reports if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))).startswith(prev_month_str)]
+        for r in prev_sales:
+            for u in r.get("uploads", []):
+                u_copy = dict(u)
+                if not u_copy.get("storage_path") and r.get("id") and u_copy.get("file"):
+                    u_copy["storage_path"] = f"{r.get('id')}/{u_copy.get('file')}"
+                prev_uploads.append(u_copy)
+                prev_files.append(u.get("file"))
+
+        curr_virtual = {
+            "id": "curr_virtual",
+            "type": "combined_shopwise_multi",
+            "config": config,
+            "uploads": curr_uploads
+        }
+        prev_virtual = {
+            "id": "prev_virtual",
+            "type": "combined_shopwise_multi",
+            "config": config,
+            "uploads": prev_uploads
+        }
+        
+        selected_liq_reports = [("curr", curr_virtual), ("prev", prev_virtual)]
         
         # --- Print Condensed Debug Logs of Files Used ---
         print("\n=== [DEBUG] Monthly Summary Data Sources ===")
         
-        curr_liq_files = [f"{r.get('file') or r.get('name')} ({r.get('config', {}).get('date1') or r.get('config', {}).get('start_date')} to {r.get('config', {}).get('date2') or r.get('config', {}).get('end_date')})" 
-                           for period, r in selected_liq_reports if period == "curr"]
-        prev_liq_files = [f"{r.get('file') or r.get('name')} ({r.get('config', {}).get('date1') or r.get('config', {}).get('start_date')} to {r.get('config', {}).get('date2') or r.get('config', {}).get('end_date')})" 
-                           for period, r in selected_liq_reports if period == "prev"]
-        
-        print(f"Shop Liquidation Month 1 (Current): {', '.join(curr_liq_files) if curr_liq_files else 'None'}")
-        print(f"Shop Liquidation Month 2 (Previous): {', '.join(prev_liq_files) if prev_liq_files else 'None'}")
+        print(f"Shop Liquidation Month 1 (Current): {', '.join(curr_files) if curr_files else 'None'}")
+        print(f"Shop Liquidation Month 2 (Previous): {', '.join(prev_files) if prev_files else 'None'}")
         
         curr_offtake_dates = sorted([str(v[1].get('config', {}).get('date', '')) for k, v in offtake_by_date.items() if v[0] == "curr"])
         prev_offtake_dates = sorted([str(v[1].get('config', {}).get('date', '')) for k, v in offtake_by_date.items() if v[0] == "prev"])
@@ -241,10 +269,9 @@ class MonthlySummaryReportService(BaseReportService):
                 if cat in ["CFD", "BAR"]:
                     bond_data[bond][period]["fed_bar"] += issues
                             
-        # Collect list of files considered
         files_considered = {
-            "current_liq": curr_liq_files,
-            "previous_liq": prev_liq_files,
+            "current_liq": curr_files,
+            "previous_liq": prev_files,
             "current_offtake": [f"Offtake {dt}" for dt in curr_offtake_dates],
             "previous_offtake": [f"Offtake {dt}" for dt in prev_offtake_dates]
         }

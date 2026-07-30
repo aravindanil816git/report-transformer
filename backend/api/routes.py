@@ -812,15 +812,50 @@ async def upload(
                     match = re.search(r"Shop\s*:\s*(.+?)(,|$)", row_str, re.IGNORECASE)
                     if match:
                         detected_shop_name = match.group(1).strip().upper()
+                        
+                        # 1. Try prefix-code matching: extract digits (e.g., 2010)
+                        code_match = re.match(r"^(\d+)", detected_shop_name)
+                        if code_match:
+                            short_code = code_match.group(1)
+                            
+                            # A. Check full shop code as "10" + short_code
+                            full_code = "10" + short_code
+                            if full_code in all_shops:
+                                detected_key = full_code
+                                break
+                                
+                            # B. Fallback: Search all_shops for any shop name starting with the short code (e.g. "2010 ANCHALUMMOODU" -> "2010-ANCHALUMODU")
+                            matched_by_name_prefix = None
+                            for code, details in all_shops.items():
+                                s_name = str(details.get("shop_name", "")).strip().upper()
+                                if re.match(rf"^{short_code}\b", s_name) or s_name.startswith(short_code):
+                                    matched_by_name_prefix = str(code).strip()
+                                    break
+                            if matched_by_name_prefix:
+                                detected_key = matched_by_name_prefix
+                                break
+
+                        # 2. Try normalized exact mapping
+                        def norm(n):
+                            return re.sub(r'\s*-\s*', '-', re.sub(r'\s+', ' ', n)).strip().upper()
+                        
+                        norm_detected = norm(detected_shop_name)
+                        normalized_map = {norm(k): v for k, v in shop_name_to_code_map.items()}
+                        if norm_detected in normalized_map:
+                            detected_key = normalized_map[norm_detected]
+                            break
+                        
                         if detected_shop_name in shop_name_to_code_map:
                             detected_key = shop_name_to_code_map[detected_shop_name]
                             break
                 
                 if not detected_key or detected_key == "auto":
+                    def norm(n):
+                        return re.sub(r'\s*-\s*', '-', re.sub(r'\s+', ' ', n)).strip().upper()
                     for i in range(len(df_raw)):
-                        row_str_upper = " ".join([str(x) for x in df_raw.iloc[i].values if str(x) != "nan"]).upper()
-                        for shop_name_upper, shop_code in sorted(shop_name_to_code_map.items(), key=lambda item: len(item[0]), reverse=True):
-                            if shop_name_upper in row_str_upper:
+                        row_str_norm = norm(" ".join([str(x) for x in df_raw.iloc[i].values if str(x) != "nan"]))
+                        for shop_name_raw, shop_code in sorted(shop_name_to_code_map.items(), key=lambda item: len(item[0]), reverse=True):
+                            if norm(shop_name_raw) in row_str_norm:
                                 detected_key = shop_code
                                 break
                         if detected_key and detected_key != "auto":
@@ -1083,6 +1118,9 @@ def process(rid: str):
             with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
                 futures = [executor.submit(ensure_local_file, sp, lp) for sp, lp in missing_pi_files]
                 concurrent.futures.wait(futures)
+    elif report["type"] == "monthly_summary":
+        dependency_types = ["daily_warehouse_offtake", "shop_sales_cumulative", "combined_shopwise", "cumulative_shopwise"]
+        report["all_reports"] = get_all_reports(types=dependency_types, columns="id, name, type, status, config, uploads, created_at, path, file, storage_path, processed")
 
     try:
         svc = get_service(report["type"])
