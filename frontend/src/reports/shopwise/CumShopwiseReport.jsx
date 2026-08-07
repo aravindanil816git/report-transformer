@@ -3,9 +3,10 @@ import { Table, Button, Select, DatePicker, Space, Typography, message, Checkbox
 
 const { Text } = Typography;
 import { useParams, useNavigate } from "react-router-dom";
+import { FilePdfOutlined, FileExcelOutlined } from "@ant-design/icons";
 import { getReport, processReport, getJson } from "../../api";
 import dayjs from "dayjs";
-import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf } from "../../utils/exportUtils";
+import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf, exportDailySecondaryExcel, exportShopSalesExcel } from "../../utils/exportUtils";
 import DownloadDropdown from "../../components/DownloadDropdown";
 import { disabledFutureMonthDates } from "../../utils/dateUtils";
 
@@ -288,16 +289,30 @@ export default function CumulativeShopwiseReport() {
 
     const pdfCols = [firstColTitle];
     const mappingCols = [{ title: firstColTitle, key: firstColKey }];
+    let pdfHead = null;
 
     if (view === "daywise" || view === "daywise_sales") {
+      const firstHeaderRow = [
+        { content: firstColTitle, rowSpan: 2, styles: { valign: 'middle', halign: 'center' } }
+      ];
+      const secondHeaderRow = [];
+
       labels.forEach(l => {
-        const parsedDate = dayjs(l.split(" ")[0], "DD-MMM");
-        const formattedLabel = parsedDate.isValid() ? `${parsedDate.date()}/${parsedDate.month() + 1}` : l;
+        const match = l.match(/\((.*?)\)/);
+        const dayStr = match ? match[1].toUpperCase() : (dayjs(l.split(" ")[0], "DD-MMM").isValid() ? dayjs(l.split(" ")[0], "DD-MMM").format("ddd").toUpperCase() : "");
+        const dateNum = String(parseInt(l.split("-")[0], 10));
+        const formattedLabel = (dayStr && !isNaN(dateNum)) ? `${dayStr}\n${dateNum}` : l;
         pdfCols.push(formattedLabel);
         mappingCols.push({ title: formattedLabel, key: l });
+
+        firstHeaderRow.push({ content: dayStr, styles: { halign: 'center' } });
+        secondHeaderRow.push({ content: dateNum, styles: { halign: 'center' } });
       });
       pdfCols.push("Total");
       mappingCols.push({ title: "Total", key: "total" });
+      firstHeaderRow.push({ content: "Total", rowSpan: 2, styles: { valign: 'middle', halign: 'center' } });
+
+      pdfHead = [firstHeaderRow, secondHeaderRow];
     } else {
       const cols = ["Opening", "Receipt", "Sales", "Closing", "Difference", "Avg Sales / Day"];
       cols.forEach(c => {
@@ -335,8 +350,10 @@ export default function CumulativeShopwiseReport() {
 
     if (view === "daywise" || view === "daywise_sales") {
       labels.forEach(l => {
-        const parsedDate = dayjs(l.split(" ")[0], "DD-MMM");
-        const formattedLabel = parsedDate.isValid() ? `${parsedDate.date()}/${parsedDate.month() + 1}` : l;
+        const match = l.match(/\((.*?)\)/);
+        const dayStr = match ? match[1].toUpperCase() : (dayjs(l.split(" ")[0], "DD-MMM").isValid() ? dayjs(l.split(" ")[0], "DD-MMM").format("ddd").toUpperCase() : "");
+        const dateNum = parseInt(l.split("-")[0], 10);
+        const formattedLabel = (dayStr && !isNaN(dateNum)) ? `${dayStr}\n${dateNum}` : l;
         let sum = 0;
         sourceRows.forEach(r => sum += Number(r[l] || 0));
         grandTotalRow[formattedLabel] = useWholeNumbers ? Math.round(sum) : sum.toFixed(2);
@@ -365,51 +382,71 @@ export default function CumulativeShopwiseReport() {
 
     pdfData.push(grandTotalRow);
 
-    return { columns: pdfCols, data: pdfData };
+    return { columns: pdfCols, data: pdfData, head: pdfHead };
   };
 
   // 🔥 DOWNLOAD
   const downloadExcel = () => {
     let exportData = [];
     if (view === "cumulative") {
+      // Map to fit the format for exportShopSalesExcel
       exportData = processedData.map(d => ({
-        [getTitle()]: d.shop_code ? `${d.shop_name} (${d.shop_code})` : formatName(d.warehouse),
+        "Row Labels": d.shop_code ? `${d.shop_name} (${d.shop_code})` : formatName(d.warehouse),
         Opening: useWholeNumbers ? Math.round(d.opening || 0) : d.opening,
         Receipt: useWholeNumbers ? Math.round(d.receipt || 0) : d.receipt,
         Sales: useWholeNumbers ? Math.round(d.sales || 0) : d.sales,
-        Closing: useWholeNumbers ? Math.round(d.closing || 0) : d.closing,
-        Difference: useWholeNumbers ? Math.round(d.difference || 0) : d.difference,
-        "Avg Sales / Day": useWholeNumbers ? Math.round(d.avg_sales_per_day || 0) : Number(d.avg_sales_per_day || 0).toFixed(2)
+        Closing: useWholeNumbers ? Math.round(d.closing || 0) : d.closing
       }));
+
+      exportShopSalesExcel(
+        exportData,
+        {
+          Period: dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
+          Bond: mode === "bond" ? "All" : null,
+          Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
+          View: "Case"
+        },
+        "cumulative_shopwise_report.xlsx",
+        "Cumulative Shopwise"
+      );
     } else {
       exportData = processedData.map(row => {
-        const obj = { [getTitle()]: row.shop_code ? `${row.shop_name} (${row.shop_code})` : formatName(row.warehouse) };
+        const firstColVal = row.shop_code
+          ? (row.shop_name ? `${formatName(row.shop_name)} (${row.shop_code})` : row.shop_code)
+          : formatName(row.warehouse);
+
+        const obj = {
+          mainColKey: firstColVal
+        };
+
         let total = 0;
         labels.forEach(l => {
-          const val = row[l] || 0;
+          const val = Number(row[l] || 0);
           const formattedVal = useWholeNumbers ? Math.round(val) : val;
           obj[l] = formattedVal;
           total += formattedVal;
         });
-        obj["Total"] = total;
+
+        obj["total"] = total;
         return obj;
       });
-    }
 
-    exportToExcel(
-      exportData,
-      {
-        Mode: mode,
-        View: view,
-        Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
-        "Date Range": dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
-        "Start Date": config.start_date ? dayjs(config.start_date).format("DD-MM-YYYY") : null,
-        "Net Days": netDays,
-        "Round off": useWholeNumbers ? "Yes" : "No"
-      },
-      "cumulative_shopwise_report.xlsx",
-      "Cumulative Shopwise"
-    );
+      const d1 = dateRange[0]?.format("D MMMM YYYY");
+      const d2 = dateRange[1]?.format("D MMMM YYYY");
+      const subtitle = d1 && d2 ? `${d1} to ${d2} • cases • all channels (KSBC + Consumer Fed + BAR)` : "";
+
+      exportDailySecondaryExcel({
+        data: exportData,
+        labels,
+        title: "Shop Sales Daily",
+        subtitle,
+        filename: "cumulative_shopwise_report.xlsx",
+        sheetName: "Daily Offtake",
+        firstColHeader: getTitle(),
+        firstColKey: "mainColKey",
+        baseDateStr: config.start_date
+      });
+    }
   };
 
   const handleDownload = async (format, modeType) => {
@@ -496,7 +533,7 @@ export default function CumulativeShopwiseReport() {
     } else if (format === "pdf") {
       setLoading(true);
       try {
-        const period = dateRange.length === 2 ? `Period: ${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "Period: All";
+        const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
 
         const sumCols = [];
         if (view === "cumulative") {
@@ -506,13 +543,14 @@ export default function CumulativeShopwiseReport() {
         }
 
         if (modeType === "current") {
-          const { columns: pdfCols, data: pdfData } = getPdfDataAndColumns(processedData);
+          const { columns: pdfCols, data: pdfData, head: pdfHead } = getPdfDataAndColumns(processedData);
 
           exportToPdf({
             title: reportTitle,
             periodLabel: period,
             columns: pdfCols,
             data: pdfData,
+            head: pdfHead,
             filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.pdf`,
             zeroMargin: true,
             orientation: "landscape"
@@ -616,14 +654,24 @@ export default function CumulativeShopwiseReport() {
         <h2>Shop Sales Daily</h2>
         <Space>
           <Button onClick={handleRefresh}>Refresh Data</Button>
-          <DownloadDropdown
-            onDownload={handleDownload}
+          <Button
+            type="primary"
+            icon={<FileExcelOutlined />}
+            onClick={() => handleDownload("xlsx", "current")}
             loading={loading}
             disabled={processedData.length === 0}
-            showPdf={true}
-            excelOptions={["current"]}
-            pdfOptions={["current"]}
-          />
+          >
+            Download Excel
+          </Button>
+          <Button
+            type="primary"
+            icon={<FilePdfOutlined />}
+            onClick={() => handleDownload("pdf", "current")}
+            loading={loading}
+            disabled={processedData.length === 0}
+          >
+            Download PDF
+          </Button>
         </Space>
       </div>
 
@@ -689,9 +737,9 @@ export default function CumulativeShopwiseReport() {
           disabled={loading || !dateRange || dateRange.length < 2}
         />
 
-        <Button 
-          type="primary" 
-          onClick={handleApplyDateRange} 
+        <Button
+          type="primary"
+          onClick={handleApplyDateRange}
           disabled={loading || !dateRange || dateRange.length < 2}
         >
           Apply Date Range

@@ -168,7 +168,7 @@ export default function CumulativeShopwiseReport() {
       ];
 
       const currentMonthPrefix = activeD1 ? activeD1.substring(0, 7) : dayjs().format("YYYY-MM");
-      
+
       console.log("[DEBUG] activeD1:", activeD1, "currentMonthPrefix:", currentMonthPrefix, "combinedReps count:", combinedReps.length);
       console.log("[DEBUG] combinedReps list:", combinedReps.map(r => ({ id: r.id, name: r.name, type: r.type, config: r.config, created_at: r.created_at })));
 
@@ -373,7 +373,7 @@ export default function CumulativeShopwiseReport() {
       const closing = d.closing || 0;
 
       const difference = opening - closing;
-      const closing_stock_at_sales_perc = sales ? (closing * 100) / sales : 0;
+      const closing_stock_at_sales_perc = (sales && (opening + receipt)) ? (sales * 100) / (opening + receipt) : 0;
       const perc = opening ? (difference * 100) / opening : 0;
       const avg_sales_per_day = netDays ? sales / netDays : 0;
 
@@ -451,7 +451,7 @@ export default function CumulativeShopwiseReport() {
           });
 
           const totalDiff = totalOpening - totalClosing;
-          const totalClosingStockAtSalesPerc = totalSales ? (totalClosing * 100) / totalSales : 0;
+          const totalClosingStockAtSalesPerc = (totalSales && (totalOpening + totalReceipt)) ? (totalSales * 100) / (totalOpening + totalReceipt) : 0;
           const totalPerc = totalOpening ? (totalDiff * 100) / totalOpening : 0;
           const totalAvgSalesPerDay = netDays ? totalSales / netDays : 0;
           const totalLastMonthAvg = lastMonthNetDays ? totalLastMonthSales / lastMonthNetDays : 0;
@@ -514,7 +514,7 @@ export default function CumulativeShopwiseReport() {
         });
 
         const totalDiff = totalOpening - totalClosing;
-        const totalClosingStockAtSalesPerc = totalSales ? (totalClosing * 100) / totalSales : 0;
+        const totalClosingStockAtSalesPerc = (totalSales && (totalOpening + totalReceipt)) ? (totalSales * 100) / (totalOpening + totalReceipt) : 0;
         const totalPerc = totalOpening ? (totalDiff * 100) / totalOpening : 0;
         const totalAvgSalesPerDay = netDays ? totalSales / netDays : 0;
         const totalLastMonthAvg = lastMonthNetDays ? totalLastMonthSales / lastMonthNetDays : 0;
@@ -617,7 +617,7 @@ export default function CumulativeShopwiseReport() {
     { title: "Sales", dataIndex: "sales", width: 100, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
     { title: "Closing", dataIndex: "closing", width: 100, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
     { title: "Difference", dataIndex: "difference", width: 100, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
-    { title: "ClosingStock@Sales%", dataIndex: "closing_stock_at_sales_perc", width: 150, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
+    { title: "Sell-Through", dataIndex: "closing_stock_at_sales_perc", width: 150, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
     { title: "Perc(%)", dataIndex: "perc", width: 100, align: "right", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
     { title: "", dataIndex: "spacer", width: 40, render: () => null }, // Spacer column
     {
@@ -682,11 +682,11 @@ export default function CumulativeShopwiseReport() {
   const downloadPdf = () => {
     const reportTitle = "Comparative Shopsales";
     const period = dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All";
-    
+
     let exportData = [];
     let cols = [];
     let sumCols = [];
-    
+
     if (view === "cumulative") {
       cols = [getTitle(), "Opening", "Receipt", "Sales", "Closing", "Difference", "ClosingStock@Sales%", "Perc(%)"];
       sumCols = ["Opening", "Receipt", "Sales", "Closing", "Difference"];
@@ -715,7 +715,7 @@ export default function CumulativeShopwiseReport() {
         return obj;
       });
     }
-    
+
     exportToPdf({
       title: reportTitle,
       periodLabel: period,
@@ -807,9 +807,9 @@ export default function CumulativeShopwiseReport() {
           disabled={loading || !dateRange || dateRange.length < 2}
         />
 
-        <Button 
-          type="primary" 
-          onClick={handleApplyDateRange} 
+        <Button
+          type="primary"
+          onClick={handleApplyDateRange}
           disabled={loading || !dateRange || dateRange.length < 2}
         >
           Apply Date Range
@@ -869,7 +869,7 @@ export default function CumulativeShopwiseReport() {
             });
 
             const totalDiff = totalOpening - totalClosing;
-            const totalClosingStockAtSalesPerc = totalSales ? (totalClosing * 100) / totalSales : 0;
+            const totalClosingStockAtSalesPerc = (totalSales && (totalOpening + totalReceipt)) ? (totalSales * 100) / (totalOpening + totalReceipt) : 0;
             const totalPerc = totalOpening ? (totalDiff * 100) / totalOpening : 0;
             const totalAvgSalesPerDay = netDays ? totalSales / netDays : 0;
 

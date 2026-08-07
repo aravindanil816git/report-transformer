@@ -3,7 +3,8 @@ import { Table, Button, Select, DatePicker, Space, message } from "antd";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { getReport, processReport, getJson } from "../../api";
 import dayjs from "dayjs";
-import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf } from "../../utils/exportUtils";
+import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf, exportDailySecondaryExcel, exportDailySecondaryPdf, exportBrandwiseCumExcel } from "../../utils/exportUtils";
+import { FileExcelOutlined, FilePdfOutlined } from "@ant-design/icons";
 import DownloadDropdown from "../../components/DownloadDropdown";
 import { disabledFutureMonthDates } from "../../utils/dateUtils";
 
@@ -461,14 +462,30 @@ export default function CumulativeWarehouseReport() {
     
     const pdfCols = [firstColTitle];
     const mappingCols = [{ title: firstColTitle, key: firstColKey }];
+    let pdfHead = null;
     
     if (view === "daywise") {
+      const firstHeaderRow = [
+        { content: firstColTitle, rowSpan: 2, styles: { valign: 'middle', halign: 'center' } }
+      ];
+      const secondHeaderRow = [];
+
       labels.forEach(l => {
-        pdfCols.push(l);
-        mappingCols.push({ title: l, key: l });
+        const match = l.match(/\((.*?)\)/);
+        const dayStr = match ? match[1].toUpperCase() : (dayjs(l.split(" ")[0], "DD-MMM").isValid() ? dayjs(l.split(" ")[0], "DD-MMM").format("ddd").toUpperCase() : "");
+        const dateNum = String(parseInt(l.split("-")[0], 10));
+        const formattedLabel = (dayStr && !isNaN(dateNum)) ? `${dayStr}\n${dateNum}` : l;
+        pdfCols.push(formattedLabel);
+        mappingCols.push({ title: formattedLabel, key: l });
+
+        firstHeaderRow.push({ content: dayStr, styles: { halign: 'center' } });
+        secondHeaderRow.push({ content: dateNum, styles: { halign: 'center' } });
       });
       pdfCols.push("Total");
       mappingCols.push({ title: "Total", key: "total" });
+      firstHeaderRow.push({ content: "Total", rowSpan: 2, styles: { valign: 'middle', halign: 'center' } });
+
+      pdfHead = [firstHeaderRow, secondHeaderRow];
     } else {
       PDF_REPLACEMENT_BRANDS.forEach(bc => {
         pdfCols.push(bc.title);
@@ -509,9 +526,13 @@ export default function CumulativeWarehouseReport() {
     const actualRows = sourceRows.filter(r => !r.isClusterHeader && !r.isClusterTotal);
     if (view === "daywise") {
       labels.forEach(l => {
+        const match = l.match(/\((.*?)\)/);
+        const dayStr = match ? match[1].toUpperCase() : (dayjs(l.split(" ")[0], "DD-MMM").isValid() ? dayjs(l.split(" ")[0], "DD-MMM").format("ddd").toUpperCase() : "");
+        const dateNum = parseInt(l.split("-")[0], 10);
+        const formattedLabel = (dayStr && !isNaN(dateNum)) ? `${dayStr}\n${dateNum}` : l;
         let sum = 0;
         actualRows.forEach(r => sum += Number(r[l] || 0));
-        grandTotalRow[l] = sum;
+        grandTotalRow[formattedLabel] = sum;
       });
     } else {
       PDF_REPLACEMENT_BRANDS.forEach(bc => {
@@ -526,13 +547,13 @@ export default function CumulativeWarehouseReport() {
     
     pdfData.push(grandTotalRow);
     
-    return { columns: pdfCols, data: pdfData };
+    return { columns: pdfCols, data: pdfData, head: pdfHead };
   };
 
   // 🔥 DOWNLOAD
   const handleDownload = async (format, modeType) => {
     const reportTitle = isDailyWiseType 
-      ? "DailyWise Secondary Sales" 
+      ? "Daily Secondary Sales" 
       : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "Cumulative Warehouse Report");
 
     if (format === "xlsx") {
@@ -633,32 +654,95 @@ export default function CumulativeWarehouseReport() {
           setLoading(false);
         }
       } else {
-        const exportData = processedData.map(d => ({
-          ...d,
-          warehouse: formatName(d.warehouse),
-          bond: formatName(d.bond)
-        }));
+        if (isDailyWiseType) {
+          const exportData = processedData.map(row => {
+            let firstColVal = "";
+            if (row.isClusterTotal) {
+              firstColVal = row.warehouse;
+            } else {
+              const rawVal = row[getDataIndex()];
+              firstColVal = formatName(rawVal) || row.shop_code || "";
+            }
+            return {
+              ...row,
+              mainColKey: firstColVal
+            };
+          });
 
-        exportToExcel(
-          exportData,
-          {
-            Mode: mode,
-            View: view,
-            Bond: bondFilter,
-            Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
-            "Date Range": dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
-            "Start Date": config.start_date ? dayjs(config.start_date).format("DD-MM-YYYY") : null,
-            "Total Days": config.num_days
-          },
-          `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.xlsx`,
-          reportTitle,
-          { theme: "navy" }
-        );
+          const d1 = dateRange[0]?.format("D MMMM YYYY");
+          const d2 = dateRange[1]?.format("D MMMM YYYY");
+          const subtitle = d1 && d2 ? `${d1} to ${d2} • cases • all channels (KSBC + Consumer Fed + BAR)` : "";
+          exportDailySecondaryExcel({
+            data: exportData,
+            labels,
+            title: isDailyWiseType ? "Daily Secondary Sales" : reportTitle,
+            subtitle,
+            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.xlsx`,
+            sheetName: "Daily Offtake",
+            firstColHeader: getTitle(),
+            firstColKey: "mainColKey",
+            baseDateStr: config.start_date
+          });
+        } else if (isBrandwiseCumType) {
+          const exportData = processedData.map(row => {
+            let firstColVal = "";
+            if (row.isClusterTotal) {
+              firstColVal = row.warehouse;
+            } else {
+              const rawVal = row[getDataIndex()];
+              firstColVal = formatName(rawVal) || row.shop_code || "";
+            }
+            return {
+              ...row,
+              mainColKey: firstColVal
+            };
+          });
+
+          const d1 = dateRange[0]?.format("D MMMM YYYY");
+          const d2 = dateRange[1]?.format("D MMMM YYYY");
+          const subtitle = d1 && d2 ? `${d1} to ${d2} • cases • all channels (KSBC + Consumer Fed + BAR)` : "";
+          
+          const brandKeys = brandColumns.map(bc => ({ title: bc.title, key: bc.dataIndex }));
+
+          exportBrandwiseCumExcel({
+            data: exportData,
+            columns: brandKeys,
+            title: "WAREHOUSE BRANDWISE SECONDARY SALES CUMULATIVE",
+            subtitle,
+            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.xlsx`,
+            sheetName: "Brandwise Cumulative",
+            firstColHeader: getTitle(),
+            firstColKey: "mainColKey",
+            baseDateStr: config.start_date
+          });
+        } else {
+          const exportData = processedData.map(d => ({
+            ...d,
+            warehouse: formatName(d.warehouse),
+            bond: formatName(d.bond)
+          }));
+
+          exportToExcel(
+            exportData,
+            {
+              Mode: mode,
+              View: view,
+              Bond: bondFilter,
+              Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
+              "Date Range": dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
+              "Start Date": config.start_date ? dayjs(config.start_date).format("DD-MM-YYYY") : null,
+              "Total Days": config.num_days
+            },
+            `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.xlsx`,
+            reportTitle,
+            { theme: "navy" }
+          );
+        }
       }
     } else if (format === "pdf") {
       setLoading(true);
       try {
-        const period = dateRange.length === 2 ? `Period: ${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "Period: All";
+        const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
         
         // Sum cols for PDF (excluding First column and Spacer columns)
         const sumCols = ["Total", "TOT"];
@@ -669,23 +753,38 @@ export default function CumulativeWarehouseReport() {
         }
 
         if (modeType === "current") {
-          const title = getTitle();
-          const { columns: pdfCols, data: pdfData } = getPdfDataAndColumns(processedData);
-          const didParseCell = (cellData) => {
-            if (cellData.section === 'body' && cellData.column.dataKey === 'TOT') {
-              cellData.cell.styles.fillColor = [255, 255, 240]; // Ivory background
-            }
-          };
+          if (isDailyWiseType) {
+            const { columns: pdfCols, data: pdfData, head: pdfHead } = getPdfDataAndColumns(processedData);
+            exportToPdf({
+              title: reportTitle,
+              periodLabel: period,
+              columns: pdfCols,
+              data: pdfData,
+              head: pdfHead,
+              filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.pdf`,
+              zeroMargin: true,
+              orientation: "landscape"
+            });
+          } else {
+            const title = getTitle();
+            const { columns: pdfCols, data: pdfData, head: pdfHead } = getPdfDataAndColumns(processedData);
+            const didParseCell = (cellData) => {
+              if (cellData.section === 'body' && cellData.column.dataKey === 'TOT') {
+                cellData.cell.styles.fillColor = [255, 255, 240]; // Ivory background
+              }
+            };
 
-          exportToPdf({
-            title: reportTitle,
-            periodLabel: period,
-            columns: pdfCols,
-            data: pdfData,
-            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.pdf`,
-            zeroMargin: true,
-            didParseCell: view === "cumulative" ? didParseCell : null
-          });
+            exportToPdf({
+              title: reportTitle,
+              periodLabel: period,
+              columns: pdfCols,
+              data: pdfData,
+              head: pdfHead,
+              filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.pdf`,
+              zeroMargin: true,
+              didParseCell: view === "cumulative" ? didParseCell : null
+            });
+          }
         } else if (modeType === "unified" || modeType === "cluster") {
           const params = {
             mode: "shop" // Fetch detailed shop data for drilldown
@@ -816,12 +915,35 @@ export default function CumulativeWarehouseReport() {
         <h2>{isDailyWiseType ? "Daily Secondary Sales" : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "")}</h2>
         <Space>
           <Button onClick={handleRefresh}>Refresh Data</Button>
-          <DownloadDropdown 
-            onDownload={handleDownload} 
-            loading={loading} 
-            disabled={processedData.length === 0} 
-            showPdf={true} 
-          />
+          {isDailyWiseType ? (
+            <>
+              <Button
+                type="primary"
+                icon={<FileExcelOutlined />}
+                onClick={() => handleDownload("xlsx", "current")}
+                loading={loading}
+                disabled={processedData.length === 0}
+              >
+                Download Excel
+              </Button>
+              <Button
+                type="primary"
+                icon={<FilePdfOutlined />}
+                onClick={() => handleDownload("pdf", "current")}
+                loading={loading}
+                disabled={processedData.length === 0}
+              >
+                Download PDF
+              </Button>
+            </>
+          ) : (
+            <DownloadDropdown 
+              onDownload={handleDownload} 
+              loading={loading} 
+              disabled={processedData.length === 0} 
+              showPdf={true} 
+            />
+          )}
         </Space>
       </div>
 

@@ -158,16 +158,16 @@ export default function CleanupReport() {
         );
       }
     } else if (format === "pdf") {
-      const columns = ["Item Name", "Product Code", "Physical Stock", "Allotable Stock", "Pending Stock", "WH Price", "Landed Cost"];
+      const columns = ["Item Name", "Product Code", "PHYSICAL", "ALLOTABLE", "PENDING", "WH Price", "Landed Cost"];
 
       if (mode === "current") {
         const exportData = filtered.map(item => ({
           Warehouse: item.warehouse_name,
           "Item Name": item.item_name,
           "Product Code": item.product_code,
-          "Physical Stock": item.physical,
-          "Allotable Stock": item.allotted,
-          "Pending Stock": item.pending,
+          "PHYSICAL": item.physical,
+          "ALLOTABLE": item.allotted,
+          "PENDING": item.pending,
           "WH Price": item.wh_price,
           "Landed Cost": item.landed_cost
         }));
@@ -182,15 +182,15 @@ export default function CleanupReport() {
           Warehouse: "Total",
           "Item Name": "",
           "Product Code": "",
-          "Physical Stock": totalPhysical,
-          "Allotable Stock": totalAllotted,
-          "Pending Stock": totalPending,
+          "PHYSICAL": totalPhysical,
+          "ALLOTABLE": totalAllotted,
+          "PENDING": totalPending,
           "WH Price": totalWhPrice,
           "Landed Cost": totalLandedCost
         });
 
         exportToPdf({
-          title: "Warehouse Physical Stock Report",
+          title: "Warehouse Stock Report",
           periodLabel: `Report Period: ${displayReportDate}`,
           columns,
           data: exportData,
@@ -203,20 +203,20 @@ export default function CleanupReport() {
           Warehouse: item.warehouse_name,
           "Item Name": item.item_name,
           "Product Code": item.product_code,
-          "Physical Stock": item.physical,
-          "Allotable Stock": item.allotted,
-          "Pending Stock": item.pending,
+          "PHYSICAL": item.physical,
+          "ALLOTABLE": item.allotted,
+          "PENDING": item.pending,
           "WH Price": item.wh_price,
           "Landed Cost": item.landed_cost
         }));
 
         exportToPdf({
-          title: "Warehouse Physical Stock Report",
+          title: "Warehouse Stock Report",
           periodLabel: `Report Period: ${displayReportDate}`,
           columns,
           data: exportData,
           groupByField: "Warehouse",
-          sumCols: ["Physical Stock", "Allotable Stock", "Pending Stock", "WH Price", "Landed Cost"],
+          sumCols: ["PHYSICAL", "ALLOTABLE", "PENDING", "WH Price", "Landed Cost"],
           filename: "cleanup_report_unified.pdf",
           zeroMargin: true
         });
@@ -228,20 +228,20 @@ export default function CleanupReport() {
               Warehouse: item.warehouse_name,
               "Item Name": item.item_name,
               "Product Code": item.product_code,
-              "Physical Stock": item.physical,
-              "Allotable Stock": item.allotted,
-              "Pending Stock": item.pending,
+              "PHYSICAL": item.physical,
+              "ALLOTABLE": item.allotted,
+              "PENDING": item.pending,
               "WH Price": item.wh_price,
               "Landed Cost": item.landed_cost
             }));
 
             exportClusterPdf({
-              title: "Warehouse Physical Stock Report",
+              title: "Warehouse Stock Report",
               periodLabel: `Report Period: ${displayReportDate}`,
               columns,
               data: exportData,
               groupByField: "Warehouse",
-              sumCols: ["Physical Stock", "Allotable Stock", "Pending Stock", "WH Price", "Landed Cost"],
+              sumCols: ["PHYSICAL", "ALLOTABLE", "PENDING", "WH Price", "Landed Cost"],
               clusters,
               filenamePrefix: "cleanup_report",
               zeroMargin: true
@@ -274,7 +274,7 @@ export default function CleanupReport() {
       </Row>
 
       <div style={{ marginBottom: 0, padding: "8px 12px", backgroundColor: "#ADC9E6", border: "1px solid #999", borderBottom: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>Warehouse Physical Stock report</span>
+        <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>Warehouse Stock report</span>
         <span style={{ color: "#d00", fontWeight: "bold", fontSize: 16 }}>Warehouse: {warehouse || "All"} , Report Period: {displayReportDate}</span>
       </div>
 

@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
-import { Table, Select, Segmented, Row, Col, Button, Checkbox, DatePicker, message } from "antd";
+import { Table, Select, Segmented, Row, Col, Button, Checkbox, DatePicker, message, Space } from "antd";
 import { useParams, useNavigate } from "react-router-dom";
-import { PlusSquareOutlined, MinusSquareOutlined } from "@ant-design/icons";
+import { PlusSquareOutlined, MinusSquareOutlined, FilePdfOutlined, FileExcelOutlined } from "@ant-design/icons";
 import { getReport, getFilters, getJson } from "../../api";
 import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportShopDrilldownPdfByBond } from "../../utils/exportUtils";
 import dayjs from "dayjs";
@@ -49,6 +49,7 @@ export default function CombinedShopwiseReport() {
 
   useEffect(() => {
     getFilters(id).then((res) => {
+      console.log("[DEBUG] getFilters API response:", res.data);
       const { warehouses, shops, bonds, mapping, bond_mapping } = res.data;
       const warehouseOpts = (warehouses || []).map(w => ({ value: w, label: w }));
       setAllWarehouses(warehouseOpts);
@@ -71,33 +72,36 @@ export default function CombinedShopwiseReport() {
   // Handle cascading logic for shops based on the filter mode
   useEffect(() => {
     let filteredShops = allShops;
+    console.log("[DEBUG] useEffect cascading trigger. allShops length:", allShops.length, "filterMode:", filterMode, "warehouse:", warehouse, "bond:", bond);
 
     if (filterMode === 'warehouse' && warehouse) {
-      const shopCodes = filterMapping[warehouse] || [];
-      filteredShops = allShops.filter(s => shopCodes.includes(s.value));
+      const cleanTarget = warehouse.toUpperCase().replace(/^WH[-_]/, "").trim();
+      const matchKey = Object.keys(filterMapping).find(k => {
+        const cleanK = k.toUpperCase().replace(/^WH[-_]/, "").trim();
+        return cleanK === cleanTarget || cleanK.includes(cleanTarget) || cleanTarget.includes(cleanK);
+      });
+      const shopCodes = (matchKey ? filterMapping[matchKey] || [] : []).map(String);
+      console.log("[DEBUG] warehouse filtering shopCodes:", shopCodes);
+      filteredShops = allShops.filter(s => shopCodes.includes(String(s.value)));
     } else if (filterMode === 'bond' && bond) {
-      let shopsInBond = [];
-      const bondData = bondMapping[bond];
-
-      if (Array.isArray(bondData)) {
-        shopsInBond = bondData;
-      } else if (bondData && Array.isArray(bondData.shops)) {
-        // Handle both raw string arrays and resolved objects from mapping
-        shopsInBond = bondData.shops.map(s => typeof s === 'object' ? s.shop_code : s);
-      }
-
-      const uniqueShopCodes = [...new Set(shopsInBond)];
-      filteredShops = allShops.filter(s => uniqueShopCodes.includes(s.value));
+      // Resolve warehouses under this bond, then get the shops under those warehouses
+      const cleanBondTarget = bond.toUpperCase().trim();
+      const matchBondKey = Object.keys(bondMapping).find(k => k.toUpperCase().trim() === cleanBondTarget);
+      const warehousesInBond = matchBondKey ? bondMapping[matchBondKey] || [] : [];
+      
+      const shopCodes = warehousesInBond.flatMap(w => {
+        const cleanW = w.toUpperCase().replace(/^WH[-_]/, "").trim();
+        const mKey = Object.keys(filterMapping).find(k => {
+          const cleanK = k.toUpperCase().replace(/^WH[-_]/, "").trim();
+          return cleanK === cleanW || cleanK.includes(cleanW) || cleanW.includes(cleanK);
+        });
+        return mKey ? filterMapping[mKey] || [] : [];
+      }).map(String);
+      
+      filteredShops = allShops.filter(s => shopCodes.includes(String(s.value)));
     } else {
       // If no bond or warehouse is selected, show all shops
-      if (filterMode === 'bond') {
-        // In bond mode, if no bond is selected, show all shops from all bonds
-        const allBondShops = Object.values(bondMapping).flat().flatMap(w => (filterMapping[w] || [])).flat();
-        const allUniqueShopCodes = [...new Set(allBondShops)];
-        filteredShops = allShops.filter(s => allUniqueShopCodes.includes(s.value));
-      } else {
-        filteredShops = allShops;
-      }
+      filteredShops = allShops;
     }
 
     setShopOptions(filteredShops);
@@ -642,16 +646,22 @@ export default function CombinedShopwiseReport() {
     } else if (format === "pdf") {
       if (modeType === "current") {
         setLoading(true);
+        console.log("[DEBUG] PDF download current started. data:", data, "shop:", shop, "shopOptions:", shopOptions);
         try {
           const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
 
           const bondName = bond || "Current View";
-          const shopsForPdf = (shop ? [allShops.find(s => s.value === shop)] : shopOptions)
-            .filter(Boolean)
-            .map(s => ({
-              shop_code: s.value,
-              shop_name: s.shopName
-            }));
+          // Extract unique shop codes directly from current view's data
+          const uniqueShopCodesInData = [...new Set(data.map(d => String(d.shop_code)))];
+          const shopsForPdf = uniqueShopCodesInData.map(code => {
+            const shopInfo = allShops.find(s => String(s.value) === code);
+            const rowWithShop = data.find(d => String(d.shop_code) === code);
+            return {
+              shop_code: code,
+              shop_name: shopInfo?.shopName || rowWithShop?.shop_name || code
+            };
+          });
+          console.log("[DEBUG] resolved shopsForPdf from data:", shopsForPdf);
 
           exportShopDrilldownPdfByBond({
             title: reportTitle,
@@ -841,14 +851,37 @@ export default function CombinedShopwiseReport() {
         {/* Download Button Row */}
         <Row gutter={[16, 16]}>
           <Col>
-            <DownloadDropdown
-              onDownload={handleDownload}
-              loading={loading}
-              disabled={tableData.length === 0}
-              showPdf={true}
-              pdfOptions={["current", "cluster"]}
-              clusterLabel="Bond"
-            />
+            {bond || warehouse || shop ? (
+              <Space>
+                <Button
+                  type="primary"
+                  icon={<FileExcelOutlined />}
+                  onClick={() => handleDownload("xlsx", "current")}
+                  loading={loading}
+                  disabled={tableData.length === 0}
+                >
+                  Download Excel
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<FilePdfOutlined />}
+                  onClick={() => handleDownload("pdf", "current")}
+                  loading={loading}
+                  disabled={tableData.length === 0}
+                >
+                  Download PDF
+                </Button>
+              </Space>
+            ) : (
+              <DownloadDropdown
+                onDownload={handleDownload}
+                loading={loading}
+                disabled={tableData.length === 0}
+                showPdf={true}
+                pdfOptions={["current", "cluster"]}
+                clusterLabel="Bond"
+              />
+            )}
           </Col>
         </Row>
       </div>

@@ -32,6 +32,17 @@ export default function CleanupReport() {
     return "";
   }, [uploads, config]);
 
+  const pdfPeriodLabel = useMemo(() => {
+    const froms = uploads.map(u => u.from).filter(Boolean);
+    if (froms.length) {
+      return dayjs(froms[0]).format("D MMM YYYY");
+    }
+    if (config.date) {
+      return dayjs(config.date).format("D MMM YYYY");
+    }
+    return "";
+  }, [uploads, config]);
+
   const uploadDateLabel = useMemo(() => {
     const dates = uploads.map(u => u.from).filter(Boolean);
     if (dates.length) return `UPLOAD DATE : ${dayjs(dates[0]).format("DD-MM-YYYY")}`;
@@ -169,13 +180,13 @@ export default function CleanupReport() {
           return;
         }
 
-        const columns = ["Item Name", "Pack", "Physical Stock", "Allotable Stock", "Pending Stock"];
+        const columns = ["Item Name", "PACK", "PHYSICAL", "ALLOTABLE", "PENDING"];
         const exportData = data.map(item => ({
           "Item Name": item.item_name,
-          "Pack": item.pack,
-          "Physical Stock": item.physical,
-          "Allotable Stock": item.allotted,
-          "Pending Stock": item.pending,
+          "PACK": item.pack,
+          "PHYSICAL": item.physical,
+          "ALLOTABLE": item.allotted,
+          "PENDING": item.pending,
         }));
 
         const totalPhysical = data.reduce((sum, item) => sum + (Number(item.physical) || 0), 0);
@@ -184,15 +195,15 @@ export default function CleanupReport() {
 
         exportData.push({
           "Item Name": "Total",
-          "Pack": "",
-          "Physical Stock": totalPhysical,
-          "Allotable Stock": totalAllotted,
-          "Pending Stock": totalPending,
+          "PACK": "",
+          "PHYSICAL": totalPhysical,
+          "ALLOTABLE": totalAllotted,
+          "PENDING": totalPending,
         });
 
         exportToPdf({
           title: "Warehouse Physical Stock Report",
-          periodLabel: periodLabel,
+          periodLabel: pdfPeriodLabel,
           columns,
           data: exportData,
           filename: `physical_stock_report_${selectedWarehouse}.pdf`,
@@ -202,25 +213,25 @@ export default function CleanupReport() {
       } else if (mode === "unified") {
         if (!report?.data) return;
 
-        const columns = ["Item Name", "Pack", "Physical Stock", "Allotable Stock", "Pending Stock"];
+        const columns = ["Item Name", "PACK", "PHYSICAL", "ALLOTABLE", "PENDING"];
         const exportData = report.data.flatMap(whData =>
           (whData.items || []).map(item => ({
             Warehouse: whData.warehouse,
             "Item Name": item.item_name,
-            "Pack": item.pack,
-            "Physical Stock": item.physical,
-            "Allotable Stock": item.allotted,
-            "Pending Stock": item.pending,
+            "PACK": item.pack,
+            "PHYSICAL": item.physical,
+            "ALLOTABLE": item.allotted,
+            "PENDING": item.pending,
           }))
         );
 
         exportToPdf({
           title: "Warehouse Physical Stock Report",
-          periodLabel: periodLabel,
+          periodLabel: pdfPeriodLabel,
           columns,
           data: exportData,
           groupByField: "Warehouse",
-          sumCols: ["Physical Stock", "Allotable Stock", "Pending Stock"],
+          sumCols: ["PHYSICAL", "ALLOTABLE", "PENDING"],
           filename: "physical_stock_report_unified.pdf",
           zeroMargin: true
         });
@@ -230,25 +241,25 @@ export default function CleanupReport() {
         getJson("warehouse_clusters")
           .then(res => {
             const clusters = res.data;
-            const columns = ["Item Name", "Pack", "Physical Stock", "Allotable Stock", "Pending Stock"];
+            const columns = ["Item Name", "PACK", "PHYSICAL", "ALLOTABLE", "PENDING"];
             const exportData = report.data.flatMap(whData =>
               (whData.items || []).map(item => ({
                 Warehouse: whData.warehouse,
                 "Item Name": item.item_name,
-                "Pack": item.pack,
-                "Physical Stock": item.physical,
-                "Allotable Stock": item.allotted,
-                "Pending Stock": item.pending,
+                "PACK": item.pack,
+                "PHYSICAL": item.physical,
+                "ALLOTABLE": item.allotted,
+                "PENDING": item.pending,
               }))
             );
 
             exportClusterPdf({
               title: "Warehouse Physical Stock Report",
-              periodLabel: periodLabel,
+              periodLabel: pdfPeriodLabel,
               columns,
               data: exportData,
               groupByField: "Warehouse",
-              sumCols: ["Physical Stock", "Allotable Stock", "Pending Stock"],
+              sumCols: ["PHYSICAL", "ALLOTABLE", "PENDING"],
               clusters,
               filenamePrefix: "physical_stock",
               zeroMargin: true
