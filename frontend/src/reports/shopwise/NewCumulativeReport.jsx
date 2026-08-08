@@ -378,7 +378,7 @@ export default function CumulativeShopwiseReport() {
       const sales = d.outward || d.sales || 0;
       const closing = d.closing || 0;
 
-      const difference = opening - closing;
+      const difference = closing - opening;
       const closing_stock_at_sales_perc = (sales && (opening + receipt)) ? (sales * 100) / (opening + receipt) : 0;
       const perc = opening ? (difference * 100) / opening : 0;
       const avg_sales_per_day = netDays ? sales / netDays : 0;
@@ -456,7 +456,7 @@ export default function CumulativeShopwiseReport() {
             }
           });
 
-          const totalDiff = totalOpening - totalClosing;
+          const totalDiff = totalClosing - totalOpening;
           const totalClosingStockAtSalesPerc = (totalSales && (totalOpening + totalReceipt)) ? (totalSales * 100) / (totalOpening + totalReceipt) : 0;
           const totalPerc = totalOpening ? (totalDiff * 100) / totalOpening : 0;
           const totalAvgSalesPerDay = netDays ? totalSales / netDays : 0;
@@ -519,7 +519,7 @@ export default function CumulativeShopwiseReport() {
           }
         });
 
-        const totalDiff = totalOpening - totalClosing;
+        const totalDiff = totalClosing - totalOpening;
         const totalClosingStockAtSalesPerc = (totalSales && (totalOpening + totalReceipt)) ? (totalSales * 100) / (totalOpening + totalReceipt) : 0;
         const totalPerc = totalOpening ? (totalDiff * 100) / totalOpening : 0;
         const totalAvgSalesPerDay = netDays ? totalSales / netDays : 0;
@@ -700,7 +700,7 @@ export default function CumulativeShopwiseReport() {
       }
     });
 
-    const overallDiff = overallOpening - overallClosing;
+    const overallDiff = overallClosing - overallOpening;
     const overallClosingStockAtSalesPerc = (overallSales && (overallOpening + overallReceipt)) ? (overallSales * 100) / (overallOpening + overallReceipt) : 0;
     const overallPerc = overallOpening ? (overallDiff * 100) / overallOpening : 0;
     const overallAvgSalesPerDay = netDays ? overallSales / netDays : 0;
