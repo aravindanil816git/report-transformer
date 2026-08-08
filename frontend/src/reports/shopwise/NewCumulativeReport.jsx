@@ -5,11 +5,19 @@ const { Text } = Typography;
 import { useParams, useNavigate } from "react-router-dom";
 import { getReport, processReport, getJson, listReports, getFilters } from "../../api";
 import dayjs from "dayjs";
-import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf, exportShopDrilldownPdfByBond } from "../../utils/exportUtils";
+import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf, exportShopDrilldownPdfByBond, exportNewCumulativeExcel } from "../../utils/exportUtils";
 import { disabledFutureMonthDates } from "../../utils/dateUtils";
 import DownloadDropdown from "../../components/DownloadDropdown";
+import { getSellThroughColorConfig } from "../../utils/colorUtils";
 
 const { RangePicker } = DatePicker;
+
+const formatDateWithOrdinal = (dateVal) => {
+  if (!dateVal) return "";
+  const d = dayjs(dateVal);
+  if (!d.isValid()) return String(dateVal);
+  return d.format("D MMM YYYY");
+};
 
 export default function CumulativeShopwiseReport() {
   const { id } = useParams();
@@ -94,7 +102,6 @@ export default function CumulativeShopwiseReport() {
       const prevCombined = combinedReps.find(r =>
         (r.config?.start_date && r.config.start_date.startsWith(prevMonthPrefix)) ||
         (r.config?.date1 && r.config.date1.startsWith(prevMonthPrefix)) ||
-        (r.created_at && r.created_at.startsWith(prevMonthPrefix)) ||
         (r.name && r.name.toLowerCase().includes(prevD1.format("MMMM").toLowerCase()))
       );
 
@@ -175,7 +182,6 @@ export default function CumulativeShopwiseReport() {
       const currentCombined = combinedReps.find(r =>
         (r.config?.start_date && r.config.start_date.startsWith(currentMonthPrefix)) ||
         (r.config?.date1 && r.config.date1.startsWith(currentMonthPrefix)) ||
-        (r.created_at && r.created_at.startsWith(currentMonthPrefix)) ||
         (r.name && r.name.toLowerCase().includes(dayjs(activeD1).format("MMMM").toLowerCase()))
       );
 
@@ -616,40 +622,135 @@ export default function CumulativeShopwiseReport() {
     { title: "Receipt", dataIndex: "receipt", width: 100, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
     { title: "Sales", dataIndex: "sales", width: 100, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
     { title: "Closing", dataIndex: "closing", width: 100, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
-    { title: "Difference", dataIndex: "difference", width: 100, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
-    { title: "Sell-Through", dataIndex: "closing_stock_at_sales_perc", width: 150, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
-    { title: "Perc(%)", dataIndex: "perc", width: 100, align: "right", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
+    { title: "Stock Net", dataIndex: "difference", width: 100, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
+    { title: "Stock Net %", dataIndex: "perc", width: 100, align: "right", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}%</strong> : (v !== undefined && v !== null && v !== "" ? `${formatVal(v)}%` : "-") },
+    {
+      title: "Sell-Through %",
+      dataIndex: "closing_stock_at_sales_perc",
+      width: 150,
+      align: "center",
+      render: (v, record) => {
+        const formatted = formatVal(v);
+        const colors = getSellThroughColorConfig(v);
+        if (record.isClusterTotal) {
+          const isZero = v === 0 || v === "0" || v === null || v === undefined || v === "";
+          return <strong style={{ color: isZero ? "#8c8c8c" : `#${colors.font}` }}>{formatted}%</strong>;
+        }
+        if (v === null || v === undefined || v === "") {
+          return "-";
+        }
+        return (
+          <div style={{
+            backgroundColor: `#${colors.fill}`,
+            color: `#${colors.font}`,
+            padding: "4px 8px",
+            borderRadius: "4px",
+            fontWeight: "600",
+            display: "inline-block",
+            minWidth: "60px",
+            textAlign: "center"
+          }}>
+            {formatted}%
+          </div>
+        );
+      }
+    },
     { title: "", dataIndex: "spacer", width: 40, render: () => null }, // Spacer column
     {
       title: "Average (Cases)",
       children: [
         { title: `Current Month Avg (${currentPeriodLabel})`, dataIndex: "avg_sales_per_day", width: 160, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v)}</strong> : formatVal(v) },
         { title: `Last Month Avg (${lastMonthPeriodLabel})`, dataIndex: "last_month_avg", width: 160, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v, true)}</strong> : formatVal(v, true) },
-        { title: "Difference", dataIndex: "avg_diff", width: 120, align: "center", render: (v, record) => record.isClusterTotal ? <strong>{formatVal(v, true)}</strong> : formatVal(v, true) }
+        {
+          title: "Difference",
+          dataIndex: "avg_diff",
+          width: 120,
+          align: "center",
+          render: (v, record) => {
+            const num = Number(v);
+            const formatted = formatVal(v, true);
+            if (v === null || v === undefined || v === "" || isNaN(num) || num === 0) {
+              return record.isClusterTotal ? <strong>{formatted}</strong> : formatted;
+            }
+            const isPositive = num > 0;
+            const color = isPositive ? "#3f8600" : "#cf1322";
+            const arrow = isPositive ? "▲" : "▼";
+            const content = `${arrow}${formatted}`;
+            return record.isClusterTotal ? <strong style={{ color }}>{content}</strong> : <span style={{ color, fontWeight: "600" }}>{content}</span>;
+          }
+        }
       ]
     }
   ];
 
+  const getOverallTotalRow = () => {
+    let overallOpening = 0;
+    let overallReceipt = 0;
+    let overallSales = 0;
+    let overallClosing = 0;
+    let overallLastMonthSales = 0;
+
+    processedData.forEach(d => {
+      if (!d.isClusterTotal) {
+        overallOpening += Number(d.opening || 0);
+        overallReceipt += Number(d.receipt || 0);
+        overallSales += Number(d.sales || 0);
+        overallClosing += Number(d.closing || 0);
+        overallLastMonthSales += Number(d.last_month_sales || 0);
+      }
+    });
+
+    const overallDiff = overallOpening - overallClosing;
+    const overallClosingStockAtSalesPerc = (overallSales && (overallOpening + overallReceipt)) ? (overallSales * 100) / (overallOpening + overallReceipt) : 0;
+    const overallPerc = overallOpening ? (overallDiff * 100) / overallOpening : 0;
+    const overallAvgSalesPerDay = netDays ? overallSales / netDays : 0;
+    const overallLastMonthAvg = lastMonthNetDays ? overallLastMonthSales / lastMonthNetDays : 0;
+    const overallAvgDiff = overallAvgSalesPerDay - overallLastMonthAvg;
+
+    return {
+      isTotal: true,
+      isClusterTotal: true,
+      [getDataIndex()]: "OVERALL TOTAL",
+      opening: overallOpening,
+      receipt: overallReceipt,
+      sales: overallSales,
+      closing: overallClosing,
+      difference: overallDiff,
+      perc: overallPerc,
+      closing_stock_at_sales_perc: overallClosingStockAtSalesPerc,
+      avg_sales_per_day: overallAvgSalesPerDay,
+      last_month_sales: overallLastMonthSales,
+      last_month_avg: overallLastMonthAvg,
+      avg_diff: overallAvgDiff
+    };
+  };
+
   // 🔥 DOWNLOAD
   const downloadExcel = () => {
-    let exportData = [];
     if (view === "cumulative") {
-      exportData = processedData.map(d => ({
-        [getTitle()]: d.shop_code ? d.shop_name : formatName(d.warehouse),
-        Opening: useWholeNumbers ? Math.round(d.opening || 0) : d.opening,
-        Receipt: useWholeNumbers ? Math.round(d.receipt || 0) : d.receipt,
-        Sales: useWholeNumbers ? Math.round(d.sales || 0) : d.sales,
-        Closing: useWholeNumbers ? Math.round(d.closing || 0) : d.closing,
-        Difference: useWholeNumbers ? Math.round(d.difference || 0) : d.difference,
-        "ClosingStock@Sales%": useWholeNumbers ? Math.round(d.closing_stock_at_sales_perc || 0) : d.closing_stock_at_sales_perc,
-        "Perc(%)": useWholeNumbers ? Math.round(d.perc || 0) : d.perc,
-        " ": "", // spacer
-        [`Current Month Avg (${currentPeriodLabel})`]: useWholeNumbers ? Math.round(d.avg_sales_per_day || 0) : d.avg_sales_per_day,
-        [`Last Month Avg (${lastMonthPeriodLabel})`]: loadingLastMonth ? "Loading..." : (useWholeNumbers ? Math.round(d.last_month_avg || 0) : d.last_month_avg),
-        "Avg Difference": loadingLastMonth ? "Loading..." : (useWholeNumbers ? Math.round(d.avg_diff || 0) : d.avg_diff)
-      }));
+      exportNewCumulativeExcel({
+        data: [...processedData, getOverallTotalRow()],
+        metadata: {
+          Mode: mode,
+          View: view,
+          Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
+          "Date Range": dateRange.length === 2 ? `${formatDateWithOrdinal(dateRange[0])} to ${formatDateWithOrdinal(dateRange[1])}` : "All",
+          "Start Date": activeStartStr ? formatDateWithOrdinal(activeStartStr) : null,
+          "End Date": activeEndStr ? formatDateWithOrdinal(activeEndStr) : null,
+          "Net Days": netDays,
+          "Round off": useWholeNumbers ? "Yes" : "No"
+        },
+        filename: "cumulative_shopwise_report.xlsx",
+        sheetName: "Cumulative Shopwise",
+        firstColHeader: getTitle(),
+        firstColKey: "warehouse",
+        useWholeNumbers,
+        currentPeriodLabel,
+        lastMonthPeriodLabel,
+        loadingLastMonth
+      });
     } else {
-      exportData = processedData.map(row => {
+      const exportData = processedData.map(row => {
         const obj = { [getTitle()]: row.shop_code ? row.shop_name : formatName(row.warehouse) };
         let total = 0;
         labels.forEach(l => {
@@ -660,46 +761,83 @@ export default function CumulativeShopwiseReport() {
         obj["Total"] = useWholeNumbers ? Math.round(total) : total;
         return obj;
       });
-    }
 
-    exportToExcel(
-      exportData,
-      {
-        Mode: mode,
-        View: view,
-        Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
-        "Date Range": dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
-        "Start Date": activeStartStr ? dayjs(activeStartStr).format("DD-MM-YYYY") : null,
-        "End Date": activeEndStr ? dayjs(activeEndStr).format("DD-MM-YYYY") : null,
-        "Net Days": netDays,
-        "Round off": useWholeNumbers ? "Yes" : "No"
-      },
-      "cumulative_shopwise_report.xlsx",
-      "Cumulative Shopwise"
-    );
+      exportToExcel(
+        exportData,
+        {
+          Mode: mode,
+          View: view,
+          Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
+          "Date Range": dateRange.length === 2 ? `${formatDateWithOrdinal(dateRange[0])} to ${formatDateWithOrdinal(dateRange[1])}` : "All",
+          "Start Date": activeStartStr ? formatDateWithOrdinal(activeStartStr) : null,
+          "End Date": activeEndStr ? formatDateWithOrdinal(activeEndStr) : null,
+          "Net Days": netDays,
+          "Round off": useWholeNumbers ? "Yes" : "No"
+        },
+        "cumulative_shopwise_report.xlsx",
+        "Cumulative Shopwise"
+      );
+    }
   };
 
   const downloadPdf = () => {
-    const reportTitle = "Comparative Shopsales";
-    const period = dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All";
+    const reportTitle = "Shopsales Comparative";
+    const period = dateRange.length === 2 ? `${formatDateWithOrdinal(dateRange[0])} to ${formatDateWithOrdinal(dateRange[1])}` : "All";
 
     let exportData = [];
     let cols = [];
     let sumCols = [];
 
+    const formatValForPdf = (v) => {
+      if (v === null || v === undefined || v === "") return "";
+      const num = Number(v);
+      if (isNaN(num)) return v;
+      return useWholeNumbers ? Math.round(num) : Number(num.toFixed(2));
+    };
+
+    let pdfHead = null;
+
     if (view === "cumulative") {
-      cols = [getTitle(), "Opening", "Receipt", "Sales", "Closing", "Difference", "ClosingStock@Sales%", "Perc(%)"];
-      sumCols = ["Opening", "Receipt", "Sales", "Closing", "Difference"];
-      exportData = processedData.map(d => ({
+      cols = [getTitle(), "Opening", "Receipt", "Sales", "Closing", "Stock Net", "Stock Net %", "Sell-Through %", "CM Avg", "LM Avg", "Avg Diff"];
+      sumCols = ["Opening", "Receipt", "Sales", "Closing", "Stock Net"];
+      exportData = [...processedData, getOverallTotalRow()].map(d => ({
         [getTitle()]: d.shop_code ? d.shop_name : formatName(d.warehouse),
-        Opening: useWholeNumbers ? Math.round(d.opening || 0) : d.opening,
-        Receipt: useWholeNumbers ? Math.round(d.receipt || 0) : d.receipt,
-        Sales: useWholeNumbers ? Math.round(d.sales || 0) : d.sales,
-        Closing: useWholeNumbers ? Math.round(d.closing || 0) : d.closing,
-        Difference: useWholeNumbers ? Math.round(d.difference || 0) : d.difference,
-        "ClosingStock@Sales%": useWholeNumbers ? Math.round(d.closing_stock_at_sales_perc || 0) : d.closing_stock_at_sales_perc,
-        "Perc(%)": useWholeNumbers ? Math.round(d.perc || 0) : d.perc
+        Opening: formatValForPdf(d.opening),
+        Receipt: formatValForPdf(d.receipt),
+        Sales: formatValForPdf(d.sales),
+        Closing: formatValForPdf(d.closing),
+        "Stock Net": formatValForPdf(d.difference),
+        "Stock Net %": (d.perc !== null && d.perc !== undefined && d.perc !== "") ? `${formatValForPdf(d.perc)}%` : "-",
+        "Sell-Through %": (d.closing_stock_at_sales_perc !== null && d.closing_stock_at_sales_perc !== undefined && d.closing_stock_at_sales_perc !== "") ? `${formatValForPdf(d.closing_stock_at_sales_perc)}%` : "-",
+        "CM Avg": formatValForPdf(d.avg_sales_per_day),
+        "LM Avg": loadingLastMonth ? "Loading..." : formatValForPdf(d.last_month_avg),
+        "Avg Diff": loadingLastMonth ? "Loading..." : (() => {
+          const val = d.avg_diff;
+          if (val === null || val === undefined || val === "") return "";
+          const num = Number(val);
+          if (isNaN(num) || num === 0) return formatValForPdf(val);
+          return `  ${formatValForPdf(val)}`;
+        })()
       }));
+
+      pdfHead = [
+        [
+          { content: getTitle(), rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
+          { content: "Opening", rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
+          { content: "Receipt", rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
+          { content: "Sales", rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
+          { content: "Closing", rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
+          { content: "Stock Net", rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
+          { content: "Stock Net %", rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
+          { content: "Sell-Through %", rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
+          { content: "AVERAGE SALES / DAY", colSpan: 3, styles: { halign: 'center', textColor: [255, 189, 49] } }
+        ],
+        [
+          { content: "CM", styles: { halign: 'center', textColor: [255, 255, 255] } },
+          { content: "LM", styles: { halign: 'center', textColor: [255, 255, 255] } },
+          { content: "Trend", styles: { halign: 'center', textColor: [255, 255, 255] } }
+        ]
+      ];
     } else {
       cols = [getTitle(), ...labels, "Total"];
       sumCols = [...labels, "Total"];
@@ -723,8 +861,9 @@ export default function CumulativeShopwiseReport() {
       data: exportData,
       sumCols: sumCols,
       filename: `comparative_shopsales_current.pdf`,
-      orientation: view === "cumulative" ? "portrait" : "landscape",
-      zeroMargin: true
+      orientation: "landscape",
+      zeroMargin: true,
+      head: pdfHead
     });
   };
 
@@ -736,7 +875,7 @@ export default function CumulativeShopwiseReport() {
         </Button>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2>Comparitive Shopsales</h2>
+        <h2>Shopsales Comparative</h2>
         <Space>
           <Button onClick={handleRefresh}>Refresh Data</Button>
           <Button type="primary" onClick={downloadExcel} disabled={processedData.length === 0}>Download Excel</Button>
@@ -781,8 +920,8 @@ export default function CumulativeShopwiseReport() {
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <b>Start Date:</b> {activeStartStr ? dayjs(activeStartStr).format("DD-MM-YYYY") : "-"} &nbsp;&nbsp;
-        <b>End Date:</b> {activeEndStr ? dayjs(activeEndStr).format("DD-MM-YYYY") : "-"} &nbsp;&nbsp;
+        <b>Start Date:</b> {activeStartStr ? formatDateWithOrdinal(activeStartStr) : "-"} &nbsp;&nbsp;
+        <b>End Date:</b> {activeEndStr ? formatDateWithOrdinal(activeEndStr) : "-"} &nbsp;&nbsp;
         <b>Days (Excl. Leaves):</b> {netDays}
       </div>
 

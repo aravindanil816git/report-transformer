@@ -1236,15 +1236,15 @@ def get_report(
 
     # Automatically delegate new_cumulative_report cumulative queries to the combined_shopwise report for the same month
     if report.get("type") == "new_cumulative_report" and view == "cumulative":
-        from services.store import get_all_reports
         rep_month = None
-        cfg = report.get("config", {})
-        for k in ["date1", "start_date", "date"]:
-            if cfg.get(k):
-                rep_month = str(cfg[k]).split("T")[0][:7]
-                break
-        if not rep_month and start_date:
+        if start_date and start_date != "RESET":
             rep_month = str(start_date)[:7]
+        else:
+            cfg = report.get("config", {})
+            for k in ["date1", "start_date", "date"]:
+                if cfg.get(k):
+                    rep_month = str(cfg[k]).split("T")[0][:7]
+                    break
         if not rep_month:
             rep_month = report.get("created_at", "")[:7]
             

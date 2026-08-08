@@ -6,6 +6,7 @@ import axios from "axios";
 import { FilterOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { disabledFutureMonthDates } from "../utils/dateUtils";
+import { exportAchievedTargetExcel, exportAchievedTargetPdf } from "../utils/exportUtils";
 
 const { RangePicker } = DatePicker;
 
@@ -570,7 +571,11 @@ export default function AchievedTargetReport() {
           />
           <Button type="primary" onClick={() => loadData(true)}>Apply Filter</Button>
           {!isEditingTargets ? (
-            <Button onClick={() => setIsEditingTargets(true)} disabled={viewMode === "shop"}>Edit Targets</Button>
+            <>
+              <Button onClick={() => setIsEditingTargets(true)} disabled={viewMode === "shop"}>Edit Targets</Button>
+              <Button type="primary" onClick={() => exportAchievedTargetExcel({ data: tableData, viewMode, displayedBrands, dateRange, clusters })}>Export Excel</Button>
+              <Button type="primary" onClick={() => exportAchievedTargetPdf({ data: tableData, viewMode, displayedBrands, dateRange, clusters })}>Export PDF</Button>
+            </>
           ) : (
             <>
               <Button onClick={() => { setIsEditingTargets(false); loadData(); }}>Cancel</Button>
