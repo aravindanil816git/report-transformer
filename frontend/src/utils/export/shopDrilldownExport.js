@@ -154,20 +154,18 @@ export const exportShopDrilldownPdfByBond = ({
       doc.text(cleanPeriod, 195, 21.5, { align: "right" });
     }
 
-    if (pageNumber === 1) {
-      const rectY = (actualPage === 1) ? 25 : 5;
-      const textY = (actualPage === 1) ? 30.5 : 10.5;
+    const rectY = (actualPage === 1) ? 24 : 0;
+    const textY = (actualPage === 1) ? 29.5 : 5.5;
 
-      doc.setFillColor(255, 189, 49); 
-      doc.rect(0, rectY, 210, 8, "F");
+    doc.setFillColor(255, 189, 49); 
+    doc.rect(0, rectY, 210, 8, "F");
 
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(11, 41, 79); 
-      doc.text(shopName.toUpperCase(), 5, textY, { align: "left" });
-      if (bondName && bondName.toUpperCase() !== "CURRENT VIEW") {
-        doc.text(`${bondName.toUpperCase()} BOND`, 205, textY, { align: "right" });
-      }
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(11, 41, 79); 
+    doc.text(shopName.toUpperCase(), 5, textY, { align: "left" });
+    if (bondName && bondName.toUpperCase() !== "CURRENT VIEW") {
+      doc.text(`${bondName.toUpperCase()} BOND`, 205, textY, { align: "right" });
     }
   };
 
@@ -201,8 +199,8 @@ export const exportShopDrilldownPdfByBond = ({
     autoTable(doc, {
       head: [pdfCols],
       body: tableRows,
-      startY: isFirstShop ? 34 : 14,
-      margin: { top: 14, bottom: 8, left: 0, right: 0 },
+      startY: isFirstShop ? 32 : 8,
+      margin: { top: 8, bottom: 8, left: 0, right: 0 },
       theme: "striped",
       showHead: "firstPage",
       styles: { font: "helvetica", fontStyle: "normal", fontSize: 9, cellPadding: 2.2, lineColor: [220, 220, 220], lineWidth: 0.15 },
