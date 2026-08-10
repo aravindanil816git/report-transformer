@@ -1284,9 +1284,7 @@ def get_report(
             return clean_nan(result)
 
     if report.get("type") in ["cumulative_shopwise", "cumulative_warehouse", "combined_shopwise", "dailywise_secondary_sales_cum", "brandwise_cum_secondary_sales", "new_cumulative_report"]:
-        sync_cumulative_report(report)
-        
-        # Lazy processing on-the-fly if dates are provided via GET query
+        # Lazy update config dates first so sync_cumulative_report runs with the correct dates
         if start_date and end_date:
             if start_date == "RESET" and end_date == "RESET":
                 report.setdefault("config", {})["date1"] = None
@@ -1295,6 +1293,11 @@ def get_report(
                 report.setdefault("config", {})["date1"] = start_date
                 report.setdefault("config", {})["date2"] = end_date
             save_report(report)
+
+        sync_cumulative_report(report)
+        
+        # Lazy processing on-the-fly if dates are provided via GET query
+        if start_date and end_date:
             try:
                 process(rid)
                 report = get_report_by_id(rid)
