@@ -12,7 +12,9 @@ export const exportClusterPdf = async ({
   clusters,
   filenamePrefix = "report",
   zeroMargin = false,
-  orientation = "portrait"
+  orientation = "portrait",
+  didParseCell = null,
+  blackPackColumn = false
 }) => {
   const entries = Object.entries(clusters);
   for (const [clusterName, whList] of entries) {
@@ -32,7 +34,9 @@ export const exportClusterPdf = async ({
         sumCols,
         filename: `${filenamePrefix}_${cleanClusterName}.pdf`,
         zeroMargin: true,
-        orientation: orientation
+        orientation: orientation,
+        didParseCell: didParseCell,
+        blackPackColumn: blackPackColumn
       });
       await new Promise(resolve => setTimeout(resolve, 300));
     }

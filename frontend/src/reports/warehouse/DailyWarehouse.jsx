@@ -203,6 +203,16 @@ export default function CleanupReport() {
 
         const currentWh = selectedWarehouse ? String(selectedWarehouse).replace(/^WH-/i, "").trim() : "";
 
+        const didParseCell = (cellData) => {
+          if (cellData.section === 'body') {
+            const rawCol = cellData.column.raw;
+            const colTitle = String(rawCol && typeof rawCol === "object" ? (rawCol.title || rawCol.header || "") : String(rawCol || "")).toUpperCase();
+            if (colTitle === "PACK" || colTitle === "PACKAGE") {
+              cellData.cell.styles.textColor = [0, 0, 0];
+            }
+          }
+        };
+
         exportToPdf({
           title: "Warehouse Physical Stock Report",
           periodLabel: pdfPeriodLabel,
@@ -210,7 +220,8 @@ export default function CleanupReport() {
           data: exportData,
           filename: `physical_stock_report_${selectedWarehouse}.pdf`,
           metadataWarehouse: currentWh,
-          zeroMargin: true
+          zeroMargin: true,
+          blackPackColumn: true
         });
       } else if (mode === "unified") {
         if (!report?.data) return;
@@ -235,7 +246,8 @@ export default function CleanupReport() {
           groupByField: "Warehouse",
           sumCols: ["PHYSICAL", "ALLOTABLE", "PENDING"],
           filename: "physical_stock_report_unified.pdf",
-          zeroMargin: true
+          zeroMargin: true,
+          blackPackColumn: true
         });
       } else if (mode === "cluster") {
         if (!report?.data) return;
@@ -264,7 +276,8 @@ export default function CleanupReport() {
               sumCols: ["PHYSICAL", "ALLOTABLE", "PENDING"],
               clusters,
               filenamePrefix: "physical_stock",
-              zeroMargin: true
+              zeroMargin: true,
+              blackPackColumn: true
             });
           })
           .catch(err => {

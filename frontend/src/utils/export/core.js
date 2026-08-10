@@ -152,7 +152,8 @@ export const exportToPdf = ({
   didDrawCell = null,
   zeroMargin = false,
   orientation = "portrait",
-  head = null
+  head = null,
+  blackPackColumn = false
 }) => {
   let doc;
 
@@ -188,8 +189,8 @@ export const exportToPdf = ({
     doc.text(cleanPeriod, paddingRight, zeroMargin ? 21.5 : 33.5, { align: "right" });
 
     if (subHeader) {
-      const rectY = (zeroMargin ? 24 : 36) + 1;
-      const textY = (zeroMargin ? 29.5 : 41.5) + 1;
+      const rectY = zeroMargin ? 24 : 36;
+      const textY = zeroMargin ? 29.5 : 41.5;
 
       doc.setFillColor(255, 189, 49); 
       doc.rect(startX, rectY, width, 8, "F");
@@ -197,7 +198,7 @@ export const exportToPdf = ({
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(11, 41, 79); 
-      doc.text(subHeader.toUpperCase(), paddingLeft, textY, { align: "left" });
+      doc.text(subHeader.toUpperCase(), pageWidth / 2, textY, { align: "center" });
     }
   };
 
@@ -228,8 +229,10 @@ export const exportToPdf = ({
   // If a column isn't the primary descriptor text column, align it center
   for (let i = 1; i < columns.length; i++) {
     const colName = String(columns[i]).toLowerCase();
-    if (colName === "pack" || colName === "package") {
+    if ((colName === "pack" || colName === "package") && !blackPackColumn) {
       columnStyles[i] = { cellWidth: 28, halign: 'center', textColor: [140, 150, 170] };
+    } else if (colName === "pack" || colName === "package") {
+      columnStyles[i] = { cellWidth: 28, halign: 'center' };
     } else {
       columnStyles[i] = { cellWidth: 'auto', halign: 'center' };
     }
@@ -292,8 +295,8 @@ export const exportToPdf = ({
       autoTable(doc, {
         head: head || [columns],
         body: tableRows,
-        startY: subHeaderStr ? 35 : 28,
-        margin: { top: subHeaderStr ? 35 : 28, bottom: 0, left: 0, right: 0 },
+        startY: subHeaderStr ? 32 : 28,
+        margin: { top: subHeaderStr ? 32 : 28, bottom: 0, left: 0, right: 0 },
         theme: "striped",
         styles: { font: "helvetica", fontStyle: "normal", fontSize: 11, cellPadding: 3.5, textColor: [40, 40, 40] },
         columnStyles: columnStyles,
@@ -348,7 +351,7 @@ export const exportToPdf = ({
             const cellText = cellData.cell.text ? (Array.isArray(cellData.cell.text) ? cellData.cell.text.join(" ") : String(cellData.cell.text)) : "";
             const rawCol = cellData.column.raw;
             const rawColTitle = rawCol && typeof rawCol === "object" ? (rawCol.title || rawCol.header || "") : String(rawCol || "");
-            const colTitle = String(rawKey || cellText || rawColTitle || "").toUpperCase().trim();
+            const colTitle = String(cellText || rawKey || rawColTitle || "").toUpperCase().trim();
             if (["PHYSICAL", "ALLOTABLE", "PENDING", "PACK", "OPENING", "RECEIPT", "SALES", "CLOSING", "DIFFERENCE", "STOCK NET", "STOCK NET %", "AVG SALES / DAY", "TOTAL"].includes(colTitle)) {
               cellData.cell.styles.halign = 'center';
             }
@@ -424,8 +427,8 @@ export const exportToPdf = ({
     autoTable(doc, {
       head: head || [columns],
       body: tableRows,
-      startY: metadataWarehouse ? 35 : 28,
-      margin: { top: metadataWarehouse ? 35 : 28, bottom: 0, left: 0, right: 0 },
+      startY: metadataWarehouse ? 32 : 28,
+      margin: { top: metadataWarehouse ? 32 : 28, bottom: 0, left: 0, right: 0 },
       theme: "striped",
       styles: { font: "helvetica", fontStyle: "normal", fontSize: 11, cellPadding: 3.5, textColor: [40, 40, 40] },
       columnStyles: columnStyles,
@@ -480,7 +483,7 @@ export const exportToPdf = ({
           const cellText = cellData.cell.text ? (Array.isArray(cellData.cell.text) ? cellData.cell.text.join(" ") : String(cellData.cell.text)) : "";
           const rawCol = cellData.column.raw;
           const rawColTitle = rawCol && typeof rawCol === "object" ? (rawCol.title || rawCol.header || "") : String(rawCol || "");
-          const colTitle = String(rawKey || cellText || rawColTitle || "").toUpperCase().trim();
+          const colTitle = String(cellText || rawKey || rawColTitle || "").toUpperCase().trim();
           if (["PHYSICAL", "ALLOTABLE", "PENDING", "PACK", "OPENING", "RECEIPT", "SALES", "CLOSING", "DIFFERENCE", "STOCK NET", "STOCK NET %", "AVG SALES / DAY", "TOTAL"].includes(colTitle)) {
             cellData.cell.styles.halign = 'center';
           }
