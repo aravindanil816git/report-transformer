@@ -91,11 +91,12 @@ export default function CumulativeShopwiseReport() {
   }, [id]);
 
   // 🔹 triggerLastMonthLoad
-  const triggerLastMonthLoad = async (activeD1, selectedMode, combinedReps) => {
-    if (!activeD1 || !combinedReps || combinedReps.length === 0) return;
+  const triggerLastMonthLoad = async (activeD1, activeD2, selectedMode, combinedReps) => {
+    if (!activeD1 || !activeD2 || !combinedReps || combinedReps.length === 0) return;
     setLoadingLastMonth(true);
     try {
-      const prevD1 = dayjs(activeD1).subtract(1, "month").startOf("month");
+      const prevD1 = dayjs(activeD1).subtract(1, "month");
+      const prevD2 = dayjs(activeD2).subtract(1, "month");
       const prevMonthPrefix = prevD1.format("YYYY-MM");
 
       // Find the combined shopwise report for the previous month
@@ -111,9 +112,10 @@ export default function CumulativeShopwiseReport() {
       }
 
       // Fetch the cumulative totals of the previous month's combined report
-      // No date parameters are passed, so the backend reads directly from the cache
       const prevRes = await getReport(prevCombined.id, null, "cumulative", {
-        mode: selectedMode
+        mode: selectedMode,
+        start_date: prevD1.format("YYYY-MM-DD"),
+        end_date: prevD2.format("YYYY-MM-DD")
       });
       const lastMonthData = prevRes.data?.data || prevRes.data || [];
       console.log("[triggerLastMonthLoad] Loaded last month data for report:", prevCombined.name || prevCombined.id, {
@@ -218,7 +220,7 @@ export default function CumulativeShopwiseReport() {
       }
 
       // Trigger lazy load of prior month baseline data
-      triggerLastMonthLoad(activeD1, selectedMode, combinedReps);
+      triggerLastMonthLoad(activeD1, activeD2, selectedMode, combinedReps);
     } finally {
       setLoading(false);
     }
@@ -320,8 +322,8 @@ export default function CumulativeShopwiseReport() {
     ? `${dayjs(activeStartStr).format("DD MMM")} - ${dayjs(activeEndStr).format("DD MMM")}`
     : "Current Month";
 
-  const lastMonthPeriodLabel = activeStartStr
-    ? `${dayjs(activeStartStr).subtract(1, 'month').startOf('month').format("DD MMM")} - ${dayjs(activeStartStr).subtract(1, 'month').endOf('month').format("DD MMM")}`
+  const lastMonthPeriodLabel = activeStartStr && activeEndStr
+    ? `${dayjs(activeStartStr).subtract(1, 'month').format("DD MMM")} - ${dayjs(activeEndStr).subtract(1, 'month').format("DD MMM")}`
     : "Last Month";
 
   const netDays = useMemo(() => {
@@ -341,10 +343,11 @@ export default function CumulativeShopwiseReport() {
   }, [activeStartStr, activeEndStr, shopLeaves, config.num_days]);
 
   const lastMonthNetDays = useMemo(() => {
-    if (activeStartStr) {
-      const s = dayjs(activeStartStr).subtract(1, 'month').startOf('month');
-      const e = dayjs(activeStartStr).subtract(1, 'month').endOf('month');
-      const totalDays = e.date();
+    if (activeStartStr && activeEndStr) {
+      const s = dayjs(activeStartStr).subtract(1, 'month');
+      const e = dayjs(activeEndStr).subtract(1, 'month');
+      const diff = e.diff(s, 'day') + 1;
+      const totalDays = diff > 0 ? diff : 0;
       let count = 0;
       for (let i = 0; i < totalDays; i++) {
         const dStr = s.add(i, 'day').format('YYYY-MM-DD');
@@ -353,7 +356,7 @@ export default function CumulativeShopwiseReport() {
       return count > 0 ? count : totalDays;
     }
     return 30; // fallback
-  }, [activeStartStr, shopLeaves]);
+  }, [activeStartStr, activeEndStr, shopLeaves]);
 
   const disabledDate = (current) => {
     return disabledFutureMonthDates(current);
@@ -1007,7 +1010,7 @@ export default function CumulativeShopwiseReport() {
               totalClosing += closing || 0;
             });
 
-            const totalDiff = totalOpening - totalClosing;
+            const totalDiff = totalClosing - totalOpening;
             const totalClosingStockAtSalesPerc = (totalSales && (totalOpening + totalReceipt)) ? (totalSales * 100) / (totalOpening + totalReceipt) : 0;
             const totalPerc = totalOpening ? (totalDiff * 100) / totalOpening : 0;
             const totalAvgSalesPerDay = netDays ? totalSales / netDays : 0;
@@ -1019,6 +1022,19 @@ export default function CumulativeShopwiseReport() {
             const totalLastMonthAvg = lastMonthNetDays ? totalLastMonthSales / lastMonthNetDays : 0;
             const totalAvgDiff = totalAvgSalesPerDay - totalLastMonthAvg;
 
+            const stColors = getSellThroughColorConfig(totalClosingStockAtSalesPerc);
+
+            const diffNum = Number(totalAvgDiff);
+            const formattedDiff = formatVal(totalAvgDiff, true);
+            let diffContent = formattedDiff;
+            let diffColor = undefined;
+            if (totalAvgDiff !== null && totalAvgDiff !== undefined && totalAvgDiff !== "" && !isNaN(diffNum) && diffNum !== 0) {
+              const isPositive = diffNum > 0;
+              diffColor = isPositive ? "#3f8600" : "#cf1322";
+              const arrow = isPositive ? "▲" : "▼";
+              diffContent = `${arrow}${formattedDiff}`;
+            }
+
             return (
               <Table.Summary fixed="bottom">
                 <Table.Summary.Row style={{ background: "#f0f2f5", fontWeight: "bold", borderTop: "2px solid #d9d9d9" }}>
@@ -1028,12 +1044,26 @@ export default function CumulativeShopwiseReport() {
                   <Table.Summary.Cell index={3} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalSales)}</Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={4} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalClosing)}</Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={5} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalDiff)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={6} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalClosingStockAtSalesPerc)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={7} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalPerc)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={6} align="right" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalPerc)}%</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={7} align="center" style={{ padding: "12px 8px" }}>
+                    <div style={{
+                      backgroundColor: `#${stColors.fill}`,
+                      color: `#${stColors.font}`,
+                      padding: "4px 8px",
+                      borderRadius: "4px",
+                      fontWeight: "bold",
+                      display: "inline-block",
+                      minWidth: "60px",
+                      textAlign: "center",
+                      fontSize: "14px"
+                    }}>
+                      {formatVal(totalClosingStockAtSalesPerc)}%
+                    </div>
+                  </Table.Summary.Cell>
                   <Table.Summary.Cell index={8} style={{ padding: "12px 8px" }}></Table.Summary.Cell>
                   <Table.Summary.Cell index={9} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalAvgSalesPerDay)}</Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={10} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalLastMonthAvg, true)}</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={11} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap" }}>{formatVal(totalAvgDiff, true)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={11} align="center" style={{ padding: "12px 8px" }}><Text strong style={{ fontSize: "16px", whiteSpace: "nowrap", color: diffColor }}>{diffContent}</Text></Table.Summary.Cell>
                 </Table.Summary.Row>
               </Table.Summary>
             );
