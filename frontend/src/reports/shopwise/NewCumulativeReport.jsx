@@ -42,10 +42,8 @@ export default function CumulativeShopwiseReport() {
   const [warehouseClusters, setWarehouseClusters] = useState({});
   const [bondClusters, setBondClusters] = useState({});
 
-  // States for lazy loading the previous month's baseline
   const [lastMonthSalesMap, setLastMonthSalesMap] = useState({});
   const [loadingLastMonth, setLoadingLastMonth] = useState(false);
-  const [currentCombined, setCurrentCombined] = useState(null);
 
   useEffect(() => {
     getJson("leaves").then(res => {
@@ -91,34 +89,21 @@ export default function CumulativeShopwiseReport() {
   }, [id]);
 
   // 🔹 triggerLastMonthLoad
-  const triggerLastMonthLoad = async (activeD1, activeD2, selectedMode, combinedReps) => {
-    if (!activeD1 || !activeD2 || !combinedReps || combinedReps.length === 0) return;
+  const triggerLastMonthLoad = async (activeD1, activeD2, selectedMode) => {
+    if (!activeD1 || !activeD2) return;
     setLoadingLastMonth(true);
     try {
       const prevD1 = dayjs(activeD1).subtract(1, "month");
       const prevD2 = dayjs(activeD2).subtract(1, "month");
-      const prevMonthPrefix = prevD1.format("YYYY-MM");
 
-      // Find the combined shopwise report for the previous month
-      const prevCombined = combinedReps.find(r =>
-        (r.config?.start_date && r.config.start_date.startsWith(prevMonthPrefix)) ||
-        (r.config?.date1 && r.config.date1.startsWith(prevMonthPrefix)) ||
-        (r.name && r.name.toLowerCase().includes(prevD1.format("MMMM").toLowerCase()))
-      );
-
-      if (!prevCombined) {
-        setLastMonthSalesMap({});
-        return;
-      }
-
-      // Fetch the cumulative totals of the previous month's combined report
-      const prevRes = await getReport(prevCombined.id, null, "cumulative", {
+      // Fetch the cumulative totals of the previous month's combined report using main report id
+      const prevRes = await getReport(id, null, "cumulative", {
         mode: selectedMode,
         start_date: prevD1.format("YYYY-MM-DD"),
         end_date: prevD2.format("YYYY-MM-DD")
       });
       const lastMonthData = prevRes.data?.data || prevRes.data || [];
-      console.log("[triggerLastMonthLoad] Loaded last month data for report:", prevCombined.name || prevCombined.id, {
+      console.log("[triggerLastMonthLoad] Loaded last month data for report:", id, {
         mode: selectedMode,
         rawRowsCount: lastMonthData.length,
         rawRows: lastMonthData
@@ -166,40 +151,19 @@ export default function CumulativeShopwiseReport() {
         params.end_date = d2;
       }
 
-      // Fetch both combined_shopwise and shop_sales_cumulative reports to cover all cumulative datasets
-      const [combinedRes, shopSalesRes] = await Promise.all([
-        listReports({ type: "combined_shopwise", limit: 100 }),
-        listReports({ type: "shop_sales_cumulative", limit: 100 })
-      ]);
-      const combinedReps = [
-        ...(combinedRes.data?.items || combinedRes.data || []),
-        ...(shopSalesRes.data?.items || shopSalesRes.data || [])
-      ];
-
-      const currentMonthPrefix = activeD1 ? activeD1.substring(0, 7) : dayjs().format("YYYY-MM");
-
-      console.log("[DEBUG] activeD1:", activeD1, "currentMonthPrefix:", currentMonthPrefix, "combinedReps count:", combinedReps.length);
-      console.log("[DEBUG] combinedReps list:", combinedReps.map(r => ({ id: r.id, name: r.name, type: r.type, config: r.config, created_at: r.created_at })));
-
-      const currentCombined = combinedReps.find(r =>
-        (r.config?.start_date && r.config.start_date.startsWith(currentMonthPrefix)) ||
-        (r.config?.date1 && r.config.date1.startsWith(currentMonthPrefix)) ||
-        (r.name && r.name.toLowerCase().includes(dayjs(activeD1).format("MMMM").toLowerCase()))
-      );
-
-      setCurrentCombined(currentCombined);
-
-      console.log("[DEBUG] matched currentCombined:", currentCombined ? { id: currentCombined.id, name: currentCombined.name } : "undefined");
-
-      // Fetch current month data
-      let currentResPromise;
-      if (view === "cumulative" && currentCombined) {
-        currentResPromise = getReport(currentCombined.id, null, "cumulative", params);
-      } else {
-        currentResPromise = getReport(id, null, view, params);
-      }
+      // Fetch current month data directly using main report id
+      const currentResPromise = getReport(id, null, view, params);
 
       const res = await currentResPromise;
+      console.log("[NewCumulativeReport] Loaded raw data for current view:", {
+        reportIdUsed: id,
+        view,
+        params,
+        responseLabels: res.data.labels,
+        responseConfig: res.data.config,
+        rawRowsCount: (res.data.data || []).length,
+        rawRows: res.data.data || []
+      });
       const rawData = res.data.data || [];
 
       const cleaned = rawData.filter(d => {
@@ -220,7 +184,7 @@ export default function CumulativeShopwiseReport() {
       }
 
       // Trigger lazy load of prior month baseline data
-      triggerLastMonthLoad(activeD1, activeD2, selectedMode, combinedReps);
+      triggerLastMonthLoad(activeD1, activeD2, selectedMode);
     } finally {
       setLoading(false);
     }
