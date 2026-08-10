@@ -95,11 +95,11 @@ export default function CumulativeWarehouseReport() {
         const isUnmapped = (wh === "UNMAPPED" || wh === "UNKNOWN" || !wh) && (bnd === "UNMAPPED" || bnd === "UNKNOWN" || !bnd);
         return (d.warehouse || d.shop_code || d.bond) && !isUnmapped;
       });
-  
+
       setData(cleaned);
       setLabels(res.data.labels || []);
       setConfig(res.data.config || {});
-  
+
       if (allLabels.length === 0) {
         setAllLabels(res.data.labels || []);
       }
@@ -112,7 +112,7 @@ export default function CumulativeWarehouseReport() {
   useEffect(() => {
     getReport(id, null, view, { limit: 1 }).then(res => {
       const reportConfig = res?.data?.config || {};
-      
+
       let defaultStart = dayjs().startOf("month");
       let defaultEnd = dayjs();
 
@@ -120,14 +120,14 @@ export default function CumulativeWarehouseReport() {
       const endDateStr = reportConfig.end_date || reportConfig.date2;
 
       if (startDateStr && endDateStr) {
-         const configStart = dayjs(startDateStr);
-         const configEnd = dayjs(endDateStr);
-         
-         if (defaultEnd.isAfter(configEnd)) defaultEnd = configEnd;
-         if (defaultEnd.isBefore(configStart)) defaultEnd = configEnd;
-         
-         defaultStart = defaultEnd.startOf("month");
-         if (defaultStart.isBefore(configStart)) defaultStart = configStart;
+        const configStart = dayjs(startDateStr);
+        const configEnd = dayjs(endDateStr);
+
+        if (defaultEnd.isAfter(configEnd)) defaultEnd = configEnd;
+        if (defaultEnd.isBefore(configStart)) defaultEnd = configEnd;
+
+        defaultStart = defaultEnd.startOf("month");
+        if (defaultStart.isBefore(configStart)) defaultStart = configStart;
       }
 
       setDateRange([defaultStart, defaultEnd]);
@@ -137,7 +137,7 @@ export default function CumulativeWarehouseReport() {
       else if (drilledBond) currentMode = "shop";
 
       load(null, null, warehouseFilter, drilledBond, currentMode, defaultStart.format("YYYY-MM-DD"), defaultEnd.format("YYYY-MM-DD"));
-    }).catch(() => {});
+    }).catch(() => { });
   }, [id]);
 
   // 🔥 Reload when view or data parameters change
@@ -174,7 +174,7 @@ export default function CumulativeWarehouseReport() {
     let currentMode = mode;
     if (drilledWarehouse) currentMode = "shop";
     else if (drilledBond) currentMode = "shop";
-    
+
     const d1 = dateRange[0].format("YYYY-MM-DD");
     const d2 = dateRange[1].format("YYYY-MM-DD");
 
@@ -187,14 +187,14 @@ export default function CumulativeWarehouseReport() {
       message.warning("Please select a complete start and end date");
       return;
     }
-    
+
     let currentMode = mode;
     if (drilledWarehouse) currentMode = "shop";
     else if (drilledBond) currentMode = "shop";
 
     const d1 = dateRange[0].format("YYYY-MM-DD");
     const d2 = dateRange[1].format("YYYY-MM-DD");
-    
+
     try {
       await load(null, null, drilledWarehouse || warehouseFilter, drilledBond, currentMode, d1, d2);
       message.success("Report date range applied successfully");
@@ -211,7 +211,7 @@ export default function CumulativeWarehouseReport() {
     setDrilledWarehouse(null);
     setDrilledBond(null);
     setMode("warehouse");
-    
+
     try {
       await load(null, null, null, null, "warehouse", "RESET", "RESET");
     } catch (e) {
@@ -409,10 +409,10 @@ export default function CumulativeWarehouseReport() {
 
   // 🔹 columns
   const daywiseColumns = [
-    { 
-      title: getTitle(), 
-      dataIndex: getDataIndex(), 
-      fixed: "left", 
+    {
+      title: getTitle(),
+      dataIndex: getDataIndex(),
+      fixed: "left",
       width: 200,
       render: renderFirstCol
     },
@@ -441,9 +441,9 @@ export default function CumulativeWarehouseReport() {
   ];
 
   const cumulativeColumns = [
-    { 
-      title: getTitle(), 
-      dataIndex: getDataIndex(), 
+    {
+      title: getTitle(),
+      dataIndex: getDataIndex(),
       width: 250,
       render: renderFirstCol
     },
@@ -464,11 +464,11 @@ export default function CumulativeWarehouseReport() {
     // 1. Resolve columns
     const firstColTitle = getTitle();
     const firstColKey = getDataIndex();
-    
+
     const pdfCols = [firstColTitle];
     const mappingCols = [{ title: firstColTitle, key: firstColKey }];
     let pdfHead = null;
-    
+
     if (view === "daywise") {
       const firstHeaderRow = [
         { content: firstColTitle, rowSpan: 2, styles: { valign: 'middle', halign: 'center' } }
@@ -499,7 +499,7 @@ export default function CumulativeWarehouseReport() {
       pdfCols.push("TOT");
       mappingCols.push({ title: "TOT", key: "total" });
     }
-    
+
     // 2. Map data rows
     const pdfData = sourceRows.map(row => {
       const pdfRow = {};
@@ -526,7 +526,7 @@ export default function CumulativeWarehouseReport() {
       grandTotalRow[col.title] = "";
     });
     grandTotalRow[firstColTitle] = "Grand Total";
-    
+
     // Compute grand totals
     const actualRows = sourceRows.filter(r => !r.isClusterHeader && !r.isClusterTotal);
     if (view === "daywise") {
@@ -549,16 +549,16 @@ export default function CumulativeWarehouseReport() {
     let totalSum = 0;
     actualRows.forEach(r => totalSum += Number(r.total || 0));
     grandTotalRow[view === "daywise" ? "Total" : "TOT"] = totalSum;
-    
+
     pdfData.push(grandTotalRow);
-    
+
     return { columns: pdfCols, data: pdfData, head: pdfHead };
   };
 
   // 🔥 DOWNLOAD
   const handleDownload = async (format, modeType) => {
-    const reportTitle = isDailyWiseType 
-      ? "Daily Secondary Sales" 
+    const reportTitle = isDailyWiseType
+      ? "Daily Secondary Sales"
       : (isBrandwiseCumType ? "Brandwise Cum Secondary Sales" : "Cumulative Warehouse Report");
 
     if (format === "xlsx") {
@@ -567,10 +567,10 @@ export default function CumulativeWarehouseReport() {
         try {
           const d1 = dateRange[0]?.format("YYYY-MM-DD");
           const d2 = dateRange[1]?.format("YYYY-MM-DD");
-          
+
           const isBondMode = mode === "bond";
           const filterField = isBondMode ? "Bond" : "Warehouse";
-          
+
           const params = {
             mode: "shop" // Always query at shop level for detailed drilldown
           };
@@ -578,13 +578,13 @@ export default function CumulativeWarehouseReport() {
             params.start_date = d1;
             params.end_date = d2;
           }
-          
+
           // Fetch backend report data and load bond mapping content simultaneously
           const [res, bondMappingRes] = await Promise.all([
             getReport(id, null, view, params),
             getJson("bond_mapping")
           ]);
-          
+
           const fullData = (res.data.data || []).filter(d => {
             const wh = d.warehouse || "";
             const bnd = d.bond || "";
@@ -592,7 +592,7 @@ export default function CumulativeWarehouseReport() {
             return (d.warehouse || d.shop_code || d.bond) && !isUnmapped;
           });
           const bondMapping = bondMappingRes.data || {};
-          
+
           // Build a lookup map of shop_code -> bond name
           const shopToBondMap = {};
           Object.entries(bondMapping).forEach(([bondName, bondData]) => {
@@ -608,7 +608,7 @@ export default function CumulativeWarehouseReport() {
           // Map rows to include readable fields and date/brand values
           const exportData = fullData.map(d => {
             const shopCodeStr = String(d.shop_code || "");
-            
+
             // Core mapping resolution
             const resolvedBond = shopToBondMap[shopCodeStr] || formatName(d.bond) || "UNKNOWN";
 
@@ -711,7 +711,7 @@ export default function CumulativeWarehouseReport() {
           const d1 = dateRange[0]?.format("D MMMM YYYY");
           const d2 = dateRange[1]?.format("D MMMM YYYY");
           const subtitle = d1 && d2 ? `${d1} to ${d2} • cases • all channels (KSBC + Consumer Fed + BAR)` : "";
-          
+
           const brandKeys = brandColumns.map(bc => ({ title: bc.title, key: bc.dataIndex }));
 
           exportBrandwiseCumExcel({
@@ -753,7 +753,7 @@ export default function CumulativeWarehouseReport() {
       setLoading(true);
       try {
         const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
-        
+
         // Sum cols for PDF (excluding First column and Spacer columns)
         const sumCols = ["Total", "TOT"];
         if (view === "daywise") {
@@ -822,7 +822,7 @@ export default function CumulativeWarehouseReport() {
             return (d.warehouse || d.shop_code || d.bond) && !isUnmapped;
           });
           const bondMapping = bondMappingRes.data || {};
-          
+
           // Build a lookup map of shop_code -> bond name
           const shopToBondMap = {};
           Object.entries(bondMapping).forEach(([bondName, bondData]) => {
@@ -952,11 +952,11 @@ export default function CumulativeWarehouseReport() {
               </Button>
             </>
           ) : (
-            <DownloadDropdown 
-              onDownload={handleDownload} 
-              loading={loading} 
-              disabled={processedData.length === 0} 
-              showPdf={true} 
+            <DownloadDropdown
+              onDownload={handleDownload}
+              loading={loading}
+              disabled={processedData.length === 0}
+              showPdf={true}
             />
           )}
         </Space>
@@ -1002,9 +1002,9 @@ export default function CumulativeWarehouseReport() {
         </Button>
 
         {drilledWarehouse && (
-          <Button 
-            type="dashed" 
-            danger 
+          <Button
+            type="dashed"
+            danger
             onClick={() => setDrilledWarehouse(null)}
             style={{ marginLeft: 8 }}
           >
@@ -1012,9 +1012,9 @@ export default function CumulativeWarehouseReport() {
           </Button>
         )}
         {drilledBond && !drilledWarehouse && (
-          <Button 
-            type="dashed" 
-            danger 
+          <Button
+            type="dashed"
+            danger
             onClick={() => setDrilledBond(null)}
             style={{ marginLeft: 8 }}
           >
@@ -1059,9 +1059,9 @@ export default function CumulativeWarehouseReport() {
           disabled={loading || !dateRange || dateRange.length < 2}
         />
 
-        <Button 
-          type="primary" 
-          onClick={handleApplyDateRange} 
+        <Button
+          type="primary"
+          onClick={handleApplyDateRange}
           disabled={loading || !dateRange || dateRange.length < 2}
         >
           Apply Date Range

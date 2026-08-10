@@ -478,12 +478,12 @@ export const exportAchievedTargetPdf = ({
       doc.setFillColor(255, 189, 49); 
       doc.rect(10, 24, 277, 7, "F");
 
-      doc.setFontSize(16);
+      doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(255, 189, 49); 
       doc.text("K.S DISTILLERY", 148.5, 19.5, { align: "center" });
 
-      doc.setFontSize(11);
+      doc.setFontSize(13);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(11, 41, 79); 
       doc.text(title.toUpperCase(), 15, 28.5, { align: "left" });

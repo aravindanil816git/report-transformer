@@ -201,13 +201,15 @@ export default function CleanupReport() {
           "PENDING": totalPending,
         });
 
+        const currentWh = selectedWarehouse ? String(selectedWarehouse).replace(/^WH-/i, "").trim() : "";
+
         exportToPdf({
           title: "Warehouse Physical Stock Report",
           periodLabel: pdfPeriodLabel,
           columns,
           data: exportData,
           filename: `physical_stock_report_${selectedWarehouse}.pdf`,
-          metadataWarehouse: selectedWarehouse,
+          metadataWarehouse: currentWh,
           zeroMargin: true
         });
       } else if (mode === "unified") {

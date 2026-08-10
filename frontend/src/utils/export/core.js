@@ -186,6 +186,19 @@ export const exportToPdf = ({
     const cleanPeriod = (currentPeriod || "").replace(/^Report Period:\s*/i, "").replace(/^As\s+on\s*:\s*/i, "").replace(/^As\s+On\s*:\s*/i, "").trim();
     doc.text(currentTitle.toUpperCase(), paddingLeft, zeroMargin ? 21.5 : 33.5, { align: "left" });
     doc.text(cleanPeriod, paddingRight, zeroMargin ? 21.5 : 33.5, { align: "right" });
+
+    if (subHeader) {
+      const rectY = (zeroMargin ? 24 : 36) + 1;
+      const textY = (zeroMargin ? 29.5 : 41.5) + 1;
+
+      doc.setFillColor(255, 189, 49); 
+      doc.rect(startX, rectY, width, 8, "F");
+
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(11, 41, 79); 
+      doc.text(subHeader.toUpperCase(), paddingLeft, textY, { align: "left" });
+    }
   };
 
   const getTableHeight = (cols, rows) => {
@@ -274,18 +287,20 @@ export const exportToPdf = ({
         doc.addPage([pageWidth, pageHeight], orientation);
       }
 
+      const subHeaderStr = groupName ? String(groupName).replace(/^WH-/i, "").trim() : "";
+
       autoTable(doc, {
         head: head || [columns],
         body: tableRows,
-        startY: 28,
-        margin: { top: 28, bottom: 0, left: 0, right: 0 },
+        startY: subHeaderStr ? 35 : 28,
+        margin: { top: subHeaderStr ? 35 : 28, bottom: 0, left: 0, right: 0 },
         theme: "striped",
         styles: { font: "helvetica", fontStyle: "normal", fontSize: 11, cellPadding: 3.5, textColor: [40, 40, 40] },
         columnStyles: columnStyles,
         headStyles: { fillColor: [11, 41, 79], textColor: [255, 189, 49], font: "helvetica", fontStyle: "bold", fontSize: 10, lineWidth: 0.1, lineColor: [200, 205, 215] },
         alternateRowStyles: { fillColor: [244, 247, 252] },
         didDrawPage: (data) => {
-          drawHeader(doc, title, periodLabel, `${groupName}`, data.pageNumber);
+          drawHeader(doc, title, periodLabel, subHeaderStr, data.pageNumber);
         },
         didDrawCell: (data) => {
           const firstCellRaw = data.row.cells[0]?.raw;
@@ -409,8 +424,8 @@ export const exportToPdf = ({
     autoTable(doc, {
       head: head || [columns],
       body: tableRows,
-      startY: 28,
-      margin: { top: 28, bottom: 0, left: 0, right: 0 },
+      startY: metadataWarehouse ? 35 : 28,
+      margin: { top: metadataWarehouse ? 35 : 28, bottom: 0, left: 0, right: 0 },
       theme: "striped",
       styles: { font: "helvetica", fontStyle: "normal", fontSize: 11, cellPadding: 3.5, textColor: [40, 40, 40] },
       columnStyles: columnStyles,
