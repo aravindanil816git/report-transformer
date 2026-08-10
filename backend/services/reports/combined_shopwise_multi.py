@@ -33,23 +33,15 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         lowered = filename.lower()
         
         # 1. Clean suffix letters like st, nd, rd, th from numbers (e.g. 1st -> 1, 7th -> 7)
-        clean_name = re.sub(r"(\d+)(?:st|nd|rd|th)\b", r"\1", lowered)
+        clean_name = re.sub(r"(\d+)(?:st|nd|rd|th)", r"\1", lowered)
         
-        # 2. Find all 1-to-2 digit numbers (ignoring 4-digit years)
-        days = [int(n) for n in re.findall(r"\b\d{1,2}\b", clean_name)]
+        # 2. Find all numbers and filter out year numbers (e.g., 2026) or other invalid days
+        numbers = [int(n) for n in re.findall(r"\d+", clean_name)]
+        days = [n for n in numbers if 1 <= n <= 31]
         if len(days) >= 2:
             start_day = days[0]
             end_day = days[1]
-            if 1 <= start_day <= 31 and 1 <= end_day <= 31:
-                return start_day, end_day
-                
-        # 3. Fallback to standard range regex
-        match = re.search(r"(\d{1,2})\s*(?:-|to|–|—|_)\s*(\d{1,2})", lowered)
-        if match:
-            start_day = int(match.group(1))
-            end_day = int(match.group(2))
-            if 1 <= start_day <= 31 and 1 <= end_day <= 31:
-                return start_day, end_day
+            return start_day, end_day
                 
         # 4. Fallback to report config date range bounds
         if report_config:
