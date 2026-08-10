@@ -89,7 +89,12 @@ export default function CumulativeWarehouseReport() {
         params.end_date = d2;
       }
       const res = await getReport(id, null, selectedWarehouse ? "shopwise" : view, params);
-      const cleaned = (res.data.data || []).filter(d => d.warehouse || d.shop_code || d.bond);
+      const cleaned = (res.data.data || []).filter(d => {
+        const wh = d.warehouse || "";
+        const bnd = d.bond || "";
+        const isUnmapped = (wh === "UNMAPPED" || wh === "UNKNOWN" || !wh) && (bnd === "UNMAPPED" || bnd === "UNKNOWN" || !bnd);
+        return (d.warehouse || d.shop_code || d.bond) && !isUnmapped;
+      });
   
       setData(cleaned);
       setLabels(res.data.labels || []);
@@ -580,7 +585,12 @@ export default function CumulativeWarehouseReport() {
             getJson("bond_mapping")
           ]);
           
-          const fullData = (res.data.data || []).filter(d => d.warehouse || d.shop_code || d.bond);
+          const fullData = (res.data.data || []).filter(d => {
+            const wh = d.warehouse || "";
+            const bnd = d.bond || "";
+            const isUnmapped = (wh === "UNMAPPED" || wh === "UNKNOWN" || !wh) && (bnd === "UNMAPPED" || bnd === "UNKNOWN" || !bnd);
+            return (d.warehouse || d.shop_code || d.bond) && !isUnmapped;
+          });
           const bondMapping = bondMappingRes.data || {};
           
           // Build a lookup map of shop_code -> bond name
@@ -805,7 +815,12 @@ export default function CumulativeWarehouseReport() {
             getJson("bond_mapping")
           ]);
 
-          const fullData = (res.data.data || []).filter(d => d.warehouse || d.shop_code || d.bond);
+          const fullData = (res.data.data || []).filter(d => {
+            const wh = d.warehouse || "";
+            const bnd = d.bond || "";
+            const isUnmapped = (wh === "UNMAPPED" || wh === "UNKNOWN" || !wh) && (bnd === "UNMAPPED" || bnd === "UNKNOWN" || !bnd);
+            return (d.warehouse || d.shop_code || d.bond) && !isUnmapped;
+          });
           const bondMapping = bondMappingRes.data || {};
           
           // Build a lookup map of shop_code -> bond name
