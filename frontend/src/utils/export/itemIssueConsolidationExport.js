@@ -81,8 +81,18 @@ const navyColor = "0B294F";
 const goldColor = "FFBD31";
 const clusterBgColor = "FFC000";
 const totalBgColor = "FFC000";
-const borderStyle = { style: "thin", color: { argb: "FFFFBD31" } };
-const lightGrayBorder = { style: "thin", color: { argb: "FFFFBD31" } };
+const borderStyle = {
+  top: { style: "thin", color: { argb: "FFFFBD31" } },
+  left: { style: "thin", color: { argb: "FFFFBD31" } },
+  bottom: { style: "thin", color: { argb: "FFFFBD31" } },
+  right: { style: "thin", color: { argb: "FFFFBD31" } }
+};
+const lightGrayBorder = {
+  top: { style: "thin", color: { argb: "FFFFBD31" } },
+  left: { style: "thin", color: { argb: "FFFFBD31" } },
+  bottom: { style: "thin", color: { argb: "FFFFBD31" } },
+  right: { style: "thin", color: { argb: "FFFFBD31" } }
+};
 
 export const exportItemIssueConsolidationExcel = async ({
   data,
@@ -163,6 +173,7 @@ export const exportItemIssueConsolidationExcel = async ({
     { horizontal: "center", vertical: "middle" },
     null
   );
+  ws.getCell("C1").value = title.toUpperCase();
 
   // Subtitle Row 2
   ws.mergeCells("A2:B2");
@@ -406,10 +417,6 @@ export const exportItemIssueConsolidationExcel = async ({
     styleNumericCell(ws.getCell(`G${currentExcelRowIdx}`), clusterTotals.bar1, true);
     styleNumericCell(ws.getCell(`H${currentExcelRowIdx}`), clusterTotals.final1, true, "0B294F");
 
-    const month2Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF9E6" } };
-    ["I", "J", "K", "L", "M", "N"].forEach(col => {
-      ws.getCell(`${col}${currentExcelRowIdx}`).fill = month2Fill;
-    });
     styleNumericCell(ws.getCell(`I${currentExcelRowIdx}`), clusterTotals.stn2, true);
     styleNumericCell(ws.getCell(`J${currentExcelRowIdx}`), clusterTotals.gtn2, true);
     styleNumericCell(ws.getCell(`K${currentExcelRowIdx}`), clusterTotals.total2, true);
@@ -433,9 +440,7 @@ export const exportItemIssueConsolidationExcel = async ({
     // Apply background and borders for cluster summary row
     allHeaderCols.forEach(col => {
       const cell = ws.getCell(`${col}${currentExcelRowIdx}`);
-      if (col !== "I" && col !== "J" && col !== "K" && col !== "L" && col !== "M" && col !== "N") {
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: clusterBgColor } };
-      }
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: clusterBgColor } };
       cell.border = borderStyle;
     });
 
@@ -458,10 +463,6 @@ export const exportItemIssueConsolidationExcel = async ({
   styleNumericCell(ws.getCell(`G${grandTotalRowIdx}`), grandTotals.bar1, true, "FFFFFF");
   styleNumericCell(ws.getCell(`H${grandTotalRowIdx}`), grandTotals.final1, true, "FFFFFF");
 
-  const month2Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF9E6" } };
-  ["I", "J", "K", "L", "M", "N"].forEach(col => {
-    ws.getCell(`${col}${grandTotalRowIdx}`).fill = month2Fill;
-  });
   styleNumericCell(ws.getCell(`I${grandTotalRowIdx}`), grandTotals.stn2, true, "FFFFFF");
   styleNumericCell(ws.getCell(`J${grandTotalRowIdx}`), grandTotals.gtn2, true, "FFFFFF");
   styleNumericCell(ws.getCell(`K${grandTotalRowIdx}`), grandTotals.total2, true, "FFFFFF");
@@ -482,9 +483,7 @@ export const exportItemIssueConsolidationExcel = async ({
 
   allHeaderCols.forEach(col => {
     const cell = ws.getCell(`${col}${grandTotalRowIdx}`);
-    if (col !== "I" && col !== "J" && col !== "K" && col !== "L" && col !== "M" && col !== "N") {
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
-    }
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
     cell.border = borderStyle;
   });
 
@@ -871,14 +870,14 @@ export const exportItemIssueConsolidationPdf = ({
       doc.rect(0, 12, 297, 8, "F");
 
       // Draw Main Title
-      doc.setFontSize(14);
+      doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(255, 189, 49); 
       doc.text(title.toUpperCase(), 173.5, 8, { align: "center" });
 
       // Draw Sub-headings
       doc.setFontSize(10.5);
-      doc.setTextColor(255, 255, 255); 
+      doc.setTextColor(255, 189, 49); 
       doc.text(`SECONDARY SALES · ${date1 ? date1.format("MMM YY").toUpperCase() : ""} vs ${date2 ? date2.format("MMM YY").toUpperCase() : ""}`, 5, 17);
 
       doc.setTextColor(255, 189, 49); 
