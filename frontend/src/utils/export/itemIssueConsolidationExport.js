@@ -81,8 +81,8 @@ const navyColor = "0B294F";
 const goldColor = "FFBD31";
 const clusterBgColor = "FFC000";
 const totalBgColor = "FFC000";
-const borderStyle = { style: "thin", color: { argb: "FF000000" } };
-const lightGrayBorder = { style: "thin", color: { argb: "FFD3D3D3" } };
+const borderStyle = { style: "thin", color: { argb: "FFFFBD31" } };
+const lightGrayBorder = { style: "thin", color: { argb: "FFFFBD31" } };
 
 export const exportItemIssueConsolidationExcel = async ({
   data,
@@ -95,7 +95,7 @@ export const exportItemIssueConsolidationExcel = async ({
   industrySales1 = "",
   industrySales2 = "",
   filename = "item_issue_consolidation.xlsx",
-  title = "K.S DISTILLERY — ALL KERALA"
+  title = "K.S DISTILLERY"
 }) => {
   const workbook = new ExcelJS.Workbook();
   const ws = workbook.addWorksheet("Consolidation Report", {
@@ -169,7 +169,7 @@ export const exportItemIssueConsolidationExcel = async ({
   styleRange(
     "A2:B2",
     navyFill,
-    { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFF" } },
+    { name: "Segoe UI", size: 12, bold: true, color: { argb: "FFFFFF" } },
     { horizontal: "left", vertical: "middle" },
     null
   );
@@ -182,11 +182,11 @@ export const exportItemIssueConsolidationExcel = async ({
   styleRange(
     "O2:Q2",
     navyFill,
-    { name: "Segoe UI", size: 11, bold: true, color: { argb: goldColor } },
+    { name: "Segoe UI", size: 12, bold: true, color: { argb: goldColor } },
     { horizontal: "right", vertical: "middle" },
     null
   );
-  ws.getCell("O2").value = `AS ON ${date1 ? date1.format("D-M-YYYY") : ""}`;
+  ws.getCell("O2").value = `AS ON ${date1 ? date1.format("D MMMM YYYY").toUpperCase() : ""}`;
 
   // Style all header cells in rows 3 & 4 FIRST to avoid cell formatting bugs on merged cells
   const allHeaderCols = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"];
@@ -604,7 +604,7 @@ export const exportItemIssueConsolidationPdf = ({
   industrySales1 = "",
   industrySales2 = "",
   filename = "item_issue_consolidation.pdf",
-  title = "K.S DISTILLERY — ALL KERALA"
+  title = "K.S DISTILLERY"
 }) => {
   const doc = new jsPDF({
     orientation: "landscape",
@@ -620,8 +620,8 @@ export const exportItemIssueConsolidationPdf = ({
   const d2Day = date2 ? date2.date() : 1;
 
   // Set up header structure
-  const period1HeaderText = `${date1 ? date1.format("MMMM YYYY").toUpperCase() : ""} - as on ${date1 ? date1.format("DD-MM-YYYY") : ""}`;
-  const period2HeaderText = `${date2 ? date2.format("MMMM YYYY").toUpperCase() : ""} - as on ${date2 ? date2.format("DD-MM-YYYY") : ""}`;
+  const period1HeaderText = `${date1 ? date1.format("MMMM YYYY").toUpperCase() : ""} - as on ${date1 ? date1.format("D MMMM YYYY") : ""}`;
+  const period2HeaderText = `${date2 ? date2.format("MMMM YYYY").toUpperCase() : ""} - as on ${date2 ? date2.format("D MMMM YYYY") : ""}`;
 
   const headers = [
     [
@@ -849,7 +849,7 @@ export const exportItemIssueConsolidationPdf = ({
       font: "helvetica",
       fontSize: 7.5,
       cellPadding: 1.2,
-      lineColor: [0, 0, 0],
+      lineColor: [255, 189, 49],
       lineWidth: 0.15,
       textColor: [0, 0, 0]
     },
@@ -877,12 +877,12 @@ export const exportItemIssueConsolidationPdf = ({
       doc.text(title.toUpperCase(), 173.5, 8, { align: "center" });
 
       // Draw Sub-headings
-      doc.setFontSize(8.5);
+      doc.setFontSize(10.5);
       doc.setTextColor(255, 255, 255); 
       doc.text(`SECONDARY SALES · ${date1 ? date1.format("MMM YY").toUpperCase() : ""} vs ${date2 ? date2.format("MMM YY").toUpperCase() : ""}`, 5, 17);
 
       doc.setTextColor(255, 189, 49); 
-      doc.text(`AS ON ${date1 ? date1.format("D-M-YYYY") : ""}`, 292, 17, { align: "right" });
+      doc.text(`AS ON ${date1 ? date1.format("D MMMM YYYY").toUpperCase() : ""}`, 292, 17, { align: "right" });
     },
     didParseCell: (cellData) => {
       // Style headers appropriately
