@@ -462,7 +462,11 @@ export const exportAchievedTargetPdf = ({
   viewMode,
   displayedBrands,
   dateRange,
-  clusters
+  clusters,
+  isSummaryOnly = false,
+  customTitle = null,
+  filename = null,
+  showGrandTotal = true
 }) => {
   const orientation = "landscape";
   const doc = new jsPDF({ orientation: orientation, unit: "mm", format: "a4" });
@@ -494,9 +498,14 @@ export const exportAchievedTargetPdf = ({
   if (viewMode === "bond") {
     const tableRows = [];
     
-    for (let i = 0; i < data.length; i += 2) {
-      const tgtRow = data[i];
-      const achRow = data[i + 1];
+    // Filter to only cluster totals if isSummaryOnly is true
+    const targetRows = isSummaryOnly 
+      ? data.filter(r => r.isClusterTotal)
+      : data;
+
+    for (let i = 0; i < targetRows.length; i += 2) {
+      const tgtRow = targetRows[i];
+      const achRow = targetRows[i + 1];
       if (!tgtRow || !achRow) continue;
 
       const isCluster = tgtRow.isClusterTotal;
@@ -519,17 +528,17 @@ export const exportAchievedTargetPdf = ({
       const pctVal = getAchPercentage(tgtSum, achSum);
 
       const row1 = [
-        { content: bondName, rowSpan: 2, styles: { halign: "center", valign: "middle", fontStyle: "bold", fillColor: isCluster ? [255, 192, 0] : [11, 41, 79], textColor: isCluster ? [0, 0, 0] : [255, 255, 255] } },
-        { content: "TGT", styles: { halign: "center", fillColor: isCluster ? [255, 192, 0] : [255, 255, 255], textColor: [0, 0, 0] } },
-        ...brandTgts.map(v => ({ content: String(v), styles: { halign: "center", fillColor: isCluster ? [255, 192, 0] : [255, 255, 255] } })),
-        { content: String(tgtSum), styles: { halign: "center", fontStyle: "bold", fillColor: isCluster ? [255, 192, 0] : [255, 255, 255] } },
-        { content: pctVal, rowSpan: 2, styles: { halign: "center", valign: "middle", fontStyle: "bold", textColor: getAchPercentageNum(tgtSum, achSum) >= 100 ? [63, 134, 0] : [207, 19, 34], fillColor: isCluster ? [255, 192, 0] : [255, 255, 255] } }
+        { content: bondName, rowSpan: 2, styles: { halign: "center", valign: "middle", fontStyle: "bold", fillColor: [11, 41, 79], textColor: isCluster ? [255, 189, 49] : [255, 255, 255] } },
+        { content: "TGT", styles: { halign: "center", fontStyle: isCluster ? "bold" : "normal", fillColor: isCluster ? [255, 189, 49] : [255, 255, 255], textColor: [0, 0, 0] } },
+        ...brandTgts.map(v => ({ content: String(v), styles: { halign: "center", fontStyle: isCluster ? "bold" : "normal", fillColor: isCluster ? [255, 189, 49] : [255, 255, 255], textColor: [0, 0, 0] } })),
+        { content: String(tgtSum), styles: { halign: "center", fontStyle: "bold", fillColor: isCluster ? [255, 189, 49] : [255, 255, 255], textColor: [0, 0, 0] } },
+        { content: pctVal, rowSpan: 2, styles: { halign: "center", valign: "middle", fontStyle: "bold", textColor: isCluster ? [0, 0, 0] : (getAchPercentageNum(tgtSum, achSum) >= 100 ? [63, 134, 0] : [207, 19, 34]), fillColor: isCluster ? [255, 189, 49] : [255, 255, 255] } }
       ];
 
       const row2 = [
-        { content: "ACH", styles: { halign: "center", fillColor: isCluster ? [255, 192, 0] : [255, 255, 255], textColor: [0, 0, 0] } },
-        ...brandAchs.map(v => ({ content: String(v), styles: { halign: "center", fillColor: isCluster ? [255, 192, 0] : [255, 255, 255] } })),
-        { content: String(achSum), styles: { halign: "center", fontStyle: "bold", fillColor: isCluster ? [255, 192, 0] : [255, 255, 255] } }
+        { content: "ACH", styles: { halign: "center", fontStyle: isCluster ? "bold" : "normal", fillColor: isCluster ? [255, 189, 49] : [255, 255, 255], textColor: [0, 0, 0] } },
+        ...brandAchs.map(v => ({ content: String(v), styles: { halign: "center", fontStyle: isCluster ? "bold" : "normal", fillColor: isCluster ? [255, 189, 49] : [255, 255, 255], textColor: [0, 0, 0] } })),
+        { content: String(achSum), styles: { halign: "center", fontStyle: "bold", fillColor: isCluster ? [255, 189, 49] : [255, 255, 255], textColor: [0, 0, 0] } }
       ];
 
       tableRows.push(row1);
@@ -546,7 +555,12 @@ export const exportAchievedTargetPdf = ({
     });
 
     data.forEach(row => {
-      if (row.isClusterTotal) return;
+      if (isSummaryOnly) {
+        if (!row.isClusterTotal) return;
+      } else {
+        if (row.isClusterTotal) return;
+      }
+      
       if (row.type === "Target") {
         displayedBrands.forEach(b => {
           grandBrandTgts[b] += row.brands?.[b]?.target || 0;
@@ -565,19 +579,21 @@ export const exportAchievedTargetPdf = ({
 
     const finalPctVal = getAchPercentage(grandTgtSum, grandAchSum);
 
-    tableRows.push([
-      { content: "GRAND TOTAL", rowSpan: 2, styles: { halign: "center", valign: "middle", fontStyle: "bold", fillColor: [11, 41, 79], textColor: [255, 189, 49] } },
-      { content: "TGT", styles: { halign: "center", fillColor: [11, 41, 79], textColor: [255, 255, 255], fontStyle: "bold" } },
-      ...displayedBrands.map(b => ({ content: String(Math.round(grandBrandTgts[b])), styles: { halign: "center", fillColor: [11, 41, 79], textColor: [255, 255, 255], fontStyle: "bold" } })),
-      { content: String(Math.round(grandTgtSum)), styles: { halign: "center", fontStyle: "bold", fillColor: [11, 41, 79], textColor: [255, 189, 49] } },
-      { content: finalPctVal, rowSpan: 2, styles: { halign: "center", valign: "middle", fontStyle: "bold", fillColor: [11, 41, 79], textColor: getAchPercentageNum(grandTgtSum, grandAchSum) >= 100 ? [255, 255, 255] : [255, 100, 100] } }
-    ]);
+    if (showGrandTotal) {
+      tableRows.push([
+        { content: "GRAND TOTAL", rowSpan: 2, styles: { halign: "center", valign: "middle", fontStyle: "bold", fillColor: [11, 41, 79], textColor: [255, 189, 49] } },
+        { content: "TGT", styles: { halign: "center", fillColor: [11, 41, 79], textColor: [255, 255, 255], fontStyle: "bold" } },
+        ...displayedBrands.map(b => ({ content: String(Math.round(grandBrandTgts[b])), styles: { halign: "center", fillColor: [11, 41, 79], textColor: [255, 255, 255], fontStyle: "bold" } })),
+        { content: String(Math.round(grandTgtSum)), styles: { halign: "center", fontStyle: "bold", fillColor: [11, 41, 79], textColor: [255, 189, 49] } },
+        { content: finalPctVal, rowSpan: 2, styles: { halign: "center", valign: "middle", fontStyle: "bold", fillColor: [11, 41, 79], textColor: getAchPercentageNum(grandTgtSum, grandAchSum) >= 100 ? [255, 255, 255] : [255, 100, 100] } }
+      ]);
 
-    tableRows.push([
-      { content: "ACH", styles: { halign: "center", fillColor: [11, 41, 79], textColor: [255, 255, 255], fontStyle: "bold" } },
-      ...displayedBrands.map(b => ({ content: String(Math.round(grandBrandAchs[b])), styles: { halign: "center", fillColor: [11, 41, 79], textColor: [255, 255, 255], fontStyle: "bold" } })),
-      { content: String(Math.round(grandAchSum)), styles: { halign: "center", fontStyle: "bold", fillColor: [11, 41, 79], textColor: [255, 189, 49] } }
-    ]);
+      tableRows.push([
+        { content: "ACH", styles: { halign: "center", fillColor: [11, 41, 79], textColor: [255, 255, 255], fontStyle: "bold" } },
+        ...displayedBrands.map(b => ({ content: String(Math.round(grandBrandAchs[b])), styles: { halign: "center", fillColor: [11, 41, 79], textColor: [255, 255, 255], fontStyle: "bold" } })),
+        { content: String(Math.round(grandAchSum)), styles: { halign: "center", fontStyle: "bold", fillColor: [11, 41, 79], textColor: [255, 189, 49] } }
+      ]);
+    }
 
     const headers = [
       "STAFF - BOND",
@@ -607,7 +623,7 @@ export const exportAchievedTargetPdf = ({
         halign: "center"
       },
       didDrawPage: (data) => {
-        drawHeader(doc, "TARGET VS ACHIEVEMENT", formattedDate, data.pageNumber);
+        drawHeader(doc, customTitle || "TARGET VS ACHIEVEMENT", formattedDate, data.pageNumber);
       }
     });
 
@@ -671,11 +687,11 @@ export const exportAchievedTargetPdf = ({
         halign: "center"
       },
       didDrawPage: (data) => {
-        drawHeader(doc, "SHOPWISE TARGET VS ACHIEVEMENT", formattedDate, data.pageNumber);
+        drawHeader(doc, customTitle || "SHOPWISE TARGET VS ACHIEVEMENT", formattedDate, data.pageNumber);
       }
     });
   }
 
-  const filename = viewMode === "bond" ? "target_vs_achievement_report.pdf" : "shopwise_target_vs_achievement_report.pdf";
-  doc.save(filename);
+  const defaultFilename = viewMode === "bond" ? "target_vs_achievement_report.pdf" : "shopwise_target_vs_achievement_report.pdf";
+  doc.save(filename || defaultFilename);
 };

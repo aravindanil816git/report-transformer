@@ -1,12 +1,13 @@
 import { useEffect, useState, useMemo } from "react";
-import { Table, InputNumber, Button, message, Space, DatePicker, Popover, Checkbox, Segmented } from "antd";
+import { Table, InputNumber, Button, message, Space, DatePicker, Popover, Checkbox, Segmented, Dropdown } from "antd";
 import { useParams, useNavigate } from "react-router-dom";
 import { getReport, getJson, updateReportConfig } from "../api";
 import axios from "axios";
-import { FilterOutlined } from "@ant-design/icons";
+import { FilterOutlined, DownOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { disabledFutureMonthDates } from "../utils/dateUtils";
 import { exportAchievedTargetExcel, exportAchievedTargetPdf } from "../utils/exportUtils";
+import DownloadDropdown from "../components/DownloadDropdown";
 
 const { RangePicker } = DatePicker;
 
@@ -538,6 +539,98 @@ export default function AchievedTargetReport() {
     }
   };
 
+  const handleDownloadCurrentViewPdf = () => {
+    exportAchievedTargetPdf({
+      data: tableData,
+      viewMode,
+      displayedBrands,
+      dateRange,
+      clusters,
+      customTitle: drilledBond ? `Target v/s Achieved - ${drilledBond}` : "Target v/s Achieved Report",
+      filename: drilledBond ? `target_vs_achieved_report_${drilledBond}.pdf` : "target_vs_achieved_report.pdf"
+    });
+  };
+
+  const handleDownloadByClusterPdf = async () => {
+    const hideLoading = message.loading("Generating cluster PDFs...", 0);
+    try {
+      const clusterNames = Object.keys(clusters);
+      for (const clusterName of clusterNames) {
+        const clusterBonds = clusters[clusterName] || [];
+        const clusterData = tableData.filter(row => {
+          return clusterBonds.includes(row.bond) || row.bond === `${clusterName} TOTAL`;
+        });
+
+        if (clusterData.length > 0) {
+          const cleanName = clusterName.toLowerCase().replace(/\s+/g, "_");
+          exportAchievedTargetPdf({
+            data: clusterData,
+            viewMode: "bond",
+            displayedBrands,
+            dateRange,
+            clusters,
+            customTitle: `Target v/s Achieved - ${clusterName}`,
+            filename: `achieved_target_${cleanName}.pdf`,
+            showGrandTotal: false
+          });
+          // Small delay to prevent browser from blocking multiple concurrent downloads
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      // Export clusters summary PDF
+      const summaryData = tableData.filter(row => row.isClusterTotal);
+      if (summaryData.length > 0) {
+        exportAchievedTargetPdf({
+          data: tableData,
+          viewMode: "bond",
+          displayedBrands,
+          dateRange,
+          clusters,
+          isSummaryOnly: true,
+          customTitle: "Target v/s Achieved - CLUSTERS SUMMARY",
+          filename: "achieved_target_clusters_summary.pdf"
+        });
+      }
+      message.success("All cluster PDFs downloaded successfully!");
+    } catch (e) {
+      console.error(e);
+      message.error("Failed to download cluster PDFs");
+    } finally {
+      hideLoading();
+    }
+  };
+
+  const handlePdfClick = ({ key }) => {
+    if (key === "pdf-current") {
+      handleDownloadCurrentViewPdf();
+    } else if (key === "pdf-cluster") {
+      handleDownloadByClusterPdf();
+    }
+  };
+
+  const pdfItems = [
+    {
+      key: "pdf-current",
+      label: (
+        <div style={{ padding: "4px 8px" }}>
+          <div style={{ fontWeight: 600, fontSize: "14px", color: "#1f1f1f" }}>Current View</div>
+          <div style={{ fontSize: "12px", color: "#8c8c8c", marginTop: "2px" }}>Downloads currently filtered view as PDF</div>
+        </div>
+      )
+    },
+    {
+      key: "pdf-cluster",
+      label: (
+        <div style={{ padding: "4px 8px" }}>
+          <div style={{ fontWeight: 600, fontSize: "14px", color: "#1f1f1f" }}>PDF by Cluster</div>
+          <div style={{ fontSize: "12px", color: "#8c8c8c", marginTop: "2px" }}>Downloads separate PDF files for each cluster</div>
+        </div>
+      ),
+      disabled: viewMode === "shop"
+    }
+  ];
+
   return (
     <div style={{ background: "#fff", padding: 20, minHeight: "100%" }}>
       <style>{`
@@ -573,8 +666,26 @@ export default function AchievedTargetReport() {
           {!isEditingTargets ? (
             <>
               <Button onClick={() => setIsEditingTargets(true)} disabled={viewMode === "shop"}>Edit Targets</Button>
-              <Button type="primary" onClick={() => exportAchievedTargetExcel({ data: tableData, viewMode, displayedBrands, dateRange, clusters })}>Export Excel</Button>
-              <Button type="primary" onClick={() => exportAchievedTargetPdf({ data: tableData, viewMode, displayedBrands, dateRange, clusters })}>Export PDF</Button>
+              <Button 
+                type="primary" 
+                onClick={() => exportAchievedTargetExcel({ data: tableData, viewMode, displayedBrands, dateRange, clusters })}
+                disabled={data.length === 0}
+              >
+                Export Excel
+              </Button>
+              <Dropdown
+                menu={{
+                  items: pdfItems,
+                  onClick: handlePdfClick
+                }}
+                trigger={["click"]}
+                placement="bottomRight"
+                disabled={data.length === 0}
+              >
+                <Button type="primary">
+                  Export PDF <DownOutlined />
+                </Button>
+              </Dropdown>
             </>
           ) : (
             <>
