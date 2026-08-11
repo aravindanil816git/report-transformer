@@ -5,6 +5,7 @@ import { listReports, compareLive, getAllWarehouses, getJson, replaceJson } from
 import dayjs from "dayjs";
 import { exportToExcel, exportToPdf } from "../utils/exportUtils";
 import { disabledFutureMonthDates } from "../utils/dateUtils";
+import { exportItemIssueConsolidationExcel, exportItemIssueConsolidationPdf, DEFAULT_CLUSTERS } from "../utils/export/itemIssueConsolidationExport";
 
 export default function ItemIssueConsolidation() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export default function ItemIssueConsolidation() {
   const [tempSales1, setTempSales1] = useState("");
   const [tempSales2, setTempSales2] = useState("");
   const [hasSetDefaults, setHasSetDefaults] = useState(false);
+  const [clusters, setClusters] = useState({});
 
   useEffect(() => {
     Promise.all([
@@ -38,6 +40,12 @@ export default function ItemIssueConsolidation() {
     // Get master list of warehouses
     getAllWarehouses().then(res => {
       setWarehouses(res.data || []);
+    });
+    // Get warehouse clusters config
+    getJson("warehouse_clusters").then(res => {
+      setClusters(res.data || {});
+    }).catch(err => {
+      console.error("Failed to load warehouse clusters", err);
     });
   }, []);
 
@@ -160,10 +168,127 @@ export default function ItemIssueConsolidation() {
     setIsEditing(true);
   };
 
+  const getClusterKey = (wh, clustersConfig) => {
+    const norm = (w) => String(w || "").trim().toUpperCase();
+    const whNorm = norm(wh);
+    const whWithWH = whNorm.startsWith("WH-") ? whNorm : "WH-" + whNorm;
+    
+    for (const [clusterName, whList] of Object.entries(clustersConfig)) {
+      const matched = whList.some(item => {
+        const itemNorm = norm(item);
+        const itemWithWH = itemNorm.startsWith("WH-") ? itemNorm : "WH-" + itemNorm;
+        return whNorm === itemNorm || whWithWH === itemWithWH;
+      });
+      if (matched) return clusterName;
+    }
+    return "OTHER";
+  };
+
   const filteredData = useMemo(() => {
     if (!selectedWarehouse) return data;
     return data.filter(d => d.warehouse === selectedWarehouse);
   }, [data, selectedWarehouse]);
+
+  const webTableData = useMemo(() => {
+    if (!filteredData || filteredData.length === 0) return [];
+    
+    const activeClusters = Object.keys(clusters || {}).length > 0 ? clusters : DEFAULT_CLUSTERS;
+    const clusterKeys = ["CLUSTER - 1", "CLUSTER - 2", "CLUSTER - 3"];
+    const allClusterKeys = Array.from(new Set([...clusterKeys, ...Object.keys(activeClusters)]));
+    
+    const list = [];
+    let sNoCounter = 1;
+    
+    allClusterKeys.forEach(clusterName => {
+      const whList = activeClusters[clusterName] || [];
+      const clusterRows = filteredData.filter(d => getClusterKey(d.warehouse, activeClusters) === clusterName);
+      if (clusterRows.length === 0) return;
+      
+      const norm = (w) => String(w || "").trim().toUpperCase();
+      clusterRows.sort((a, b) => {
+        const idxA = whList.findIndex(item => {
+          const itemNorm = norm(item);
+          const itemWithWH = itemNorm.startsWith("WH-") ? itemNorm : "WH-" + itemNorm;
+          const aNorm = norm(a.warehouse);
+          const aWithWH = aNorm.startsWith("WH-") ? aNorm : "WH-" + aNorm;
+          return aNorm === itemNorm || aWithWH === itemWithWH;
+        });
+        const idxB = whList.findIndex(item => {
+          const itemNorm = norm(item);
+          const itemWithWH = itemNorm.startsWith("WH-") ? itemNorm : "WH-" + itemNorm;
+          const bNorm = norm(b.warehouse);
+          const bWithWH = bNorm.startsWith("WH-") ? bNorm : "WH-" + bNorm;
+          return bNorm === itemNorm || bWithWH === itemWithWH;
+        });
+        return idxA - idxB;
+      });
+      
+      const clusterTotals = {
+        stn1: 0, gtn1: 0, total1: 0, cfed1: 0, bar1: 0, final1: 0,
+        stn2: 0, gtn2: 0, total2: 0, cfed2: 0, bar2: 0, final2: 0,
+        diff: 0, last_month_final: 0
+      };
+      
+      clusterRows.forEach(row => {
+        list.push({
+          ...row,
+          sNo: sNoCounter++,
+          key: row.warehouse
+        });
+        
+        clusterTotals.stn1 += row.stn1 || 0;
+        clusterTotals.gtn1 += row.gtn1 || 0;
+        clusterTotals.total1 += row.total1 || 0;
+        clusterTotals.cfed1 += row.cfed1 || 0;
+        clusterTotals.bar1 += row.bar1 || 0;
+        clusterTotals.final1 += row.final1 || 0;
+        clusterTotals.stn2 += row.stn2 || 0;
+        clusterTotals.gtn2 += row.gtn2 || 0;
+        clusterTotals.total2 += row.total2 || 0;
+        clusterTotals.cfed2 += row.cfed2 || 0;
+        clusterTotals.bar2 += row.bar2 || 0;
+        clusterTotals.final2 += row.final2 || 0;
+        clusterTotals.diff += row.diff || 0;
+        clusterTotals.last_month_final += row.last_month_final || 0;
+      });
+      
+      const clPct = clusterTotals.final2 ? Math.round((clusterTotals.diff / clusterTotals.final2) * 100) : 0;
+      list.push({
+        warehouse: clusterName,
+        isClusterTotal: true,
+        stn1: clusterTotals.stn1,
+        gtn1: clusterTotals.gtn1,
+        total1: clusterTotals.total1,
+        cfed1: clusterTotals.cfed1,
+        bar1: clusterTotals.bar1,
+        final1: clusterTotals.final1,
+        stn2: clusterTotals.stn2,
+        gtn2: clusterTotals.gtn2,
+        total2: clusterTotals.total2,
+        cfed2: clusterTotals.cfed2,
+        bar2: clusterTotals.bar2,
+        final2: clusterTotals.final2,
+        diff: clusterTotals.diff,
+        pct: clPct,
+        last_month_final: clusterTotals.last_month_final,
+        key: `${clusterName}_total`
+      });
+    });
+    
+    // Add any remaining rows that might not belong to any cluster
+    const handledWarehouses = new Set(list.map(item => item.warehouse));
+    filteredData.forEach(row => {
+      if (!handledWarehouses.has(row.warehouse)) {
+        list.push({
+          ...row,
+          sNo: sNoCounter++,
+          key: row.warehouse
+        });
+      }
+    });
+    
+    return list;
+  }, [filteredData, clusters]);
 
   const totals = useMemo(() => {
     const t = {
@@ -202,13 +327,31 @@ export default function ItemIssueConsolidation() {
   const d2Label = date2 ? date2.format("MMM YYYY") : "Date 2";
   const lmLabel = lastMonthLabel ? `Last Month (${lastMonthLabel})` : "Last Month";
 
+  const month2CellProps = (record) => {
+    if (!record.isClusterTotal) {
+      return {
+        style: {
+          backgroundColor: "#fff9e6"
+        }
+      };
+    }
+    return {};
+  };
+
   const columns = [
     {
-      title: "Depot",
+      title: "SL NO",
+      dataIndex: "sNo",
+      fixed: "left",
+      width: 70,
+      render: (text, record) => record.isClusterTotal ? "" : text,
+    },
+    {
+      title: "Warehouse",
       dataIndex: "warehouse",
       fixed: "left",
       width: 180,
-      render: (text) => formatDepot(text),
+      render: (text, record) => record.isClusterTotal ? <strong>{text}</strong> : formatDepot(text),
     },
     {
       title: `Secondary Sales (${d1Label} vs ${d2Label})`,
@@ -218,19 +361,19 @@ export default function ItemIssueConsolidation() {
         { title: "TOTAL", dataIndex: "total1" },
         { title: "CFED", dataIndex: "cfed1" },
         { title: "BAR", dataIndex: "bar1" },
-        { title: d1Label, dataIndex: "final1" },
-        { title: "STN", dataIndex: "stn2" },
-        { title: "GTN", dataIndex: "gtn2" },
-        { title: "TOTAL", dataIndex: "total2" },
-        { title: "CFED", dataIndex: "cfed2" },
-        { title: "BAR", dataIndex: "bar2" },
-        { title: d2Label, dataIndex: "final2" },
+        { title: d1Label, dataIndex: "final1", render: (v) => <strong>{v}</strong> },
+        { title: "STN", dataIndex: "stn2", onCell: month2CellProps },
+        { title: "GTN", dataIndex: "gtn2", onCell: month2CellProps },
+        { title: "TOTAL", dataIndex: "total2", onCell: month2CellProps },
+        { title: "CFED", dataIndex: "cfed2", onCell: month2CellProps },
+        { title: "BAR", dataIndex: "bar2", onCell: month2CellProps },
+        { title: d2Label, dataIndex: "final2", onCell: month2CellProps, render: (v) => <strong>{v}</strong> },
       ]
     },
     {
       title: "Difference",
       children: [
-        { title: "Cases", dataIndex: "diff" },
+        { title: "Cases", dataIndex: "diff", render: (v) => <strong>{v}</strong> },
         {
           title: "%",
           dataIndex: "pct",
@@ -250,177 +393,31 @@ export default function ItemIssueConsolidation() {
   ];
 
   const downloadExcel = () => {
-    const exportData = filteredData.map(d => ({
-      Depot: formatDepot(d.warehouse),
-      [`STN (${d1Label})`]: d.stn1,
-      [`GTN (${d1Label})`]: d.gtn1,
-      [`TOTAL (${d1Label})`]: d.total1,
-      [`CFED (${d1Label})`]: d.cfed1,
-      [`BAR (${d1Label})`]: d.bar1,
-      [d1Label]: d.final1,
-      [`STN (${d2Label})`]: d.stn2,
-      [`GTN (${d2Label})`]: d.gtn2,
-      [`TOTAL (${d2Label})`]: d.total2,
-      [`CFED (${d2Label})`]: d.cfed2,
-      [`BAR (${d2Label})`]: d.bar2,
-      [d2Label]: d.final2,
-      "Difference Cases": d.diff,
-      "Difference %": d.pct,
-      [lmLabel]: d.last_month_final,
-    }));
-
-    // Add totals row to export
-    exportData.push({
-      Depot: "TOTAL",
-      [`STN (${d1Label})`]: totals.stn1,
-      [`GTN (${d1Label})`]: totals.gtn1,
-      [`TOTAL (${d1Label})`]: totals.total1,
-      [`CFED (${d1Label})`]: totals.cfed1,
-      [`BAR (${d1Label})`]: totals.bar1,
-      [d1Label]: totals.final1,
-      [`STN (${d2Label})`]: totals.stn2,
-      [`GTN (${d2Label})`]: totals.gtn2,
-      [`TOTAL (${d2Label})`]: totals.total2,
-      [`CFED (${d2Label})`]: totals.cfed2,
-      [`BAR (${d2Label})`]: totals.bar2,
-      [d2Label]: totals.final2,
-      "Difference Cases": totals.diff,
-      "Difference %": totals.pct,
-      [lmLabel]: totals.last_month_final,
+    exportItemIssueConsolidationExcel({
+      data: filteredData,
+      clusters,
+      date1,
+      date2,
+      lastMonthLabel,
+      daySales1,
+      daySales2,
+      industrySales1,
+      industrySales2,
+      filename: `item_issue_consolidation_${date1.format("YYYY-MM")}.xlsx`
     });
-
-    // Add Day Sales row
-    exportData.push({
-      Depot: "Day Sales",
-      [`TOTAL (${d1Label})`]: daySales1,
-      [`TOTAL (${d2Label})`]: daySales2,
-    });
-
-    // Add Industry Sales row
-    exportData.push({
-      Depot: "Industry Sales",
-      [`TOTAL (${d1Label})`]: industrySales1,
-      [`TOTAL (${d2Label})`]: industrySales2,
-    });
-
-    exportToExcel(
-      exportData,
-      {
-        "First Date": date1.format("MMM YYYY"),
-        "Second Date": date2.format("MMM YYYY"),
-        "Warehouse Filter": selectedWarehouse || "All"
-      },
-      "item_issue_consolidation.xlsx",
-      "Item Issue Consolidation"
-    );
   };
   const downloadPdf = () => {
-    const cols = [
-      "Depot",
-      `STN (${d1Label})`,
-      `GTN (${d1Label})`,
-      `TOTAL (${d1Label})`,
-      `CFED (${d1Label})`,
-      `BAR (${d1Label})`,
-      d1Label,
-      `STN (${d2Label})`,
-      `GTN (${d2Label})`,
-      `TOTAL (${d2Label})`,
-      `CFED (${d2Label})`,
-      `BAR (${d2Label})`,
-      d2Label,
-      "Diff Cases",
-      "Diff %",
-      lmLabel,
-    ];
-
-    const exportData = filteredData.map(d => ({
-      "Depot": formatDepot(d.warehouse),
-      [`STN (${d1Label})`]: d.stn1 || 0,
-      [`GTN (${d1Label})`]: d.gtn1 || 0,
-      [`TOTAL (${d1Label})`]: d.total1 || 0,
-      [`CFED (${d1Label})`]: d.cfed1 || 0,
-      [`BAR (${d1Label})`]: d.bar1 || 0,
-      [d1Label]: d.final1 || 0,
-      [`STN (${d2Label})`]: d.stn2 || 0,
-      [`GTN (${d2Label})`]: d.gtn2 || 0,
-      [`TOTAL (${d2Label})`]: d.total2 || 0,
-      [`CFED (${d2Label})`]: d.cfed2 || 0,
-      [`BAR (${d2Label})`]: d.bar2 || 0,
-      [d2Label]: d.final2 || 0,
-      "Diff Cases": d.diff || 0,
-      "Diff %": `${d.pct || 0}%`,
-      [lmLabel]: d.last_month_final || 0,
-    }));
-
-    // Add totals row
-    exportData.push({
-      "Depot": "TOTAL",
-      [`STN (${d1Label})`]: totals.stn1,
-      [`GTN (${d1Label})`]: totals.gtn1,
-      [`TOTAL (${d1Label})`]: totals.total1,
-      [`CFED (${d1Label})`]: totals.cfed1,
-      [`BAR (${d1Label})`]: totals.bar1,
-      [d1Label]: totals.final1,
-      [`STN (${d2Label})`]: totals.stn2,
-      [`GTN (${d2Label})`]: totals.gtn2,
-      [`TOTAL (${d2Label})`]: totals.total2,
-      [`CFED (${d2Label})`]: totals.cfed2,
-      [`BAR (${d2Label})`]: totals.bar2,
-      [d2Label]: totals.final2,
-      "Diff Cases": totals.diff,
-      "Diff %": `${totals.pct}%`,
-      [lmLabel]: totals.last_month_final,
-    });
-
-    // Add Day Sales row
-    exportData.push({
-      "Depot": "Day Sales",
-      [`STN (${d1Label})`]: "",
-      [`GTN (${d1Label})`]: "",
-      [`TOTAL (${d1Label})`]: daySales1,
-      [`CFED (${d1Label})`]: "",
-      [`BAR (${d1Label})`]: "",
-      [d1Label]: "",
-      [`STN (${d2Label})`]: "",
-      [`GTN (${d2Label})`]: "",
-      [`TOTAL (${d2Label})`]: daySales2,
-      [`CFED (${d2Label})`]: "",
-      [`BAR (${d2Label})`]: "",
-      [d2Label]: "",
-      "Diff Cases": "",
-      "Diff %": "",
-      [lmLabel]: "",
-    });
-
-    // Add Industry Sales row
-    exportData.push({
-      "Depot": "Industry Sales",
-      [`STN (${d1Label})`]: "",
-      [`GTN (${d1Label})`]: "",
-      [`TOTAL (${d1Label})`]: industrySales1 || "-",
-      [`CFED (${d1Label})`]: "",
-      [`BAR (${d1Label})`]: "",
-      [d1Label]: "",
-      [`STN (${d2Label})`]: "",
-      [`GTN (${d2Label})`]: "",
-      [`TOTAL (${d2Label})`]: industrySales2 || "-",
-      [`CFED (${d2Label})`]: "",
-      [`BAR (${d2Label})`]: "",
-      [d2Label]: "",
-      "Diff Cases": "",
-      "Diff %": "",
-      [lmLabel]: "",
-    });
-
-    exportToPdf({
-      title: "Item Issue Consolidation Report",
-      periodLabel: `${d1Label} vs ${d2Label}`,
-      columns: cols,
-      data: exportData,
-      filename: `item_issue_consolidation_${date1.format("YYYY-MM")}.pdf`,
-      orientation: "landscape",
-      zeroMargin: true
+    exportItemIssueConsolidationPdf({
+      data: filteredData,
+      clusters,
+      date1,
+      date2,
+      lastMonthLabel,
+      daySales1,
+      daySales2,
+      industrySales1,
+      industrySales2,
+      filename: `item_issue_consolidation_${date1.format("YYYY-MM")}.pdf`
     });
   };
 
@@ -486,18 +483,29 @@ export default function ItemIssueConsolidation() {
           <h2>Item Issue Consolidation Report</h2>
           <Table
             columns={columns}
-            dataSource={filteredData}
-            rowKey="warehouse"
+            dataSource={webTableData}
+            rowKey="key"
             scroll={{ x: 1200 }}
             pagination={false}
             size="small"
             bordered
+            onRow={(record) => {
+              if (record.isClusterTotal) {
+                return {
+                  style: {
+                    backgroundColor: "#ffc000",
+                    fontWeight: "bold"
+                  }
+                };
+              }
+              return {};
+            }}
             summary={(pageData) => {
               return (
                 <Table.Summary fixed>
                   <>
                     <Table.Summary.Row style={{ backgroundColor: "#fafafa", fontWeight: "bold" }}>
-                      <Table.Summary.Cell index={0} fixed="left">TOTAL</Table.Summary.Cell>
+                      <Table.Summary.Cell index={0} colSpan={2} fixed="left">TOTAL</Table.Summary.Cell>
                       <Table.Summary.Cell index={1}>{totals.stn1}</Table.Summary.Cell>
                       <Table.Summary.Cell index={2}>{totals.gtn1}</Table.Summary.Cell>
                       <Table.Summary.Cell index={3}>{totals.total1}</Table.Summary.Cell>
@@ -519,15 +527,30 @@ export default function ItemIssueConsolidation() {
                       <Table.Summary.Cell index={15}>{totals.last_month_final}</Table.Summary.Cell>
                     </Table.Summary.Row>
                     <Table.Summary.Row style={{ backgroundColor: "#f0f2f5", fontWeight: "bold" }}>
-                      <Table.Summary.Cell index={0} fixed="left">Day Sales</Table.Summary.Cell>
-                      <Table.Summary.Cell index={1} colSpan={2} />
-                      <Table.Summary.Cell index={3}>{daySales1}</Table.Summary.Cell>
-                      <Table.Summary.Cell index={4} colSpan={5} />
-                      <Table.Summary.Cell index={9}>{daySales2}</Table.Summary.Cell>
-                      <Table.Summary.Cell index={10} colSpan={6} />
+                      <Table.Summary.Cell index={0} colSpan={2} fixed="left">Day Sales</Table.Summary.Cell>
+                      <Table.Summary.Cell index={1} colSpan={6} style={{ textAlign: "center" }}>{daySales1}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={2} colSpan={6} style={{ textAlign: "center", backgroundColor: "#fff9e6" }}>{daySales2}</Table.Summary.Cell>
+                      <Table.Summary.Cell index={3} style={{ textAlign: "center" }}>
+                        {daySales1 !== "-" && daySales2 !== "-" ? (Number(daySales1) || 0) - (Number(daySales2) || 0) : "-"}
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={4} style={{ textAlign: "center" }}>
+                        {daySales1 !== "-" && daySales2 !== "-" ? (
+                          (() => {
+                            const diff = (Number(daySales1) || 0) - (Number(daySales2) || 0);
+                            const den = Number(daySales2) || 0;
+                            const pct = den ? Math.round((diff / den) * 100) : 0;
+                            return (
+                              <span style={{ color: pct < 0 ? "#d94f4f" : "#2ca02c" }}>
+                                {pct}%
+                              </span>
+                            );
+                          })()
+                        ) : "-"}
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={5} />
                     </Table.Summary.Row>
                     <Table.Summary.Row style={{ backgroundColor: "#f0f2f5", fontWeight: "bold" }}>
-                      <Table.Summary.Cell index={0} fixed="left">
+                      <Table.Summary.Cell index={0} colSpan={2} fixed="left">
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                           <span>Industry Sales</span>
                           {isEditing ? (
@@ -549,43 +572,57 @@ export default function ItemIssueConsolidation() {
                             </Space>
                           ) : (
                             <Button 
-                              size="small" 
-                              onClick={handleStartEdit}
+                                size="small" 
+                                onClick={handleStartEdit}
                             >
                               Edit
                             </Button>
                           )}
                         </div>
                       </Table.Summary.Cell>
-                      <Table.Summary.Cell index={1} colSpan={2} />
-                      <Table.Summary.Cell index={3}>
+                      <Table.Summary.Cell index={1} colSpan={6} style={{ textAlign: "center" }}>
                         {isEditing ? (
                           <Input 
                             size="small" 
                             placeholder="Enter sales" 
                             value={tempSales1} 
                             onChange={(e) => setTempSales1(e.target.value)}
-                            style={{ width: "100%", fontWeight: "normal" }}
+                            style={{ width: "80px", fontWeight: "normal" }}
                           />
                         ) : (
                           <span style={{ fontWeight: "normal" }}>{industrySales1 || "-"}</span>
                         )}
                       </Table.Summary.Cell>
-                      <Table.Summary.Cell index={4} colSpan={5} />
-                      <Table.Summary.Cell index={9}>
+                      <Table.Summary.Cell index={2} colSpan={6} style={{ textAlign: "center", backgroundColor: "#fff9e6" }}>
                         {isEditing ? (
                           <Input 
                             size="small" 
                             placeholder="Enter sales" 
                             value={tempSales2} 
                             onChange={(e) => setTempSales2(e.target.value)}
-                            style={{ width: "100%", fontWeight: "normal" }}
+                            style={{ width: "80px", fontWeight: "normal" }}
                           />
                         ) : (
                           <span style={{ fontWeight: "normal" }}>{industrySales2 || "-"}</span>
                         )}
                       </Table.Summary.Cell>
-                      <Table.Summary.Cell index={10} colSpan={6} />
+                      <Table.Summary.Cell index={3} style={{ textAlign: "center" }}>
+                        {(Number(industrySales1) || 0) - (Number(industrySales2) || 0)}
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={4} style={{ textAlign: "center" }}>
+                        {(() => {
+                          const val1 = Number(industrySales1) || 0;
+                          const val2 = Number(industrySales2) || 0;
+                          const diff = val1 - val2;
+                          const pct = val2 ? Math.round((diff / val2) * 100) : 0;
+                          return (
+                            <span style={{ color: pct < 0 ? "#d94f4f" : "#2ca02c" }}>
+                              {pct}%
+                            </span>
+                          );
+                        })()}
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={5} />
                     </Table.Summary.Row>
                   </>
                 </Table.Summary>
