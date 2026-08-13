@@ -5,7 +5,7 @@ const { Text } = Typography;
 import { useParams, useNavigate } from "react-router-dom";
 import { getReport, processReport, getJson, listReports, getFilters } from "../../api";
 import dayjs from "dayjs";
-import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf, exportShopDrilldownPdfByBond, exportNewCumulativeExcel } from "../../utils/exportUtils";
+import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf, exportShopDrilldownPdfByBond, exportNewCumulativeExcel, exportComparativeShopSalesPdf } from "../../utils/exportUtils";
 import { disabledFutureMonthDates } from "../../utils/dateUtils";
 import DownloadDropdown from "../../components/DownloadDropdown";
 import { getSellThroughColorConfig } from "../../utils/colorUtils";
@@ -751,75 +751,36 @@ export default function CumulativeShopwiseReport() {
     const reportTitle = "Shopsales Comparative";
     const period = dateRange.length === 2 ? `${formatDateWithOrdinal(dateRange[0])} to ${formatDateWithOrdinal(dateRange[1])}` : "All";
 
+    if (view === "cumulative") {
+      exportComparativeShopSalesPdf({
+        title: reportTitle,
+        periodLabel: period,
+        data: [...processedData, getOverallTotalRow()],
+        filename: `comparative_shopsales_current.pdf`,
+        useWholeNumbers,
+        firstColHeader: getTitle(),
+        loadingLastMonth
+      });
+      return;
+    }
+
     let exportData = [];
     let cols = [];
     let sumCols = [];
 
-    const formatValForPdf = (v) => {
-      if (v === null || v === undefined || v === "") return "";
-      const num = Number(v);
-      if (isNaN(num)) return v;
-      return useWholeNumbers ? Math.round(num) : Number(num.toFixed(2));
-    };
-
-    let pdfHead = null;
-
-    if (view === "cumulative") {
-      cols = [getTitle(), "Opening", "Receipt", "Sales", "Closing", "Stock Net", "Stock Net %", "Sell-Through %", "CM Avg", "LM Avg", "Avg Diff"];
-      sumCols = ["Opening", "Receipt", "Sales", "Closing", "Stock Net"];
-      exportData = [...processedData, getOverallTotalRow()].map(d => ({
-        [getTitle()]: d.shop_code ? d.shop_name : formatName(d.warehouse),
-        Opening: formatValForPdf(d.opening),
-        Receipt: formatValForPdf(d.receipt),
-        Sales: formatValForPdf(d.sales),
-        Closing: formatValForPdf(d.closing),
-        "Stock Net": formatValForPdf(d.difference),
-        "Stock Net %": (d.perc !== null && d.perc !== undefined && d.perc !== "") ? `${formatValForPdf(d.perc)}%` : "-",
-        "Sell-Through %": (d.closing_stock_at_sales_perc !== null && d.closing_stock_at_sales_perc !== undefined && d.closing_stock_at_sales_perc !== "") ? `${formatValForPdf(d.closing_stock_at_sales_perc)}%` : "-",
-        "CM Avg": formatValForPdf(d.avg_sales_per_day),
-        "LM Avg": loadingLastMonth ? "Loading..." : formatValForPdf(d.last_month_avg),
-        "Avg Diff": loadingLastMonth ? "Loading..." : (() => {
-          const val = d.avg_diff;
-          if (val === null || val === undefined || val === "") return "";
-          const num = Number(val);
-          if (isNaN(num) || num === 0) return formatValForPdf(val);
-          return `  ${formatValForPdf(val)}`;
-        })()
-      }));
-
-      pdfHead = [
-        [
-          { content: getTitle(), rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
-          { content: "Opening", rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
-          { content: "Receipt", rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
-          { content: "Sales", rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
-          { content: "Closing", rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
-          { content: "Stock Net", rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
-          { content: "Stock Net %", rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
-          { content: "Sell-Through %", rowSpan: 2, styles: { valign: 'middle', halign: 'center', textColor: [255, 255, 255] } },
-          { content: "AVERAGE SALES / DAY", colSpan: 3, styles: { halign: 'center', textColor: [255, 189, 49] } }
-        ],
-        [
-          { content: "CM", styles: { halign: 'center', textColor: [255, 255, 255] } },
-          { content: "LM", styles: { halign: 'center', textColor: [255, 255, 255] } },
-          { content: "Trend", styles: { halign: 'center', textColor: [255, 255, 255] } }
-        ]
-      ];
-    } else {
-      cols = [getTitle(), ...labels, "Total"];
-      sumCols = [...labels, "Total"];
-      exportData = processedData.map(row => {
-        const obj = { [getTitle()]: row.shop_code ? row.shop_name : formatName(row.warehouse) };
-        let total = 0;
-        labels.forEach(l => {
-          const v = row[l] || 0;
-          obj[l] = useWholeNumbers ? Math.round(v) : v;
-          total += v;
-        });
-        obj["Total"] = useWholeNumbers ? Math.round(total) : total;
-        return obj;
+    cols = [getTitle(), ...labels, "Total"];
+    sumCols = [...labels, "Total"];
+    exportData = processedData.map(row => {
+      const obj = { [getTitle()]: row.shop_code ? row.shop_name : formatName(row.warehouse) };
+      let total = 0;
+      labels.forEach(l => {
+        const v = row[l] || 0;
+        obj[l] = useWholeNumbers ? Math.round(v) : v;
+        total += v;
       });
-    }
+      obj["Total"] = useWholeNumbers ? Math.round(total) : total;
+      return obj;
+    });
 
     exportToPdf({
       title: reportTitle,
@@ -830,7 +791,7 @@ export default function CumulativeShopwiseReport() {
       filename: `comparative_shopsales_current.pdf`,
       orientation: "landscape",
       zeroMargin: true,
-      head: pdfHead
+      head: null
     });
   };
 

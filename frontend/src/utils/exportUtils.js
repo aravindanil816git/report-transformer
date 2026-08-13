@@ -6,3 +6,4 @@ export { exportShopSalesExcel } from "./export/shopSalesExport";
 export { exportBrandwiseCumExcel } from "./export/brandwiseExport";
 export { exportNewCumulativeExcel } from "./export/newCumulativeExport";
 export { exportAchievedTargetExcel, exportAchievedTargetPdf } from "./export/achievedTargetExport";
+export { exportComparativeShopSalesPdf } from "./export/comparativeShopSalesExport";
