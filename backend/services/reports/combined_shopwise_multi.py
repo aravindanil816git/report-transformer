@@ -300,9 +300,20 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         if shop_code:
             full_df = full_df[full_df[shop_col] == str(shop_code).strip()]
         if warehouse:
-            full_df = full_df[full_df["warehouse_info"] == warehouse]
+            def clean_wh_name(val):
+                if not val: return ""
+                val = str(val).upper().strip()
+                val = re.sub(r"^WH[-_/\s]+", "", val)
+                val = re.sub(r"\s+(?:FL|RFL)$", "", val)
+                return val.strip()
+            clean_target = clean_wh_name(warehouse)
+            full_df = full_df[full_df["warehouse_info"].apply(clean_wh_name) == clean_target]
         if bond:
-            full_df = full_df[full_df["bond_info"] == bond]
+            def clean_bond_name(val):
+                if not val: return ""
+                return str(val).upper().replace("-", "").replace("_", "").replace(" ", "").strip()
+            clean_target = clean_bond_name(bond)
+            full_df = full_df[full_df["bond_info"].apply(clean_bond_name) == clean_target]
 
         if full_df.empty:
             return {"data": [], "uploads": report.get("uploads", []), "config": report.get("config", {})}

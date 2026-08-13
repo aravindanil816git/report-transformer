@@ -227,9 +227,21 @@ class ShopwiseReportService(BaseReportService):
         if shop_code:
             df_local = df_local[df_local[shop_col] == str(shop_code).strip()]
         if warehouse:
-            df_local = df_local[df_local["warehouse_info"] == warehouse]
+            import re
+            def clean_wh_name(val):
+                if not val: return ""
+                val = str(val).upper().strip()
+                val = re.sub(r"^WH[-_/\s]+", "", val)
+                val = re.sub(r"\s+(?:FL|RFL)$", "", val)
+                return val.strip()
+            clean_target = clean_wh_name(warehouse)
+            df_local = df_local[df_local["warehouse_info"].apply(clean_wh_name) == clean_target]
         if bond:
-            df_local = df_local[df_local["bond_info"] == bond]
+            def clean_bond_name(val):
+                if not val: return ""
+                return str(val).upper().replace("-", "").replace("_", "").replace(" ", "").strip()
+            clean_target = clean_bond_name(bond)
+            df_local = df_local[df_local["bond_info"].apply(clean_bond_name) == clean_target]
         if start_date and "report_date" in df_local.columns:
             df_local = df_local[df_local["report_date"] >= start_date]
         if end_date and "report_date" in df_local.columns:
