@@ -133,7 +133,27 @@ def get_bond_mapping_data():
 
 @lru_cache(maxsize=1)
 def get_warehouse_mapping_data():
-    """Builds warehouse -> shops mapping dynamically from shops.json."""
+    """Loads warehouse -> shops mapping from warehouse_mapping.json or builds dynamically."""
+    warehouse_mapping_path = os.path.join(BACKEND_DIR, "warehouse_mapping.json")
+    data = _load_json(warehouse_mapping_path)
+    
+    if data:
+        shop_master = get_shop_master_data()
+        warehouse_master = get_warehouse_master_data()
+        warehouse_map = {}
+        for wh_name, shop_codes in data.items():
+            warehouse_map[wh_name] = {
+                "warehouse_code": warehouse_master.get(wh_name, {}).get("warehouse_code"),
+                "shops": [
+                    {
+                        "shop_code": str(code),
+                        "shop_name": shop_master.get(str(code), {}).get("shop_name", "Unknown")
+                    }
+                    for code in shop_codes
+                ]
+            }
+        return warehouse_map
+
     shop_master = get_shop_master_data()
     warehouse_master = get_warehouse_master_data()
 
@@ -254,9 +274,10 @@ def get_filters_from_mapping():
     warehouse_to_shops_map = {}
 
     shop_to_warehouse = {}
-    for wh_name, shop_codes in warehouse_mapping.items():
-        for code in shop_codes:
-            shop_to_warehouse[code] = wh_name
+    for wh_name, wh_data in warehouse_mapping.items():
+        for shop in wh_data.get("shops", []):
+            code = shop.get("shop_code") if isinstance(shop, dict) else shop
+            shop_to_warehouse[str(code)] = wh_name
 
     for bond_name, bond_data in bond_mapping.items():
         warehouses = set()
