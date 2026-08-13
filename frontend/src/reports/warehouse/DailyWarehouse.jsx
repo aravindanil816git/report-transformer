@@ -166,7 +166,7 @@ export default function CleanupReport() {
         exportUnifiedWithDropdown({
           data: exportData,
           warehouses: warehouses,
-          reportTitle: "Warehouse Physical Stock Report",
+          reportTitle: "Warehouse Stock Report",
           periodLabel: periodLabel,
           filename: "physical_stock_report_unified.xlsx",
           sheetName: "Physical Stock",
@@ -214,7 +214,7 @@ export default function CleanupReport() {
         };
 
         exportToPdf({
-          title: "Warehouse Physical Stock Report",
+          title: "Warehouse Stock Report",
           periodLabel: pdfPeriodLabel,
           columns,
           data: exportData,
@@ -239,7 +239,7 @@ export default function CleanupReport() {
         );
 
         exportToPdf({
-          title: "Warehouse Physical Stock Report",
+          title: "Warehouse Stock Report",
           periodLabel: pdfPeriodLabel,
           columns,
           data: exportData,
@@ -268,7 +268,7 @@ export default function CleanupReport() {
             );
 
             exportClusterPdf({
-              title: "Warehouse Physical Stock Report",
+              title: "Warehouse Stock Report",
               periodLabel: pdfPeriodLabel,
               columns,
               data: exportData,
@@ -316,7 +316,7 @@ export default function CleanupReport() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h2>Warehouse Physical Stock Report</h2>
+        <h2>Warehouse Stock Report</h2>
         <div>
         <Space>
           <Button type="default" onClick={downloadAllWarehouses} disabled={!report?.data}>

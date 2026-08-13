@@ -54,12 +54,20 @@ export const exportShopDrilldownPdfByBond = ({
   view,
   filename
 }) => {
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const colors = {
+    NAVY: [11, 41, 79],        // #0B294F
+    GOLD: [255, 189, 49],      // #FFBD31
+    BLACK: [80, 80, 80],       // Ink #505050
+    WHITE: [255, 255, 255],     // #FFFFFF
+    GREY: [140, 140, 140],     // #8C8C8C
+    ZEBRA: [245, 247, 252],    // #F5F7FC
+    DIM: [200, 205, 215]       // #C8CDD7
+  };
 
   const formatVal = (val) => {
     if (val === undefined || val === null) return "";
     const num = Number(val);
-    return useWholeNumbers ? Math.round(num) : num.toFixed(2);
+    return useWholeNumbers ? Math.round(num).toString() : num.toFixed(2);
   };
 
   const getShopTableRows = (shopCode, shopData) => {
@@ -85,14 +93,10 @@ export const exportShopDrilldownPdfByBond = ({
     Object.entries(brands).forEach(([brand, items]) => {
       let bOpening = 0, bInward = 0, bOutward = 0, bClosing = 0;
       items.forEach(item => {
-        const op = useWholeNumbers ? Math.round(item.opening || 0) : item.opening || 0;
-        const inward = useWholeNumbers ? Math.round(item.inward || 0) : item.inward || 0;
-        const outward = useWholeNumbers ? Math.round(item.outward || 0) : item.outward || 0;
-        const closing = useWholeNumbers ? Math.round(item.closing || 0) : item.closing || 0;
-        bOpening += op;
-        bInward += inward;
-        bOutward += outward;
-        bClosing += closing;
+        bOpening += item.opening || 0;
+        bInward += item.inward || 0;
+        bOutward += item.outward || 0;
+        bClosing += item.closing || 0;
       });
 
       rows.push({
@@ -105,19 +109,14 @@ export const exportShopDrilldownPdfByBond = ({
       });
 
       items.forEach(item => {
-        const op = useWholeNumbers ? Math.round(item.opening || 0) : item.opening || 0;
-        const inward = useWholeNumbers ? Math.round(item.inward || 0) : item.inward || 0;
-        const outward = useWholeNumbers ? Math.round(item.outward || 0) : item.outward || 0;
-        const closing = useWholeNumbers ? Math.round(item.closing || 0) : item.closing || 0;
         rows.push({
           label: `  ${item.pack}`,
-          opening: op,
-          inward: inward,
-          outward: outward,
-          closing: closing
+          opening: item.opening || 0,
+          inward: item.inward || 0,
+          outward: item.outward || 0,
+          closing: item.closing || 0
         });
       });
-
     });
 
     rows.push({
@@ -132,49 +131,136 @@ export const exportShopDrilldownPdfByBond = ({
     return rows;
   };
 
-  const drawHeader = (doc, currentTitle, currentPeriod, shopName, bondName = null, pageNumber = 1) => {
-    const actualPage = doc.internal.getNumberOfPages();
-    if (actualPage === 1) {
-      doc.setFillColor(11, 41, 79); 
-      doc.rect(0, 0, 210, 16, "F");
+  // 1. Compute dynamic column widths & page width
+  const tempDoc = new jsPDF("p", "pt", "a4");
+  const getWidth = (text, size, isBold) => {
+    tempDoc.setFont("helvetica", isBold ? "bold" : "normal");
+    tempDoc.setFontSize(size);
+    return tempDoc.getTextWidth(String(text || ""));
+  };
 
-      doc.setFillColor(255, 189, 49); 
-      doc.rect(0, 16, 210, 8, "F");
+  const headerLabels = ["BRAND/PACK", "OPENING", "RECEIPT", "SALES", "CLOSING"];
+  const colWidths = Array(5).fill(0);
+
+  for (let col = 1; col <= 4; col++) {
+    colWidths[col] = getWidth(headerLabels[col], 9.5, true);
+  }
+
+  let maxLabelW = 0;
+  bondShops.forEach(shop => {
+    const shopCode = shop.shop_code;
+    const shopData = data.filter(d => String(d.shop_code) === String(shopCode));
+    if (shopData.length === 0) return;
+
+    const shopRows = getShopTableRows(shopCode, shopData);
+    shopRows.forEach(row => {
+      const isPack = row.label.startsWith("  ");
+      const indent = isPack ? 12 : 0;
+      maxLabelW = Math.max(maxLabelW, indent + getWidth(row.label.trim(), 9, !isPack));
+
+      colWidths[1] = Math.max(colWidths[1], getWidth(formatVal(row.opening), 9, true));
+      colWidths[2] = Math.max(colWidths[2], getWidth(formatVal(row.inward), 9, true));
+      colWidths[3] = Math.max(colWidths[3], getWidth(formatVal(row.outward), 9, true));
+      colWidths[4] = Math.max(colWidths[4], getWidth(formatVal(row.closing), 9, true));
+    });
+  });
+
+  colWidths[0] = maxLabelW + 12.4;
+  for (let col = 1; col <= 4; col++) {
+    colWidths[col] += 16.0;
+  }
+
+  let calculatedPageWidth = colWidths.reduce((sum, w) => sum + w, 0);
+
+  let maxCaptionW = 0;
+  const cleanPeriod = (periodLabel || "").replace(/^COMBINED PERIOD\s*:\s*/i, "").replace(/^Report Period:\s*/i, "").replace(/^As\s+on\s*:\s*/i, "").replace(/^As\s+On\s*:\s*/i, "").trim();
+  const cap1 = getWidth("SHOP SALES CUMULATIVE", 11, true) + getWidth(cleanPeriod, 11, true) + 30;
+  maxCaptionW = Math.max(maxCaptionW, cap1);
+
+  bondShops.forEach(shop => {
+    const displayShopName = shop.shop_name ? `${shop.shop_code}-${shop.shop_name}` : shop.shop_code;
+    const bondText = bondName && bondName.toUpperCase() !== "CURRENT VIEW" ? `${bondName.toUpperCase()} BOND` : "";
+    const cap2 = getWidth(displayShopName.toUpperCase(), 11, true) + getWidth(bondText, 11, true) + 30;
+    maxCaptionW = Math.max(maxCaptionW, cap2);
+  });
+
+  const PAGE_WIDTH = Math.max(calculatedPageWidth, maxCaptionW);
+  const extra = PAGE_WIDTH - calculatedPageWidth;
+  const finalColWidths = colWidths.map(w => w + (extra / 5));
+
+  // 2. Compute dynamic row height to fit tightest page
+  let derivedRowHeight = 22.8;
+  bondShops.forEach((shop, index) => {
+    const shopCode = shop.shop_code;
+    const shopData = data.filter(d => String(d.shop_code) === String(shopCode));
+    if (shopData.length === 0) return;
+    const shopRows = getShopTableRows(shopCode, shopData);
+    const overhead = (index === 0 ? (45.4 + 22.7) : 0) + 22.7 + 23.4 + 26;
+    const availableForBody = 841.890 - overhead;
+    const neededHeight = availableForBody / shopRows.length;
+    derivedRowHeight = Math.min(derivedRowHeight, neededHeight);
+  });
+
+  const doc = new jsPDF("p", "pt", [PAGE_WIDTH, 841.890]);
+
+  const drawHeader = (doc, currentTitle, currentPeriod, shopName, bondName = null, pageIndex = 0) => {
+    if (pageIndex === 0) {
+      doc.setFillColor(11, 41, 79); 
+      doc.rect(0, 0, PAGE_WIDTH, 45.4, "F");
 
       doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(255, 189, 49); 
-      doc.text("K.S DISTILLERY", 105, 10, { align: "center" });
+      doc.text("K.S DISTILLERY", PAGE_WIDTH / 2, 28, { align: "center" });
 
-      doc.setFontSize(13);
+      doc.setFillColor(255, 189, 49); 
+      doc.rect(0, 45.4, PAGE_WIDTH, 22.7, "F");
+
+      doc.setFontSize(11);
+      doc.setTextColor(11, 41, 79); 
+      doc.text("SHOP SALES CUMULATIVE", 15, 45.4 + 15);
+      doc.text(cleanPeriod, PAGE_WIDTH - 15, 45.4 + 15, { align: "right" });
+
+      doc.setFillColor(255, 189, 49); 
+      doc.rect(0, 45.4 + 22.7, PAGE_WIDTH, 22.7, "F");
+
+      doc.text(shopName.toUpperCase(), 15, 45.4 + 22.7 + 15);
+      if (bondName && bondName.toUpperCase() !== "CURRENT VIEW") {
+        doc.text(`${bondName.toUpperCase()} BOND`, PAGE_WIDTH - 15, 45.4 + 22.7 + 15, { align: "right" });
+      }
+    } else {
+      doc.setFillColor(255, 189, 49); 
+      doc.rect(0, 0, PAGE_WIDTH, 22.7, "F");
+
+      doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(11, 41, 79); 
-      const cleanPeriod = (currentPeriod || "").replace(/^COMBINED PERIOD\s*:\s*/i, "").replace(/^Report Period:\s*/i, "").replace(/^As\s+on\s*:\s*/i, "").replace(/^As\s+On\s*:\s*/i, "").trim();
-      doc.text(currentTitle.toUpperCase(), 15, 21.5, { align: "left" });
-      doc.text(cleanPeriod, 195, 21.5, { align: "right" });
-    }
-
-    const rectY = (actualPage === 1) ? 24 : 0;
-    const textY = (actualPage === 1) ? 29.5 : 5.5;
-
-    doc.setFillColor(255, 189, 49); 
-    doc.rect(0, rectY, 210, 8, "F");
-
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(11, 41, 79); 
-    doc.text(shopName.toUpperCase(), 5, textY, { align: "left" });
-    if (bondName && bondName.toUpperCase() !== "CURRENT VIEW") {
-      doc.text(`${bondName.toUpperCase()} BOND`, 205, textY, { align: "right" });
+      doc.text(shopName.toUpperCase(), 15, 15);
+      if (bondName && bondName.toUpperCase() !== "CURRENT VIEW") {
+        doc.text(`${bondName.toUpperCase()} BOND`, PAGE_WIDTH - 15, 15, { align: "right" });
+      }
     }
   };
 
+  const colStyles = {};
+  for (let col = 0; col < 5; col++) {
+    colStyles[col] = {
+      cellWidth: finalColWidths[col],
+      halign: col === 0 ? "left" : "center"
+    };
+    if (col === 0) {
+      colStyles[col].cellPadding = { left: 6.2, right: 6.2, top: 4, bottom: 4 };
+    } else {
+      colStyles[col].cellPadding = { left: 8.0, right: 8.0, top: 4, bottom: 4 };
+    }
+  }
+
   let idx = 0;
   let pageAdded = false;
+
   for (const shop of bondShops) {
     const shopCode = shop.shop_code;
     const shopData = data.filter(d => String(d.shop_code) === String(shopCode));
-    console.log(`[DEBUG] shopCode: ${shopCode}, shopData length: ${shopData.length}`);
     if (shopData.length === 0) continue;
 
     if (pageAdded) {
@@ -183,80 +269,105 @@ export const exportShopDrilldownPdfByBond = ({
       pageAdded = true;
     }
 
-    const displayShopName = shop.shop_name ? shop.shop_name : shop.shop_code;
-
+    const displayShopName = shop.shop_name ? `${shop.shop_code}-${shop.shop_name}` : shop.shop_code;
     const shopRows = getShopTableRows(shopCode, shopData);
-    const pdfCols = ["BRAND/PACK", "OPENING", "RECEIPT", "SALES", "CLOSING"];
-
     const tableRows = shopRows.map(row => {
-      if (row.isSpacer) return ["", "", "", "", ""];
       return [row.label, formatVal(row.opening), formatVal(row.inward), formatVal(row.outward), formatVal(row.closing)];
     });
 
-    const isFirstShop = (idx === 0);
+    const isFirstPageOfDoc = (idx === 0);
+    const pageIndexVal = idx;
     idx++;
 
     autoTable(doc, {
-      head: [pdfCols],
+      head: [headerLabels],
       body: tableRows,
-      startY: isFirstShop ? 32 : 8,
-      margin: { top: 8, bottom: 8, left: 0, right: 0 },
-      theme: "striped",
-      showHead: "firstPage",
-      styles: { font: "helvetica", fontStyle: "normal", fontSize: 9, cellPadding: 2.2, lineColor: [220, 220, 220], lineWidth: 0.15 },
-      headStyles: { fillColor: [11, 41, 79], textColor: [255, 189, 49], font: "helvetica", fontStyle: "bold", fontSize: 9.5 },
-      alternateRowStyles: { fillColor: [244, 247, 252] },
+      startY: isFirstPageOfDoc ? 90.8 : 22.7,
+      margin: { top: 22.7, bottom: 26.0, left: 0, right: 0 },
+      theme: "grid",
+      styles: {
+        font: "helvetica",
+        fontSize: 9.0,
+        minCellHeight: derivedRowHeight,
+        valign: "middle",
+        lineWidth: 0,
+        textColor: colors.BLACK
+      },
+      headStyles: {
+        fillColor: colors.NAVY,
+        textColor: colors.GOLD,
+        fontStyle: "bold",
+        fontSize: 9.5,
+        valign: "middle",
+        minCellHeight: 23.4
+      },
+      columnStyles: colStyles,
       didDrawPage: (data) => {
-        drawHeader(doc, title, periodLabel, displayShopName, bondName, data.pageNumber);
+        drawHeader(doc, title, periodLabel, displayShopName, bondName, pageIndexVal);
       },
       didDrawCell: (data) => {
+        const { x, y, width, height } = data.cell;
         const rowIndex = data.row.index;
         const rowObj = shopRows[rowIndex];
-        if (rowObj?.isShopTotal && data.section === 'body') {
-          doc.setDrawColor(11, 41, 79); 
-          doc.setLineWidth(0.5);
-          doc.line(data.cell.x, data.cell.y, data.cell.x + data.cell.width, data.cell.y);
+
+        if (data.section === 'head') {
+          doc.setDrawColor(255, 189, 49); // GOLD
+          if (data.column.index < 4) {
+            doc.setLineWidth(1.6);
+            doc.line(x + width, y, x + width, y + height);
+          }
+          doc.setLineWidth(2.2);
+          doc.line(x, y + height - 1.1, x + width, y + height - 1.1);
+        } else {
+          // Draw TOTAL row gold rules
+          if (rowObj?.isShopTotal && data.section === 'body') {
+            doc.setDrawColor(255, 189, 49); // GOLD
+            doc.setLineWidth(1.6);
+            doc.line(x, y + 0.8, x + width, y + 0.8);
+            doc.line(x, y + height - 0.8, x + width, y + height - 0.8);
+          }
         }
       },
       didParseCell: (cellData) => {
         if (cellData.section === 'head') {
-          doc.setFont("helvetica", "bold");
-          if (cellData.column.index >= 1) {
-            cellData.cell.styles.halign = 'center';
-          }
-        }
-        if (cellData.section !== 'body') return;
-
-        const rawVal = String(cellData.cell.raw || "").trim();
-        const cellIndex = cellData.column.index;
-
-        if (cellIndex >= 1 && !isNaN(Number(rawVal)) && rawVal !== "") {
+          cellData.cell.styles.fillColor = colors.NAVY;
+          cellData.cell.styles.textColor = colors.GOLD;
           cellData.cell.styles.fontStyle = "bold";
-          cellData.cell.styles.halign = 'center';
-          if (Number(rawVal) === 0) {
-            cellData.cell.styles.textColor = [200, 205, 215]; 
-          }
         }
+        
+        if (cellData.section !== 'body') return;
 
         const rowIndex = cellData.row.index;
         const rowObj = shopRows[rowIndex];
+        
         if (rowObj) {
-          cellData.cell.styles.font = "helvetica";
           if (rowObj.isBrandHeader) {
             cellData.cell.styles.fontStyle = "bold";
-            cellData.cell.styles.fillColor = [11, 41, 79]; 
+            cellData.cell.styles.fillColor = colors.NAVY; 
             cellData.cell.styles.textColor = [255, 255, 255]; 
-          } else if (rowObj.isShopHeader) {
-            cellData.cell.styles.fontStyle = "bold";
-            cellData.cell.styles.fillColor = [228, 233, 242]; // #E4E9F2
+            cellData.cell.styles.cellPadding = { left: 6.2, right: 6.2, top: 4, bottom: 4 };
           } else if (rowObj.isShopTotal) {
             cellData.cell.styles.fontStyle = "bold";
-            cellData.cell.styles.fillColor = [11, 41, 79]; 
-            cellData.cell.styles.textColor = [255, 189, 49];  
-          } else if (rowObj.isGrandTotal) {
-            cellData.cell.styles.fontStyle = "bold";
-            cellData.cell.styles.fillColor = [11, 41, 79]; // Navy blue background
-            cellData.cell.styles.textColor = [255, 189, 49]; // Orange text
+            cellData.cell.styles.fontSize = 10.5;
+            cellData.cell.styles.fillColor = colors.NAVY; 
+            cellData.cell.styles.textColor = colors.GOLD;  
+            cellData.cell.styles.cellPadding = { left: 6.2, right: 6.2, top: 4, bottom: 4 };
+          } else {
+            // Zebra striping for pack rows
+            cellData.cell.styles.fillColor = (cellData.row.index % 2 === 0) ? colors.WHITE : colors.ZEBRA;
+            cellData.cell.styles.textColor = colors.BLACK;
+            
+            // Pack rows: add the 12pt indent only to column 0 left padding
+            if (cellData.column.index === 0) {
+              cellData.cell.styles.cellPadding = { left: 12 + 6.2, right: 6.2, top: 4, bottom: 4 };
+            } else {
+              cellData.cell.styles.cellPadding = { left: 8.0, right: 8.0, top: 4, bottom: 4 };
+            }
+            
+            const rawVal = Number(cellData.cell.raw);
+            if (!isNaN(rawVal) && rawVal === 0 && cellData.column.index >= 1) {
+              cellData.cell.styles.textColor = colors.DIM;
+            }
           }
         }
       }
@@ -268,8 +379,8 @@ export const exportShopDrilldownPdfByBond = ({
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
-      doc.setTextColor(140, 140, 140);
-      doc.text(`Page ${i} of ${pageCount}`, 105, 293, { align: "center" });
+      doc.setTextColor(140, 140, 140); // GREY #8C8C8C
+      doc.text(`Page ${i} of ${pageCount}`, PAGE_WIDTH / 2, 841.890 - 9.7 - 8, { align: "center" });
     }
     doc.save(filename);
   }
