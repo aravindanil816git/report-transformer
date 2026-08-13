@@ -176,18 +176,15 @@ export const exportItemIssueConsolidationExcel = async ({
   ws.getCell("C1").value = title.toUpperCase();
 
   // Subtitle Row 2
-  ws.mergeCells("A2:B2");
+  ws.mergeCells("A2:N2");
   styleRange(
-    "A2:B2",
+    "A2:N2",
     navyFill,
     { name: "Segoe UI", size: 12, bold: true, color: { argb: "FFFFFF" } },
     { horizontal: "left", vertical: "middle" },
     null
   );
   ws.getCell("A2").value = `SECONDARY SALES · ${date1 ? date1.format("MMM YY").toUpperCase() : ""} vs ${date2 ? date2.format("MMM YY").toUpperCase() : ""}`;
-
-  ws.mergeCells("C2:N2");
-  styleRange("C2:N2", navyFill, null, null, null);
 
   ws.mergeCells("O2:Q2");
   styleRange(
@@ -585,7 +582,7 @@ export const exportItemIssueConsolidationExcel = async ({
   ws.getColumn("M").width = 9;
   ws.getColumn("N").width = 13;
   ws.getColumn("O").width = 12;
-  ws.getColumn("P").width = 10;
+ws.getColumn("P").width = 10;
   ws.getColumn("Q").width = 15;
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -605,42 +602,44 @@ export const exportItemIssueConsolidationPdf = ({
   filename = "item_issue_consolidation.pdf",
   title = "K.S DISTILLERY"
 }) => {
-  const doc = new jsPDF({
-    orientation: "landscape",
-    unit: "mm",
-    format: [297, 250]
-  });
+  // Derive dates dynamically
+  const curAson = date1;
+  const priorAson = date2;
+  const priorEnd = priorAson.clone().endOf("month");
 
-  const d1Label = date1 ? date1.format("MMM YYYY") : "";
-  const d2Label = date2 ? date2.format("MMM YYYY") : "";
-  const lmLabel = lastMonthLabel ? lastMonthLabel : "Last Month";
+  const curMonthName = curAson.format("MMMM").toUpperCase();
+  const priorMonthName = priorAson.format("MMMM").toUpperCase();
+  const curYear = curAson.format("YYYY");
+  const priorYear = priorAson.format("YYYY");
 
-  const d1Day = date1 ? date1.date() : 1;
-  const d2Day = date2 ? date2.date() : 1;
-
-  // Set up header structure
-  const period1HeaderText = `${date1 ? date1.format("MMMM YYYY").toUpperCase() : ""} - as on ${date1 ? date1.format("D MMMM YYYY") : ""}`;
-  const period2HeaderText = `${date2 ? date2.format("MMMM YYYY").toUpperCase() : ""} - as on ${date2 ? date2.format("D MMMM YYYY") : ""}`;
+  const subLeft = `SECONDARY SALES · ${curAson.format("MMM YY").toUpperCase()} vs ${priorAson.format("MMM YY").toUpperCase()}`;
+  const subRight = `AS ON ${curAson.format("D MMMM YYYY")}`;
+  const curBanner = `${curMonthName} ${curYear} - as on ${curAson.format("D MMMM YYYY")}`;
+  const priorBanner = `${priorMonthName} ${priorYear} - as on ${priorAson.format("D MMMM YYYY")}`;
+  
+  const d1Day = curAson.date();
+  const d2Day = priorAson.date();
+  const curDayColLabel = `${d1Day}${curAson.format("MMM")}`;
+  const priorDayColLabel = `${d2Day}${priorAson.format("MMM")}`;
+  const lastMonthColLabel = `LAST\nMONTH\n(${priorEnd.format("D\u00A0MMM").toUpperCase()})`;
 
   const headers = [
     [
-      { content: "SL NO", rowSpan: 2, styles: { valign: "middle", halign: "center" } },
       { content: "WAREHOUSE", rowSpan: 2, styles: { valign: "middle", halign: "center" } },
-      { content: period1HeaderText, colSpan: 6, styles: { halign: "center" } },
-      { content: period2HeaderText, colSpan: 6, styles: { halign: "center" } },
+      { content: curBanner, colSpan: 6, styles: { halign: "center" } },
+      { content: priorBanner, colSpan: 6, styles: { halign: "center" } },
       { content: "DIFFERENCE", colSpan: 2, styles: { halign: "center" } },
-      { content: `LAST MONTH\n(${lmLabel.toUpperCase()})`, rowSpan: 2, styles: { valign: "middle", halign: "center" } }
+      { content: lastMonthColLabel, rowSpan: 2, styles: { valign: "middle", halign: "center" } }
     ],
     [
-      "STN", "GTN", "TOTAL", "C FED", "BAR", `${d1Day}${date1 ? date1.format("MMM") : ""}`,
-      "STN", "GTN", "TOTAL", "C FED", "BAR", `${d2Day}${date2 ? date2.format("MMM") : ""}`,
+      "STN", "GTN", "TOTAL", "C\u00A0FED", "BAR", curDayColLabel,
+      "STN", "GTN", "TOTAL", "C\u00A0FED", "BAR", priorDayColLabel,
       "Cases", "%"
     ]
   ];
 
   // Group and sort data rows
   const tableRows = [];
-  let sNoCounter = 1;
 
   const clusterKeys = ["CLUSTER - 1", "CLUSTER - 2", "CLUSTER - 3"];
   const activeClusters = Object.keys(clusters || {}).length > 0 ? clusters : DEFAULT_CLUSTERS;
@@ -692,7 +691,6 @@ export const exportItemIssueConsolidationPdf = ({
       const pctVal = row.pct !== undefined ? `${row.pct}%` : "-";
 
       tableRows.push([
-        String(sNoCounter++),
         formatDepot(row.warehouse).toUpperCase(),
         formatNum(row.stn1),
         formatNum(row.gtn1),
@@ -743,10 +741,10 @@ export const exportItemIssueConsolidationPdf = ({
       grandTotals.last_month_final += row.last_month_final || 0;
     });
 
-    // Append cluster summary row (now as an array with properties)
+    // Append cluster summary row
     const clPct = clusterTotals.final2 ? Math.round((clusterTotals.diff / clusterTotals.final2) * 100) : 0;
     const clRow = [
-      { content: clusterName.toUpperCase(), colSpan: 2, styles: { fontStyle: "bold" } },
+      { content: clusterName.toUpperCase(), styles: { fontStyle: "bold" } },
       formatNum(clusterTotals.stn1),
       formatNum(clusterTotals.gtn1),
       formatNum(clusterTotals.total1),
@@ -768,10 +766,10 @@ export const exportItemIssueConsolidationPdf = ({
     tableRows.push(clRow);
   });
 
-  // Grand Total row (now as an array with properties)
+  // Grand Total row
   const grPct = grandTotals.final2 ? Math.round((grandTotals.diff / grandTotals.final2) * 100) : 0;
   const grRow = [
-    { content: "TOTAL", colSpan: 2, styles: { fontStyle: "bold", halign: "center" } },
+    { content: "TOTAL", styles: { fontStyle: "bold", halign: "center" } },
     formatNum(grandTotals.stn1),
     formatNum(grandTotals.gtn1),
     formatNum(grandTotals.total1),
@@ -791,180 +789,306 @@ export const exportItemIssueConsolidationPdf = ({
   grRow.isGrandTotal = true;
   tableRows.push(grRow);
 
-  // Day Sale row (now as an array with properties)
+  // Day Sale row
   const dayDiff = (Number(daySales1) || 0) - (Number(daySales2) || 0);
   const daySales2Num = Number(daySales2) || 0;
   const dayPct = daySales2Num ? Math.round((dayDiff / daySales2Num) * 100) : 0;
   const dsRow = [
-    { content: "Day Sale", colSpan: 2, styles: { fontStyle: "bold" } },
-    { content: formatNum(daySales1), colSpan: 6, styles: { halign: "center", fontStyle: "bold", textColor: [11, 41, 79] } },
-    { content: formatNum(daySales2), colSpan: 6, styles: { halign: "center", fontStyle: "bold", textColor: [11, 41, 79] } },
+    { content: "Day Sale", styles: { fontStyle: "bold" } },
+    { content: formatNum(daySales1), colSpan: 6, styles: { halign: "center", fontStyle: "bold" } },
+    { content: formatNum(daySales2), colSpan: 6, styles: { halign: "center", fontStyle: "bold" } },
     formatNum(dayDiff), `${dayPct}%`, ""
   ];
   dsRow.isDaySale = true;
   tableRows.push(dsRow);
 
-  // Industry Total row (now as an array with properties)
+  // Industry Total row
   const indDiff = (Number(industrySales1) || 0) - (Number(industrySales2) || 0);
   const indSales2Num = Number(industrySales2) || 0;
   const indPct = indSales2Num ? Math.round((indDiff / indSales2Num) * 100) : 0;
   const indRow = [
-    { content: "Industry Total", colSpan: 2, styles: { fontStyle: "bold" } },
-    { content: formatNum(industrySales1), colSpan: 6, styles: { halign: "center", fontStyle: "bold", textColor: [11, 41, 79] } },
-    { content: formatNum(industrySales2), colSpan: 6, styles: { halign: "center", fontStyle: "bold", textColor: [11, 41, 79] } },
+    { content: "Industry Total", styles: { fontStyle: "bold" } },
+    { content: formatNum(industrySales1), colSpan: 6, styles: { halign: "center", fontStyle: "bold" } },
+    { content: formatNum(industrySales2), colSpan: 6, styles: { halign: "center", fontStyle: "bold" } },
     formatNum(indDiff), `${indPct}%`, ""
   ];
   indRow.isIndustryTotal = true;
   tableRows.push(indRow);
 
-  // Column width calculations (landscape A4 is 297mm, margin is 0 -> 297mm print width)
-  const colStyles = {
-    0: { cellWidth: 10, halign: "center" },  // SL NO
-    1: { cellWidth: 64, halign: "left" },    // DEPOT
-    2: { cellWidth: 13, halign: "center" },  // STN 1
-    3: { cellWidth: 13, halign: "center" },  // GTN 1
-    4: { cellWidth: 13, halign: "center" },  // TOTAL 1
-    5: { cellWidth: 13, halign: "center" },  // C FED 1
-    6: { cellWidth: 13, halign: "center" },  // BAR 1
-    7: { cellWidth: 18, halign: "center" },  // Final 1
-    8: { cellWidth: 13, halign: "center" },  // STN 2
-    9: { cellWidth: 13, halign: "center" },  // GTN 2
-    10: { cellWidth: 13, halign: "center" }, // TOTAL 2
-    11: { cellWidth: 13, halign: "center" }, // C FED 2
-    12: { cellWidth: 13, halign: "center" }, // BAR 2
-    13: { cellWidth: 18, halign: "center" }, // Final 2
-    14: { cellWidth: 18, halign: "center" }, // Diff Cases
-    15: { cellWidth: 15, halign: "center" }, // Diff %
-    16: { cellWidth: 24, halign: "center" }  // Last Month
+  // Initialize jsPDF in points (A4 portrait dimensions: 595.276 x 841.890)
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "pt",
+    format: [595.276, 841.890]
+  });
+
+  const colors = {
+    NAVY: [10, 41, 79],        // #0A294F
+    GOLD: [255, 188, 48],      // #FFBC30
+    AMBER: [255, 191, 0],      // #FFBF00
+    CREAM: [255, 249, 229],    // #FFF9E5
+    RED: [192, 0, 0],          // #C00000
+    GREEN: [55, 85, 34],       // #375522
+    GREY: [139, 139, 139],     // #8B8B8B
+    BLACK: [0, 0, 0],          // #000000
+    WHITE: [255, 255, 255]     // #FFFFFF
   };
+
+  const PAD = 2.75;
+  let activeFontSize = 10.5;
+  let finalColWidths = [];
+
+  // Solver helper to measure string widths using dynamic sizes
+  const getStringWidthInPt = (text, fontSize, isBold) => {
+    doc.setFont("helvetica", isBold ? "bold" : "normal");
+    doc.setFontSize(fontSize);
+    return doc.getTextWidth(String(text || ""));
+  };
+
+  while (activeFontSize >= 6) {
+    const colWidths = Array(16).fill(0);
+    const headerFontSize = 8.5 * (activeFontSize / 10.5);
+
+    const headerWidestWords = [
+      "WAREHOUSE", "STN", "GTN", "TOTAL", "C\u00A0FED", "BAR", curDayColLabel,
+      "STN", "GTN", "TOTAL", "C\u00A0FED", "BAR", priorDayColLabel,
+      "Cases", "%", "(31\u00A0JUL)"
+    ];
+
+    for (let col = 0; col < 16; col++) {
+      const wordWidth = getStringWidthInPt(headerWidestWords[col], headerFontSize, true);
+      colWidths[col] = Math.max(colWidths[col], wordWidth);
+    }
+
+    tableRows.forEach(row => {
+      for (let col = 0; col < 16; col++) {
+        let cellText = "";
+        let isBold = false;
+        const cellData = row[col];
+        if (cellData && typeof cellData === "object") {
+          cellText = String(cellData.content || "");
+          if (cellData.styles?.fontStyle === "bold") {
+            isBold = true;
+          }
+        } else {
+          cellText = String(cellData || "");
+        }
+
+        if (row.isClusterTotal || row.isGrandTotal || row.isDaySale || row.isIndustryTotal) {
+          isBold = true;
+        }
+        if (col === 6 || col === 12 || col === 13 || col === 14) {
+          isBold = true;
+        }
+
+        const valueWidth = getStringWidthInPt(cellText, activeFontSize, isBold);
+        colWidths[col] = Math.max(colWidths[col], valueWidth);
+      }
+    });
+
+    // Apply padding boundaries
+    for (let col = 0; col < 16; col++) {
+      if (col === 0) {
+        colWidths[col] += 4 * PAD; // depot indent padding
+      } else {
+        colWidths[col] += 2 * PAD;
+      }
+    }
+
+    // Mirror AUGUST and JULY columns
+    for (let i = 0; i < 6; i++) {
+      const augCol = 1 + i;
+      const julCol = 7 + i;
+      const maxPairWidth = Math.max(colWidths[augCol], colWidths[julCol]);
+      colWidths[augCol] = colWidths[julCol] = maxPairWidth;
+    }
+
+    const totalWidth = colWidths.reduce((sum, w) => sum + w, 0);
+    if (totalWidth <= 595.276) {
+      const leftover = 595.276 - totalWidth;
+      const share = leftover / 16;
+      finalColWidths = colWidths.map(w => w + share);
+      break;
+    }
+
+    activeFontSize -= 0.25;
+  }
+
+  // Row height derived mathematically to perfectly span the page
+  const bodyRowsCount = tableRows.length;
+  // Calculate dynamic page height based on rows length to eliminate extra space at the bottom
+  // StartY (20) + Header heights (approx 12) + rows * height (approx 5.8mm per row) + margin/footer (25)
+  const pageHeight = Math.max(100, 20 + 12 + (tableRows.length * 5.8) + 25);
+  const derivedHeight = (841.890 - 40 - 26 - 24 - 26 - 26 - 10) / bodyRowsCount;
+
+  const colStyles = {};
+  for (let col = 0; col < 16; col++) {
+    colStyles[col] = {
+      cellWidth: finalColWidths[col],
+      halign: col === 0 ? "left" : "center"
+    };
+    if (col === 0) {
+      colStyles[col].cellPadding = { left: 2 * PAD, right: PAD, top: 2, bottom: 2 };
+    }
+  }
 
   autoTable(doc, {
     head: headers,
     body: tableRows,
-    startY: 20,
-    margin: { top: 20, bottom: 10, left: 0, right: 0 },
+    startY: 66, // starts immediately below Navy sub-band (40 + 26)
+    margin: { top: 66, bottom: 20, left: 0, right: 0 },
     theme: "grid",
     styles: {
       font: "helvetica",
-      fontSize: 7.5,
-      cellPadding: 1.2,
-      lineColor: [255, 189, 49],
-      lineWidth: 0.15,
-      textColor: [0, 0, 0]
+      fontSize: activeFontSize,
+      minCellHeight: derivedHeight,
+      valign: "middle",
+      lineWidth: 0, // disabling default autoTable borders to draw custom clean rules
+      textColor: colors.BLACK,
+      cellPadding: PAD // Set uniform default cellPadding to 2.75pt
     },
     headStyles: {
-      fillColor: [11, 41, 79],
-      textColor: [255, 189, 49],
+      fillColor: colors.NAVY,
+      textColor: colors.GOLD,
       fontStyle: "bold",
-      fontSize: 8,
+      fontSize: 8.5,
       halign: "center",
       valign: "middle"
     },
     columnStyles: colStyles,
-    didDrawPage: (data) => {
-      // Draw Navy header bands (fully borderless)
-      doc.setFillColor(11, 41, 79); 
-      doc.rect(0, 0, 297, 12, "F");
+    didParseCell: (data) => {
+      const headerFontSize = 8.5 * (activeFontSize / 10.5);
+      if (data.section === 'head') {
+        data.cell.styles.fillColor = colors.NAVY;
+        data.cell.styles.textColor = colors.GOLD;
+        data.cell.styles.fontStyle = "bold";
+        data.cell.styles.fontSize = headerFontSize;
+        data.cell.styles.minCellHeight = data.row.index === 0 ? 24.0 : 26.0;
+      }
 
-      doc.setFillColor(11, 41, 79); 
-      doc.rect(0, 12, 297, 8, "F");
+      if (data.section === 'body') {
+        const rawRow = data.row.raw;
+        const colIdx = data.column.index;
 
-      // Draw Main Title
-      doc.setFontSize(18);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(255, 189, 49); 
-      doc.text(title.toUpperCase(), 173.5, 8, { align: "center" });
+        data.cell.styles.fontSize = activeFontSize;
+        data.cell.styles.textColor = colors.BLACK;
+        data.cell.styles.fontStyle = "normal";
 
-      // Draw Sub-headings
-      doc.setFontSize(10.5);
-      doc.setTextColor(255, 189, 49); 
-      doc.text(`SECONDARY SALES · ${date1 ? date1.format("MMM YY").toUpperCase() : ""} vs ${date2 ? date2.format("MMM YY").toUpperCase() : ""}`, 5, 17);
-
-      doc.setTextColor(255, 189, 49); 
-      doc.text(`AS ON ${date1 ? date1.format("D MMMM YYYY").toUpperCase() : ""}`, 292, 17, { align: "right" });
-    },
-    didParseCell: (cellData) => {
-      // Style headers appropriately
-      if (cellData.section === 'head') {
-        const colIdx = cellData.column.index;
-        if (cellData.row.index === 0) {
-          if (colIdx >= 2 && colIdx <= 7) {
-            cellData.cell.styles.textColor = [255, 189, 49];
-          } else if (colIdx >= 8 && colIdx <= 13) {
-            cellData.cell.styles.textColor = [255, 189, 49];
-          } else if (colIdx === 14 || colIdx === 15) {
-            cellData.cell.styles.textColor = [255, 189, 49];
-          } else if (colIdx === 16) {
-            cellData.cell.styles.textColor = [255, 189, 49];
+        if (rawRow.isClusterTotal) {
+          data.cell.styles.fillColor = colors.AMBER;
+          data.cell.styles.fontStyle = "bold";
+          if (colIdx === 13 || colIdx === 14) {
+            const rawVal = String(data.row.cells[13]?.raw || "");
+            const isNeg = rawVal.startsWith("-");
+            data.cell.styles.textColor = isNeg ? colors.RED : colors.GREEN;
+          }
+          if (colIdx === 6 || colIdx === 12) {
+            data.cell.styles.textColor = colors.NAVY;
+          }
+        } else if (rawRow.isGrandTotal) {
+          data.cell.styles.fillColor = colors.NAVY;
+          data.cell.styles.textColor = colors.WHITE;
+          data.cell.styles.fontStyle = "bold";
+        } else if (rawRow.isDaySale || rawRow.isIndustryTotal) {
+          data.cell.styles.fontStyle = "bold";
+          if (colIdx === 0) {
+            data.cell.styles.fillColor = colors.WHITE;
+            data.cell.styles.halign = "center";
+          } else if (colIdx >= 1 && colIdx <= 6) {
+            data.cell.styles.fillColor = colors.WHITE;
+            data.cell.styles.textColor = colors.NAVY;
+            data.cell.styles.halign = "center";
+          } else if (colIdx >= 7 && colIdx <= 12) {
+            data.cell.styles.fillColor = colors.CREAM;
+            data.cell.styles.textColor = colors.NAVY;
+            data.cell.styles.halign = "center";
+          } else if (colIdx === 13 || colIdx === 14) {
+            data.cell.styles.fillColor = colors.WHITE;
+            const rawVal = String(data.row.cells[13]?.raw || "");
+            const isNeg = rawVal.startsWith("-");
+            data.cell.styles.textColor = isNeg ? colors.RED : colors.GREEN;
+          } else if (colIdx === 15) {
+            data.cell.styles.fillColor = colors.WHITE;
+          }
+        } else {
+          data.cell.styles.fillColor = (colIdx >= 7 && colIdx <= 12) ? colors.CREAM : colors.WHITE;
+          
+          if (colIdx === 6 || colIdx === 12) {
+            data.cell.styles.textColor = colors.NAVY;
+            data.cell.styles.fontStyle = "bold";
+          }
+          if (colIdx === 13 || colIdx === 14) {
+            const rawVal = String(data.row.cells[13]?.raw || "");
+            const isNeg = rawVal.startsWith("-");
+            data.cell.styles.textColor = isNeg ? colors.RED : colors.GREEN;
+            data.cell.styles.fontStyle = "bold";
+          }
+          if (data.cell.raw === "-") {
+            data.cell.styles.textColor = [180, 180, 180];
           }
         }
       }
+    },
+    didDrawPage: (data) => {
+      // Draw Navy header bands (fully borderless)
+      doc.setFillColor(10, 41, 79); 
+      doc.rect(0, 0, 595.276, 40, "F");
 
-      if (cellData.section === 'body') {
-        const rawRow = cellData.row.raw;
-        const colIdx = cellData.column.index;
+      doc.rect(0, 40, 595.276, 26, "F");
+
+      // Draw Main Title (16pt Bold Gold)
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(255, 188, 48); 
+      doc.text("K.S DISTILLERY", 297.638, 25, { align: "center" });
+
+      // Draw Sub-headings (11pt Bold Gold)
+      doc.setFontSize(11);
+      doc.text(subLeft, 10, 56);
+      doc.text(subRight, 585.276, 56, { align: "right" });
+    },
+    didDrawCell: (data) => {
+      const { x, y, width, height } = data.cell;
+      
+      // Draw Gold Grid for Header Block
+      if (data.section === 'head') {
+        doc.setDrawColor(255, 188, 48); // GOLD
         
-        // Cream fill for columns 8-13
-        if (colIdx >= 8 && colIdx <= 13) {
-          cellData.cell.styles.fillColor = [255, 249, 230];
-        }
-
-        if (rawRow.isClusterTotal) {
-          cellData.cell.styles.fillColor = [255, 192, 0]; // Gold color #FFC000
-          cellData.cell.styles.fontStyle = "bold";
-          cellData.cell.styles.textColor = [0, 0, 0];
+        // top rule (row 0, inset by half width)
+        if (data.row.index === 0) {
+          doc.setLineWidth(2.0); // 2.0pt
+          doc.line(x, y + 1.0, x + width, y + 1.0);
           
-          if (colIdx === 7 || colIdx === 13) {
-            cellData.cell.styles.textColor = [11, 41, 79];
-          }
-          if (colIdx === 14 || colIdx === 15) {
-            const rawVal = String(cellData.row.cells[14]?.raw || "");
-            const isNeg = rawVal.startsWith("-");
-            cellData.cell.styles.textColor = isNeg ? [192, 0, 0] : [55, 86, 35];
-          }
-        } else if (rawRow.isGrandTotal) {
-          cellData.cell.styles.fillColor = [11, 41, 79]; // Navy #0B294F
-          cellData.cell.styles.textColor = [255, 255, 255];
-          cellData.cell.styles.fontStyle = "bold";
-        } else if (rawRow.isDaySale || rawRow.isIndustryTotal) {
-          cellData.cell.styles.fontStyle = "bold";
-          if (colIdx === 7 || colIdx === 13) {
-            cellData.cell.styles.textColor = [11, 41, 79];
-          }
-          if (colIdx === 14 || colIdx === 15) {
-            const rawVal = String(cellData.row.cells[14]?.raw || "");
-            const isNeg = rawVal.startsWith("-");
-            cellData.cell.styles.textColor = isNeg ? [192, 0, 0] : [55, 86, 35];
-          }
-        } else {
-          // Regular rows
-          // Highlight final1 and final2 columns in Navy
-          if (colIdx === 7 || colIdx === 13) {
-            cellData.cell.styles.textColor = [11, 41, 79];
-            cellData.cell.styles.fontStyle = "bold";
-          }
-          // Color Difference Cases and %
-          if (colIdx === 14 || colIdx === 15) {
-            const rawVal = String(cellData.row.cells[14]?.raw || "");
-            const isNeg = rawVal.startsWith("-");
-            cellData.cell.styles.textColor = isNeg ? [192, 0, 0] : [55, 86, 35];
-            cellData.cell.styles.fontStyle = "bold";
-          }
-          if (cellData.cell.raw === "-") {
-            cellData.cell.styles.textColor = [180, 180, 180];
-          }
+          // horizontal separator between row 0 and row 1 (1.4pt)
+          doc.setLineWidth(1.4);
+          doc.line(x, y + height, x + width, y + height);
         }
+        // bottom rule (row 1, inset by half width)
+        if (data.row.index === 1) {
+          doc.setLineWidth(2.0); // 2.0pt
+          doc.line(x, y + height - 1.0, x + width, y + height - 1.0);
+        }
+        
+        // vertical column separators (1.4pt)
+        doc.setLineWidth(1.4);
+        doc.line(x + width, y, x + width, y + height);
+      } else {
+        // Draw Clean Hairlines for Body cells (0.43pt BLACK)
+        doc.setDrawColor(0, 0, 0); 
+        doc.setLineWidth(0.43);
+        doc.rect(x, y, width, height, 'S');
       }
     }
   });
 
-  const pageHeight = doc.internal.pageSize.getHeight();
+
+  const docHeight = doc.internal.pageSize.getHeight();
   const pageCount = doc.internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
-    doc.setTextColor(140, 140, 140);
-    doc.text(`Page ${i} of ${pageCount}`, 148.5, pageHeight - 7, { align: "center" });
+    doc.setTextColor(139, 139, 139); // GREY #8B8B8B
+    doc.text(`Page ${i} of ${pageCount}`, 297.638, docHeight - 10 - 8, { align: "center" });
   }
 
   doc.save(filename);
