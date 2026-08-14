@@ -546,8 +546,8 @@ export default function AchievedTargetReport() {
       displayedBrands,
       dateRange,
       clusters,
-      customTitle: drilledBond ? `Target v/s Achieved - ${drilledBond}` : "Target v/s Achieved Report",
-      filename: drilledBond ? `target_vs_achieved_report_${drilledBond}.pdf` : "target_vs_achieved_report.pdf"
+      customTitle: drilledBond ? `TARGET VS ACHIEVEMENT - ${drilledBond.toUpperCase()}` : "TARGET VS ACHIEVEMENT",
+      filename: drilledBond ? `TARGET_VS_ACHIEVEMENT_${drilledBond.toUpperCase()}.pdf` : "TARGET_VS_ACHIEVEMENT.pdf"
     });
   };
 
@@ -557,20 +557,22 @@ export default function AchievedTargetReport() {
       const clusterNames = Object.keys(clusters);
       for (const clusterName of clusterNames) {
         const clusterBonds = clusters[clusterName] || [];
+        const normClusterName = clusterName.toUpperCase().replace(/\s*-\s*/g, " ");
         const clusterData = tableData.filter(row => {
-          return clusterBonds.includes(row.bond) || row.bond === `${clusterName} TOTAL`;
+          const normBond = (row.bond || "").toUpperCase().replace(/\s*-\s*/g, " ");
+          return clusterBonds.some(b => b.toUpperCase().replace(/\s*-\s*/g, " ") === normBond) || normBond === `${normClusterName} TOTAL`;
         });
 
         if (clusterData.length > 0) {
-          const cleanName = clusterName.toLowerCase().replace(/\s+/g, "_");
+          const cleanName = clusterName.toUpperCase().replace(/CLUSTER\s*-\s*/gi, "CLUSTER ");
           exportAchievedTargetPdf({
             data: clusterData,
             viewMode: "bond",
             displayedBrands,
             dateRange,
             clusters,
-            customTitle: `Target v/s Achieved - ${clusterName}`,
-            filename: `achieved_target_${cleanName}.pdf`,
+            customTitle: `TARGET VS ACHIEVEMENT - ${cleanName}`,
+            filename: `TARGET_VS_ACHIEVEMENT_${cleanName.replace(/\s+/g, "_")}.pdf`,
             showGrandTotal: false
           });
           // Small delay to prevent browser from blocking multiple concurrent downloads
@@ -588,8 +590,8 @@ export default function AchievedTargetReport() {
           dateRange,
           clusters,
           isSummaryOnly: true,
-          customTitle: "Target v/s Achieved - CLUSTERS SUMMARY",
-          filename: "achieved_target_clusters_summary.pdf"
+          customTitle: "TARGET VS ACHIEVEMENT - CLUSTER SUMMARY",
+          filename: "TARGET_VS_ACHIEVEMENT_CLUSTER_SUMMARY.pdf"
         });
       }
       message.success("All cluster PDFs downloaded successfully!");

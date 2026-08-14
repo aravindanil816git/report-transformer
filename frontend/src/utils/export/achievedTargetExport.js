@@ -458,24 +458,26 @@ export const exportAchievedTargetExcel = async ({
 
 // --- PDF EXPORT ---
 export const exportAchievedTargetPdf = ({
-  data,
-  viewMode,
-  displayedBrands,
-  dateRange,
-  clusters,
+  data = [],
+  viewMode = "bond",
+  displayedBrands = [],
+  dateRange = [],
+  clusters = {},
   isSummaryOnly = false,
   customTitle = null,
   filename = null,
   showGrandTotal = true
 }) => {
-  const orientation = "landscape";
-  const doc = new jsPDF({ orientation: orientation, unit: "mm", format: "a4" });
   const formattedDate = dateRange && dateRange[1] 
     ? `AS ON ${dayjs(dateRange[1]).format("D MMM YYYY")}` 
     : `AS ON ${dayjs().format("D MMM YYYY")}`;
 
-  const drawHeader = (doc, title, period, pageNumber = 1) => {
-    if (pageNumber === 1) {
+  if (viewMode === "shop") {
+    // --- Shop View PDF ---
+    const orientation = "landscape";
+    const doc = new jsPDF({ orientation: orientation, unit: "mm", format: "a4" });
+
+    const drawHeader = (doc, title, period) => {
       doc.setFillColor(11, 41, 79); 
       doc.rect(10, 10, 277, 14, "F");
 
@@ -492,143 +494,8 @@ export const exportAchievedTargetPdf = ({
       doc.setTextColor(11, 41, 79); 
       doc.text(title.toUpperCase(), 15, 28.5, { align: "left" });
       doc.text(period, 272, 28.5, { align: "right" });
-    }
-  };
+    };
 
-  if (viewMode === "bond") {
-    const tableRows = [];
-    
-    // Filter to only cluster totals if isSummaryOnly is true
-    const targetRows = isSummaryOnly 
-      ? data.filter(r => r.isClusterTotal)
-      : data;
-
-    for (let i = 0; i < targetRows.length; i += 2) {
-      const tgtRow = targetRows[i];
-      const achRow = targetRows[i + 1];
-      if (!tgtRow || !achRow) continue;
-
-      const isCluster = tgtRow.isClusterTotal;
-      const bondName = tgtRow.bond;
-
-      let tgtSum = 0;
-      let achSum = 0;
-      const brandTgts = [];
-      const brandAchs = [];
-
-      displayedBrands.forEach(brand => {
-        const tVal = Math.round(tgtRow.brands?.[brand]?.target || 0);
-        const aVal = Math.round(achRow.brands?.[brand]?.achieved || 0);
-        tgtSum += tVal;
-        achSum += aVal;
-        brandTgts.push(tVal);
-        brandAchs.push(aVal);
-      });
-
-      const pctVal = getAchPercentage(tgtSum, achSum);
-
-      const row1 = [
-        { content: bondName, rowSpan: 2, styles: { halign: "center", valign: "middle", fontStyle: "bold", fillColor: [11, 41, 79], textColor: isCluster ? [255, 189, 49] : [255, 255, 255] } },
-        { content: "TGT", styles: { halign: "center", fontStyle: isCluster ? "bold" : "normal", fillColor: isCluster ? [255, 189, 49] : [255, 255, 255], textColor: [0, 0, 0] } },
-        ...brandTgts.map(v => ({ content: String(v), styles: { halign: "center", fontStyle: isCluster ? "bold" : "normal", fillColor: isCluster ? [255, 189, 49] : [255, 255, 255], textColor: [0, 0, 0] } })),
-        { content: String(tgtSum), styles: { halign: "center", fontStyle: "bold", fillColor: isCluster ? [255, 189, 49] : [255, 255, 255], textColor: [0, 0, 0] } },
-        { content: pctVal, rowSpan: 2, styles: { halign: "center", valign: "middle", fontStyle: "bold", textColor: isCluster ? [0, 0, 0] : (getAchPercentageNum(tgtSum, achSum) >= 100 ? [63, 134, 0] : [207, 19, 34]), fillColor: isCluster ? [255, 189, 49] : [255, 255, 255] } }
-      ];
-
-      const row2 = [
-        { content: "ACH", styles: { halign: "center", fontStyle: isCluster ? "bold" : "normal", fillColor: isCluster ? [255, 189, 49] : [255, 255, 255], textColor: [0, 0, 0] } },
-        ...brandAchs.map(v => ({ content: String(v), styles: { halign: "center", fontStyle: isCluster ? "bold" : "normal", fillColor: isCluster ? [255, 189, 49] : [255, 255, 255], textColor: [0, 0, 0] } })),
-        { content: String(achSum), styles: { halign: "center", fontStyle: "bold", fillColor: isCluster ? [255, 189, 49] : [255, 255, 255], textColor: [0, 0, 0] } }
-      ];
-
-      tableRows.push(row1);
-      tableRows.push(row2);
-    }
-
-    let grandTgtSum = 0;
-    let grandAchSum = 0;
-    const grandBrandTgts = {};
-    const grandBrandAchs = {};
-    displayedBrands.forEach(b => {
-      grandBrandTgts[b] = 0;
-      grandBrandAchs[b] = 0;
-    });
-
-    data.forEach(row => {
-      if (isSummaryOnly) {
-        if (!row.isClusterTotal) return;
-      } else {
-        if (row.isClusterTotal) return;
-      }
-      
-      if (row.type === "Target") {
-        displayedBrands.forEach(b => {
-          grandBrandTgts[b] += row.brands?.[b]?.target || 0;
-        });
-      } else {
-        displayedBrands.forEach(b => {
-          grandBrandAchs[b] += row.brands?.[b]?.achieved || 0;
-        });
-      }
-    });
-
-    displayedBrands.forEach(b => {
-      grandTgtSum += grandBrandTgts[b];
-      grandAchSum += grandBrandAchs[b];
-    });
-
-    const finalPctVal = getAchPercentage(grandTgtSum, grandAchSum);
-
-    if (showGrandTotal) {
-      tableRows.push([
-        { content: "GRAND TOTAL", rowSpan: 2, styles: { halign: "center", valign: "middle", fontStyle: "bold", fillColor: [11, 41, 79], textColor: [255, 189, 49] } },
-        { content: "TGT", styles: { halign: "center", fillColor: [11, 41, 79], textColor: [255, 255, 255], fontStyle: "bold" } },
-        ...displayedBrands.map(b => ({ content: String(Math.round(grandBrandTgts[b])), styles: { halign: "center", fillColor: [11, 41, 79], textColor: [255, 255, 255], fontStyle: "bold" } })),
-        { content: String(Math.round(grandTgtSum)), styles: { halign: "center", fontStyle: "bold", fillColor: [11, 41, 79], textColor: [255, 189, 49] } },
-        { content: finalPctVal, rowSpan: 2, styles: { halign: "center", valign: "middle", fontStyle: "bold", fillColor: [11, 41, 79], textColor: getAchPercentageNum(grandTgtSum, grandAchSum) >= 100 ? [255, 255, 255] : [255, 100, 100] } }
-      ]);
-
-      tableRows.push([
-        { content: "ACH", styles: { halign: "center", fillColor: [11, 41, 79], textColor: [255, 255, 255], fontStyle: "bold" } },
-        ...displayedBrands.map(b => ({ content: String(Math.round(grandBrandAchs[b])), styles: { halign: "center", fillColor: [11, 41, 79], textColor: [255, 255, 255], fontStyle: "bold" } })),
-        { content: String(Math.round(grandAchSum)), styles: { halign: "center", fontStyle: "bold", fillColor: [11, 41, 79], textColor: [255, 189, 49] } }
-      ]);
-    }
-
-    const headers = [
-      "STAFF - BOND",
-      "CAT",
-      ...displayedBrands.map(b => b.replace(" BRANDY", "").replace(" RUM", "")),
-      "GRAND TOTAL",
-      "ACH %"
-    ];
-
-    autoTable(doc, {
-      head: [headers],
-      body: tableRows,
-      startY: 35,
-      margin: { top: 35, bottom: 15, left: 10, right: 10 },
-      theme: "plain",
-      styles: {
-        fontSize: 8.5,
-        cellPadding: 2,
-        lineWidth: 0.1,
-        lineColor: [200, 200, 200],
-        textColor: [0, 0, 0]
-      },
-      headStyles: {
-        fillColor: [11, 41, 79],
-        textColor: [255, 255, 255],
-        fontStyle: "bold",
-        halign: "center"
-      },
-      didDrawPage: (data) => {
-        drawHeader(doc, customTitle || "TARGET VS ACHIEVEMENT", formattedDate, data.pageNumber);
-      }
-    });
-
-  } else {
-    // --- Shop View PDF ---
     const headers = [
       "CATEGORY",
       "SHOP CODE",
@@ -674,24 +541,380 @@ export const exportAchievedTargetPdf = ({
       startY: 35,
       margin: { top: 35, bottom: 15, left: 10, right: 10 },
       theme: "striped",
-      styles: {
-        fontSize: 8.5,
-        cellPadding: 2,
-        lineWidth: 0.1,
-        lineColor: [220, 220, 220]
-      },
-      headStyles: {
-        fillColor: [11, 41, 79],
-        textColor: [255, 255, 255],
-        fontStyle: "bold",
-        halign: "center"
-      },
+      styles: { fontSize: 8.5, cellPadding: 2, lineWidth: 0.1, lineColor: [220, 220, 220] },
+      headStyles: { fillColor: [11, 41, 79], textColor: [255, 255, 255], fontStyle: "bold", halign: "center" },
       didDrawPage: (data) => {
-        drawHeader(doc, customTitle || "SHOPWISE TARGET VS ACHIEVEMENT", formattedDate, data.pageNumber);
+        drawHeader(doc, customTitle || "SHOPWISE TARGET VS ACHIEVEMENT", formattedDate);
       }
+    });
+
+    doc.save(filename || "shopwise_target_vs_achievement_report.pdf");
+    return;
+  }
+
+  // --- Bond View Build Spec PDF ---
+  // Group into 2-row blocks (TGT and ACH)
+  const blocks = [];
+  const processedKeys = new Set();
+
+  data.forEach(row => {
+    const rawBond = row.bond || row.label || "";
+    if (!rawBond) return;
+    if (processedKeys.has(rawBond)) return;
+    processedKeys.add(rawBond);
+
+    const bondRows = data.filter(r => (r.bond || r.label) === rawBond);
+    const tgtRow = bondRows.find(r => r.type === "Target") || bondRows[0];
+    const achRow = bondRows.find(r => r.type === "Achieved") || bondRows[1] || tgtRow;
+
+    const isClusterTotal = !!tgtRow.isClusterTotal || !!achRow.isClusterTotal;
+
+    if (isSummaryOnly && !isClusterTotal) return;
+
+    let cleanLabelStr = String(rawBond).trim();
+    cleanLabelStr = cleanLabelStr.replace(/CLUSTER\s*-\s*/gi, "CLUSTER ");
+
+    if (isSummaryOnly || (isClusterTotal && !cleanLabelStr.toUpperCase().includes("GRAND TOTAL"))) {
+      cleanLabelStr = cleanLabelStr.replace(/\s+TOTAL$/gi, "");
+    }
+    if (cleanLabelStr.toUpperCase().includes("GRAND TOTAL")) {
+      cleanLabelStr = "GRAND TOTAL";
+    }
+
+    let isTotalBlock = false;
+    if (isSummaryOnly) {
+      isTotalBlock = cleanLabelStr.toUpperCase() === "GRAND TOTAL";
+    } else {
+      isTotalBlock = isClusterTotal || cleanLabelStr.toUpperCase() === "GRAND TOTAL";
+    }
+
+    let tgtSum = 0;
+    let achSum = 0;
+    const tgtMap = {};
+    const achMap = {};
+
+    displayedBrands.forEach(b => {
+      const tVal = Math.round(tgtRow.brands?.[b]?.target || 0);
+      const aVal = Math.round(achRow.brands?.[b]?.achieved || 0);
+      tgtMap[b] = tVal;
+      achMap[b] = aVal;
+      tgtSum += tVal;
+      achSum += aVal;
+    });
+
+    let pctStr = "-";
+    if (tgtSum === 0) {
+      pctStr = achSum > 0 ? "100.00%" : "-";
+    } else {
+      pctStr = `${((achSum * 100) / tgtSum).toFixed(2)}%`;
+    }
+
+    blocks.push({
+      label: cleanLabelStr,
+      isTotalBlock,
+      tgtMap,
+      achMap,
+      tgtSum,
+      achSum,
+      pctStr
+    });
+  });
+
+  // Automatically compute and append GRAND TOTAL block if needed
+  if (isSummaryOnly) {
+    const hasGrandTotal = blocks.some(b => b.label.toUpperCase() === "GRAND TOTAL");
+    if (!hasGrandTotal && blocks.length > 0) {
+      let gtTgtSum = 0;
+      let gtAchSum = 0;
+      const gtTgtMap = {};
+      const gtAchMap = {};
+
+      displayedBrands.forEach(b => {
+        gtTgtMap[b] = 0;
+        gtAchMap[b] = 0;
+      });
+
+      blocks.forEach(blk => {
+        displayedBrands.forEach(b => {
+          gtTgtMap[b] += blk.tgtMap[b] || 0;
+          gtAchMap[b] += blk.achMap[b] || 0;
+        });
+        gtTgtSum += blk.tgtSum;
+        gtAchSum += blk.achSum;
+      });
+
+      let gtPctStr = "-";
+      if (gtTgtSum === 0) {
+        gtPctStr = gtAchSum > 0 ? "100.00%" : "-";
+      } else {
+        gtPctStr = `${((gtAchSum * 100) / gtTgtSum).toFixed(2)}%`;
+      }
+
+      blocks.push({
+        label: "GRAND TOTAL",
+        isTotalBlock: true,
+        tgtMap: gtTgtMap,
+        achMap: gtAchMap,
+        tgtSum: gtTgtSum,
+        achSum: gtAchSum,
+        pctStr: gtPctStr
+      });
+    }
+  } else if (showGrandTotal) {
+    const hasGrandTotal = blocks.some(b => b.label.toUpperCase() === "GRAND TOTAL");
+    const clusterTotalBlocks = blocks.filter(b => b.isTotalBlock);
+    if (!hasGrandTotal && clusterTotalBlocks.length > 1) {
+      let gtTgtSum = 0;
+      let gtAchSum = 0;
+      const gtTgtMap = {};
+      const gtAchMap = {};
+
+      displayedBrands.forEach(b => {
+        gtTgtMap[b] = 0;
+        gtAchMap[b] = 0;
+      });
+
+      const detailBlocks = blocks.filter(b => !b.isTotalBlock);
+      detailBlocks.forEach(blk => {
+        displayedBrands.forEach(b => {
+          gtTgtMap[b] += blk.tgtMap[b] || 0;
+          gtAchMap[b] += blk.achMap[b] || 0;
+        });
+        gtTgtSum += blk.tgtSum;
+        gtAchSum += blk.achSum;
+      });
+
+      let gtPctStr = "-";
+      if (gtTgtSum === 0) {
+        gtPctStr = gtAchSum > 0 ? "100.00%" : "-";
+      } else {
+        gtPctStr = `${((gtAchSum * 100) / gtTgtSum).toFixed(2)}%`;
+      }
+
+      blocks.push({
+        label: "GRAND TOTAL",
+        isTotalBlock: true,
+        tgtMap: gtTgtMap,
+        achMap: gtAchMap,
+        tgtSum: gtTgtSum,
+        achSum: gtAchSum,
+        pctStr: gtPctStr
+      });
+    }
+  }
+
+  // Calculate Heights & Pagination
+  const mastheadH = 42.0;
+  const bandH = 28.0;
+  const headerLines = 3;
+  const headerH = headerLines * (7.25 + 4.5) + 18.0; // 53.25pt
+  const blockH = 60.0;
+  const totalHeaderH = mastheadH + bandH + headerH; // 123.25pt
+
+  const maxSinglePageH = 841.890; // A4 max height
+  const calculatedH = totalHeaderH + (blocks.length * blockH);
+
+  const isMultiPage = calculatedH > maxSinglePageH;
+  const blocksPerPage = isMultiPage ? Math.floor((maxSinglePageH - totalHeaderH) / blockH) : blocks.length;
+  const totalPages = isMultiPage ? Math.ceil(blocks.length / blocksPerPage) : 1;
+
+  const pageW = 595.276;
+  const pageH = isMultiPage ? maxSinglePageH : Math.max(300.0, calculatedH);
+  const orientation = pageW > pageH ? "landscape" : "portrait";
+
+  const doc = new jsPDF({
+    orientation: orientation,
+    unit: "pt",
+    format: [pageW, pageH]
+  });
+
+  const LAB_PAD = 3.0;
+
+  // 12 columns measured widths summing to 595.276
+  const colWidths = [
+    108.15, // 0: BOND
+    29.74,  // 1: CAT
+    47.32,  // 2: BCB
+    47.32,  // 3: BLENDERS CHOICE
+    47.32,  // 4: CCB
+    47.32,  // 5: KS.99
+    47.32,  // 6: MAGIC BLEND
+    47.32,  // 7: MORNING WALKERS
+    47.32,  // 8: OLD PEARL
+    47.32,  // 9: ROYAL OLD FORT
+    36.19,  // 10: GRAND TOTAL
+    42.616  // 11: ACH %
+  ];
+
+  const colX = [0];
+  for (let c = 0; c < 12; c++) {
+    colX.push(colX[c] + colWidths[c]);
+  }
+  colX[12] = 595.276;
+
+  let reportTitle = customTitle || "TARGET VS ACHIEVEMENT";
+  reportTitle = reportTitle.toUpperCase().replace(/\s+V\/S\s+/g, " VS ").replace(/CLUSTER\s*-\s*/g, "CLUSTER ");
+
+  const headers = [
+    ["BOND"],
+    ["CAT"],
+    ["BCB"],
+    ["BLENDERS", "CHOICE"],
+    ["CCB"],
+    ["KS.99"],
+    ["MAGIC", "BLEND"],
+    ["MORNING", "WALKERS"],
+    ["OLD", "PEARL"],
+    ["ROYAL", "OLD", "FORT"],
+    ["GRAND", "TOTAL"],
+    ["ACH %"]
+  ];
+
+  for (let pIdx = 0; pIdx < totalPages; pIdx++) {
+    if (pIdx > 0) {
+      doc.addPage([pageW, pageH], orientation);
+    }
+
+    // --- Band 1: Navy Masthead ---
+    doc.setFillColor(11, 41, 79); // #0B294F
+    doc.rect(0, 0, 595.276, mastheadH, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(255, 189, 49); // Gold #FFBD31
+    doc.text("K.S DISTILLERY", 595.276 / 2, 26.0, { align: "center" });
+
+    // --- Band 2: Gold Band ---
+    doc.setFillColor(255, 189, 49); // #FFBD31
+    doc.rect(0, mastheadH, 595.276, bandH, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(11, 41, 79); // Navy #0B294F
+    doc.text(reportTitle, 3 * LAB_PAD, mastheadH + 18.5, { align: "left" });
+    doc.text(formattedDate, 595.276 - 3 * LAB_PAD, mastheadH + 18.5, { align: "right" });
+
+    // --- Band 3: Column Header Block ---
+    const headerTopY = mastheadH + bandH;
+    doc.setFillColor(11, 41, 79); // Navy #0B294F
+    doc.rect(0, headerTopY, 595.276, headerH, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.25);
+    doc.setTextColor(255, 255, 255); // White
+
+    headers.forEach((linesArr, c) => {
+      const N = linesArr.length;
+      const textCenterY = headerTopY + headerH / 2;
+      const startY = textCenterY - ((N - 1) * 11.75) / 2;
+
+      const align = c === 0 ? "left" : "center";
+      const x = c === 0 ? colX[c] + 3 * LAB_PAD : colX[c] + colWidths[c] / 2;
+
+      linesArr.forEach((lineText, lineIdx) => {
+        const lineY = startY + lineIdx * 11.75;
+        doc.text(lineText, x, lineY, { align, baseline: "middle" });
+      });
+    });
+
+    // Header rules (Gold)
+    doc.setDrawColor(255, 189, 49); // Gold #FFBD31
+    doc.setLineWidth(2.0);
+    doc.line(0, headerTopY + 1.0, 595.276, headerTopY + 1.0); // Top rule
+    doc.line(0, headerTopY + headerH - 1.0, 595.276, headerTopY + headerH - 1.0); // Bottom rule
+
+    doc.setLineWidth(1.4);
+    for (let c = 1; c < 12; c++) {
+      const x = colX[c];
+      doc.line(x, headerTopY, x, headerTopY + headerH);
+    }
+
+    // --- Band 4: Body Blocks ---
+    const bodyStartY = headerTopY + headerH;
+    const pageBlocks = blocks.slice(pIdx * blocksPerPage, (pIdx + 1) * blocksPerPage);
+
+    pageBlocks.forEach((blk, bIdx) => {
+      const blockY = bodyStartY + bIdx * blockH;
+
+      const tgtBg = blk.isTotalBlock ? [241, 179, 46] : [241, 241, 241];
+      const achBg = blk.isTotalBlock ? [255, 189, 49] : [255, 255, 255];
+      const blockMainBg = blk.isTotalBlock ? [255, 189, 49] : [255, 255, 255];
+
+      doc.setLineWidth(0.4);
+      doc.setDrawColor(199, 199, 199); // #C7C7C7 hairline
+
+      // Draw cells
+      for (let c = 0; c < 12; c++) {
+        const x = colX[c];
+        const w = colWidths[c];
+
+        if (c === 0) {
+          // Label cell merged across TGT + ACH (height 60.0pt)
+          doc.setFillColor(11, 41, 79); // Navy #0B294F
+          doc.rect(x, blockY, w, blockH, "FD");
+
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10.5);
+          if (blk.isTotalBlock) {
+            doc.setTextColor(255, 189, 49); // Gold text
+          } else {
+            doc.setTextColor(255, 255, 255); // White text
+          }
+          doc.text(blk.label, x + 3 * LAB_PAD, blockY + 30.0, { align: "left", baseline: "middle" });
+        } else if (c === 11) {
+          // ACH % cell merged across TGT + ACH (height 60.0pt)
+          doc.setFillColor(blockMainBg[0], blockMainBg[1], blockMainBg[2]);
+          doc.rect(x, blockY, w, blockH, "FD");
+
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10.5);
+          if (blk.isTotalBlock) {
+            doc.setTextColor(0, 0, 0); // Black on gold row
+          } else {
+            doc.setTextColor(207, 19, 34); // Red #CF1322 on white row
+          }
+          doc.text(blk.pctStr, x + w / 2, blockY + 30.0, { align: "center", baseline: "middle" });
+        } else {
+          // TGT Row cell
+          doc.setFillColor(tgtBg[0], tgtBg[1], tgtBg[2]);
+          doc.rect(x, blockY, w, 30.0, "FD");
+
+          // ACH Row cell
+          doc.setFillColor(achBg[0], achBg[1], achBg[2]);
+          doc.rect(x, blockY + 30.0, w, 30.0, "FD");
+
+          doc.setFontSize(10.5);
+          doc.setFont("helvetica", blk.isTotalBlock ? "bold" : (c === 10 ? "bold" : "normal"));
+          doc.setTextColor(0, 0, 0); // Black values
+
+          let tgtValStr = "";
+          let achValStr = "";
+
+          if (c === 1) {
+            tgtValStr = "TGT";
+            achValStr = "ACH";
+          } else if (c >= 2 && c <= 9) {
+            const brand = displayedBrands[c - 2];
+            tgtValStr = String(blk.tgtMap[brand] || 0);
+            achValStr = String(blk.achMap[brand] || 0);
+          } else if (c === 10) {
+            tgtValStr = String(blk.tgtSum);
+            achValStr = String(blk.achSum);
+          }
+
+          const cx = x + w / 2;
+          doc.text(tgtValStr, cx, blockY + 15.0, { align: "center", baseline: "middle" });
+          doc.text(achValStr, cx, blockY + 45.0, { align: "center", baseline: "middle" });
+        }
+      }
+
+      // Navy block separator between every block (width 1.5pt)
+      const blockBottomY = blockY + blockH;
+      doc.setDrawColor(11, 41, 79); // Navy #0B294F
+      doc.setLineWidth(1.5);
+      doc.line(0, blockBottomY, 595.276, blockBottomY);
     });
   }
 
-  const defaultFilename = viewMode === "bond" ? "target_vs_achievement_report.pdf" : "shopwise_target_vs_achievement_report.pdf";
-  doc.save(filename || defaultFilename);
+  doc.save(filename || "target_vs_achievement.pdf");
 };
