@@ -317,7 +317,7 @@ export const exportToPdf = ({
           const rawCol = data.column.raw;
           const rawColTitle = rawCol && typeof rawCol === "object" ? (rawCol.title || rawCol.header || "") : String(rawCol || "");
           const colTitle = String(rawColTitle).toUpperCase().trim();
-          const isTrend = colTitle.includes("TREND") || colTitle.includes("AVG DIFF") || data.column.index === 10;
+          const isTrend = colTitle.includes("TREND") || colTitle.includes("AVG DIFF");
           if (data.section === 'body' && isTrend) {
             const valNum = Number(data.cell.raw);
             if (!isNaN(valNum) && valNum !== 0) {

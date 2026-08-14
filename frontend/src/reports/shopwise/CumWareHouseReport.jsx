@@ -45,6 +45,7 @@ export default function CumulativeWarehouseReport() {
   const isBrandwiseCumType = config?.type === "brandwise_cum_secondary_sales";
 
   const [clusters, setClusters] = useState({});
+  const [bondClusters, setBondClusters] = useState({});
 
   useEffect(() => {
     getJson("warehouse_clusters")
@@ -53,6 +54,14 @@ export default function CumulativeWarehouseReport() {
       })
       .catch((err) => {
         console.error("Failed to load warehouse clusters config:", err);
+      });
+
+    getJson("clusters")
+      .then((res) => {
+        setBondClusters(res.data || {});
+      })
+      .catch((err) => {
+        console.error("Failed to load bond clusters config:", err);
       });
   }, []);
 
@@ -330,8 +339,99 @@ export default function CumulativeWarehouseReport() {
       return groupedData;
     }
 
+    if (mode === "bond" && !drilledBond && Object.keys(bondClusters).length > 0) {
+      const groupedData = [];
+      const unclustered = [...filtered];
+
+      // Identify brand keys
+      const brandKeys = new Set();
+      data.forEach(row => {
+        Object.keys(row).forEach(k => {
+          if (k.startsWith("BRAND_")) brandKeys.add(k);
+        });
+      });
+
+      Object.entries(bondClusters).forEach(([clusterName, bondList]) => {
+        const clusterBonds = [];
+        const normBondList = (bondList || []).map(b => b.toUpperCase().replace(/\s*-\s*/g, " ").trim());
+
+        for (let i = unclustered.length - 1; i >= 0; i--) {
+          const d = unclustered[i];
+          const rawBond = (d.bond || d.warehouse || "").toUpperCase().replace(/\s*-\s*/g, " ").trim();
+          if (normBondList.includes(rawBond)) {
+            clusterBonds.push(d);
+            unclustered.splice(i, 1);
+          }
+        }
+
+        if (clusterBonds.length > 0) {
+          clusterBonds.sort((a, b) => (a.bond || a.warehouse || "").localeCompare(b.bond || b.warehouse || ""));
+          groupedData.push(...clusterBonds);
+
+          let clusterTotal = 0;
+          let clusterSums = {};
+          labels.forEach(l => clusterSums[l] = 0);
+          brandKeys.forEach(bk => clusterSums[bk] = 0);
+
+          clusterBonds.forEach(d => {
+            clusterTotal += (Number(d.total) || 0);
+            labels.forEach(l => {
+              clusterSums[l] += (Number(d[l]) || 0);
+            });
+            brandKeys.forEach(bk => {
+              clusterSums[bk] += (Number(d[bk]) || 0);
+            });
+          });
+
+          const cleanClusterLabel = clusterName.toUpperCase().replace(/CLUSTER\s*-\s*/gi, "CLUSTER ");
+
+          groupedData.push({
+            isClusterTotal: true,
+            clusterName: cleanClusterLabel,
+            warehouse: `${cleanClusterLabel} TOTAL`,
+            bond: `${cleanClusterLabel} TOTAL`,
+            total: clusterTotal,
+            ...clusterSums,
+            key: `total-${clusterName}`
+          });
+        }
+      });
+
+      if (unclustered.length > 0) {
+        unclustered.sort((a, b) => (a.bond || a.warehouse || "").localeCompare(b.bond || b.warehouse || ""));
+        groupedData.push(...unclustered);
+
+        let unclusteredTotal = 0;
+        let unclusteredSums = {};
+        labels.forEach(l => unclusteredSums[l] = 0);
+        brandKeys.forEach(bk => unclusteredSums[bk] = 0);
+
+        unclustered.forEach(d => {
+          unclusteredTotal += (Number(d.total) || 0);
+          labels.forEach(l => {
+            unclusteredSums[l] += (Number(d[l]) || 0);
+          });
+          brandKeys.forEach(bk => {
+            unclusteredSums[bk] += (Number(d[bk]) || 0);
+          });
+        });
+
+        groupedData.push({
+          isClusterTotal: true,
+          clusterName: "UNCLUSTERED BONDS",
+          warehouse: "UNCLUSTERED TOTAL",
+          bond: "UNCLUSTERED TOTAL",
+          total: unclusteredTotal,
+          ...unclusteredSums,
+          key: "total-unclustered"
+        });
+      }
+
+      return groupedData;
+    }
+
     return filtered;
-  }, [data, bondFilter, warehouseFilter, drilledBond, drilledWarehouse, mode, clusters, labels]);
+  }, [data, bondFilter, warehouseFilter, drilledBond, drilledWarehouse, mode, clusters, bondClusters, labels]);
 
   const uniqueBonds = useMemo(() => {
     const bonds = new Set();
@@ -1114,7 +1214,7 @@ export default function CumulativeWarehouseReport() {
           }
           if (record.isClusterTotal) {
             return {
-              style: { background: "#fafafa" }
+              style: { background: "#1b365d", color: "#ffbd31", fontWeight: "bold" }
             };
           }
           return {};
