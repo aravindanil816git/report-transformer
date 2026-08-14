@@ -383,51 +383,63 @@ export default function CombinedShopwiseReport() {
 
       let sOpening = 0, sIn = 0, sOut = 0, sClosing = 0;
       Object.values(brands).flat().forEach(item => {
-        sOpening += useWholeNumbers ? Math.round(item.opening || 0) : item.opening || 0;
-        sIn += useWholeNumbers ? Math.round(item.inward || 0) : item.inward || 0;
-        sOut += useWholeNumbers ? Math.round(item.outward || 0) : item.outward || 0;
-        sClosing += useWholeNumbers ? Math.round(item.closing || 0) : item.closing || 0;
+        sOpening += item.opening || 0;
+        sIn += item.inward || 0;
+        sOut += item.outward || 0;
+        sClosing += item.closing || 0;
       });
+
+      const sOpeningVal = useWholeNumbers ? Math.round(sOpening) : Number(sOpening.toFixed(2));
+      const sInVal = useWholeNumbers ? Math.round(sIn) : Number(sIn.toFixed(2));
+      const sOutVal = useWholeNumbers ? Math.round(sOut) : Number(sOut.toFixed(2));
+      const sClosingVal = useWholeNumbers ? Math.round(sClosing) : Number(sClosing.toFixed(2));
+
       exportData.push({
         "Row Labels": displayLabel,
-        "Opening": sOpening,
-        "Receipt": sIn,
-        "Sales": sOut,
-        "Closing": sClosing
+        "Opening": sOpeningVal,
+        "Receipt": sInVal,
+        "Sales": sOutVal,
+        "Closing": sClosingVal
       });
+
       Object.entries(brands).forEach(([brand, items]) => {
         exportData.push({ "Row Labels": brand });
         let bOpening = 0, bIn = 0, bOut = 0, bClosing = 0;
         items.forEach(item => {
-          const op = useWholeNumbers ? Math.round(item.opening || 0) : item.opening || 0;
-          const i = useWholeNumbers ? Math.round(item.inward || 0) : item.inward || 0;
-          const o = useWholeNumbers ? Math.round(item.outward || 0) : item.outward || 0;
-          const c = useWholeNumbers ? Math.round(item.closing || 0) : item.closing || 0;
+          const op = item.opening || 0;
+          const i = item.inward || 0;
+          const o = item.outward || 0;
+          const c = item.closing || 0;
 
           exportData.push({
             "Row Labels": "  " + item.pack,
-            "Opening": op,
-            "Receipt": i,
-            "Sales": o,
-            "Closing": c
+            "Opening": useWholeNumbers ? Math.round(op) : Number(op.toFixed(2)),
+            "Receipt": useWholeNumbers ? Math.round(i) : Number(i.toFixed(2)),
+            "Sales": useWholeNumbers ? Math.round(o) : Number(o.toFixed(2)),
+            "Closing": useWholeNumbers ? Math.round(c) : Number(c.toFixed(2))
           });
-          bOpening += op; bIn += i; bOut += o; bClosing += c;
+
+          bOpening += op;
+          bIn += i;
+          bOut += o;
+          bClosing += c;
         });
+
         exportData.push({
           "Row Labels": brand + " Total",
-          "Opening": bOpening,
-          "Receipt": bIn,
-          "Sales": bOut,
-          "Closing": bClosing
+          "Opening": useWholeNumbers ? Math.round(bOpening) : Number(bOpening.toFixed(2)),
+          "Receipt": useWholeNumbers ? Math.round(bIn) : Number(bIn.toFixed(2)),
+          "Sales": useWholeNumbers ? Math.round(bOut) : Number(bOut.toFixed(2)),
+          "Closing": useWholeNumbers ? Math.round(bClosing) : Number(bClosing.toFixed(2))
         });
       });
 
       exportData.push({
         "Row Labels": `${displayLabel} Total`,
-        "Opening": sOpening,
-        "Receipt": sIn,
-        "Sales": sOut,
-        "Closing": sClosing
+        "Opening": sOpeningVal,
+        "Receipt": sInVal,
+        "Sales": sOutVal,
+        "Closing": sClosingVal
       });
       exportData.push({});
     });

@@ -885,6 +885,14 @@ export default function CumulativeShopwiseReport() {
         <Button onClick={resetFilters} disabled={loading || !dateRange || dateRange.length < 2}>
           Reset
         </Button>
+
+        <Checkbox
+          checked={useWholeNumbers}
+          onChange={e => setUseWholeNumbers(e.target.checked)}
+          style={{ marginLeft: 12 }}
+        >
+          Round off
+        </Checkbox>
         {(loading || !dateRange || dateRange.length < 2) && (
           <span style={{ color: '#8c8c8c', fontSize: '12px', fontStyle: 'italic' }}>
             Loading default dates...
