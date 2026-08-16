@@ -53,13 +53,13 @@ export const exportDailySecondaryExcel = async ({
   ws.mergeCells(`A2:${totalColLetter}2`);
 
   const titleCell = ws.getCell("A1");
-  titleCell.value = title.toUpperCase();
+  titleCell.value = "K.S DISTILLERY";
   titleCell.font = { name: "Segoe UI", size: 14, bold: true, color: { argb: "FFFFFF" } };
   titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
   titleCell.alignment = { horizontal: "center", vertical: "middle" };
 
   const subtitleCell = ws.getCell("A2");
-  subtitleCell.value = subtitle;
+  subtitleCell.value = subtitle ? `${title.toUpperCase()}  •  ${subtitle}` : title.toUpperCase();
   subtitleCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
   subtitleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
   subtitleCell.alignment = { horizontal: "center", vertical: "middle" };

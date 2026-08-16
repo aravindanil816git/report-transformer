@@ -3,7 +3,7 @@ import { Table, Select, Segmented, Row, Col, Button, Checkbox, DatePicker, messa
 import { useParams, useNavigate } from "react-router-dom";
 import { PlusSquareOutlined, MinusSquareOutlined, FilePdfOutlined, FileExcelOutlined } from "@ant-design/icons";
 import { getReport, getFilters, getJson } from "../../api";
-import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportShopDrilldownPdfByBond } from "../../utils/exportUtils";
+import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportShopDrilldownPdfByBond, exportShopSalesExcel } from "../../utils/exportUtils";
 import dayjs from "dayjs";
 import { disabledFutureMonthDates } from "../../utils/dateUtils";
 import DownloadDropdown from "../../components/DownloadDropdown";
@@ -379,7 +379,8 @@ export default function CombinedShopwiseReport() {
       const shopInfo = allShops.find(s => String(s.value) === String(shopCode));
       const firstRowInShop = Object.values(brands)[0]?.[0];
       const rawShopName = firstRowInShop?.shop_name;
-      const displayLabel = rawShopName || (shopInfo?.shopName ? shopInfo.shopName : shopCode);
+      const fullLabel = rawShopName || (shopInfo?.shopName ? `${shopCode}-${shopInfo.shopName}` : shopCode);
+      const cleanShopLabel = String(fullLabel).replace(/^\d{6}-/, "").toUpperCase();
 
       let sOpening = 0, sIn = 0, sOut = 0, sClosing = 0;
       Object.values(brands).flat().forEach(item => {
@@ -395,11 +396,8 @@ export default function CombinedShopwiseReport() {
       const sClosingVal = useWholeNumbers ? Math.round(sClosing) : Number(sClosing.toFixed(2));
 
       exportData.push({
-        "Row Labels": displayLabel,
-        "Opening": sOpeningVal,
-        "Receipt": sInVal,
-        "Sales": sOutVal,
-        "Closing": sClosingVal
+        "Row Labels": cleanShopLabel,
+        isShopHeader: true
       });
 
       Object.entries(brands).forEach(([brand, items]) => {
@@ -426,7 +424,7 @@ export default function CombinedShopwiseReport() {
         });
 
         exportData.push({
-          "Row Labels": brand + " Total",
+          "Row Labels": "TOTAL",
           "Opening": useWholeNumbers ? Math.round(bOpening) : Number(bOpening.toFixed(2)),
           "Receipt": useWholeNumbers ? Math.round(bIn) : Number(bIn.toFixed(2)),
           "Sales": useWholeNumbers ? Math.round(bOut) : Number(bOut.toFixed(2)),
@@ -435,16 +433,28 @@ export default function CombinedShopwiseReport() {
       });
 
       exportData.push({
-        "Row Labels": `${displayLabel} Total`,
+        "Row Labels": `${cleanShopLabel} Total`,
+        isShopTotal: true,
         "Opening": sOpeningVal,
         "Receipt": sInVal,
         "Sales": sOutVal,
         "Closing": sClosingVal
       });
-      exportData.push({});
     });
 
-    exportToExcel(exportData, { Period: periodLabel, Bond: bond, Warehouse: warehouse, Shop: shop, View: view, "Round off": useWholeNumbers ? "Yes" : "No" }, "cum_shopsales_report.xlsx", "Shop Sales Cumulative", { theme: "navy" });
+    exportShopSalesExcel(
+      exportData,
+      {
+        Period: periodLabel,
+        Bond: bond,
+        Warehouse: warehouse,
+        Shop: shop,
+        View: view,
+        "Round off": useWholeNumbers ? "Yes" : "No"
+      },
+      "cum_shopsales_report.xlsx",
+      "Shop Sales Cumulative"
+    );
   };
 
   const handleDownload = async (format, modeType) => {

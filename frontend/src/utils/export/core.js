@@ -30,6 +30,25 @@ export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", she
 
   if (Array.isArray(metadata)) {
     metadata.forEach(row => wsData.push(row));
+  } else if (options.theme === "navy") {
+    // Reference Banner Header Structure:
+    // Row 1: K.S DISTILLERY (Centered, Navy BG, Gold Font)
+    // Row 2: REPORT NAME / WAREHOUSE (Left) & PERIOD (Right)
+    const reportTitle = options.title || "WAREHOUSE STOCK REPORT";
+    const whName = metadata.Warehouse ? ` · ${String(metadata.Warehouse).toUpperCase()}` : "";
+    const titleText = `${reportTitle}${whName}`;
+    const periodText = metadata["Report Period"] ? String(metadata["Report Period"]).toUpperCase() : "";
+
+    // Determine total number of columns
+    const totalCols = data.length > 0 ? Object.keys(data[0]).length : 5;
+    const halfCols = Math.max(2, Math.floor(totalCols / 2));
+
+    const row2Array = new Array(totalCols).fill("");
+    row2Array[0] = titleText;
+    row2Array[halfCols] = periodText;
+
+    wsData.push(["K.S DISTILLERY"]);
+    wsData.push(row2Array);
   } else {
     Object.entries(metadata).forEach(([key, value]) => {
       if (value) {
@@ -39,7 +58,6 @@ export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", she
   }
 
   if (wsData.length > 0) {
-    wsData.push([]);
     wsData.push([]);
   }
 
@@ -64,14 +82,26 @@ export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", she
 
   if (data.length > 0) {
     const headers = Array.from(new Set(data.flatMap(r => Object.keys(r))));
-    ws["!cols"] = headers.map(h => ({
-      wch: Math.max(h.length + 5, 12)
+    ws["!cols"] = headers.map((h, i) => ({
+      wch: i === 0 ? Math.max(h.length + 5, 45) : Math.max(h.length + 5, 18)
     }));
   }
 
   const isArrayMetadata = Array.isArray(metadata);
-  if (isArrayMetadata && metadata.length > 0 && numCols > 1) {
-    if (!ws["!merges"]) ws["!merges"] = [];
+  if (!ws["!merges"]) ws["!merges"] = [];
+
+  const halfCols = Math.max(2, Math.floor(numCols / 2));
+
+  if (options.theme === "navy" && !isArrayMetadata && numCols > 1) {
+    // Merge Row 0 across all columns for "K.S DISTILLERY"
+    ws["!merges"].push({ s: { r: 0, c: 0 }, e: { r: 0, c: numCols - 1 } });
+
+    // Merge Row 1 left side (0 to halfCols - 1) and right side (halfCols to numCols - 1)
+    if (numCols > 1) {
+      ws["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: halfCols - 1 } });
+      ws["!merges"].push({ s: { r: 1, c: halfCols }, e: { r: 1, c: numCols - 1 } });
+    }
+  } else if (isArrayMetadata && metadata.length > 0 && numCols > 1) {
     ws["!merges"].push({ s: { r: 0, c: 0 }, e: { r: 0, c: numCols - 1 } });
     ws["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: numCols - 1 } });
   }
@@ -109,7 +139,18 @@ export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", she
           }
         };
         
-        if (isArrayMetadata && (R === 0 || R === 1)) {
+        if (options.theme === "navy" && !isArrayMetadata) {
+          if (R === 0) {
+            ws[cellRef].s.font = { bold: true, sz: 14, color: { rgb: "FFBD31" } };
+            ws[cellRef].s.fill = { patternType: "solid", fgColor: { rgb: "0B294F" } };
+            ws[cellRef].s.alignment = { horizontal: "center", vertical: "center" };
+          } else if (R === 1) {
+            const isLeftBlock = C < halfCols;
+            ws[cellRef].s.font = { bold: true, sz: 10, color: isLeftBlock ? { rgb: "FFFFFF" } : { rgb: "FFBD31" } };
+            ws[cellRef].s.fill = { patternType: "solid", fgColor: { rgb: "0B294F" } };
+            ws[cellRef].s.alignment = { horizontal: isLeftBlock ? "left" : "right", vertical: "center" };
+          }
+        } else if (isArrayMetadata && (R === 0 || R === 1)) {
            ws[cellRef].s.font.bold = true;
            ws[cellRef].s.alignment = { horizontal: "center", vertical: "center" };
         }
@@ -122,11 +163,18 @@ export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", she
             ws[cellRef].s.font.color = { rgb: "FFBD31" };
             ws[cellRef].s.fill = {
               patternType: "solid",
-              fgColor: { rgb: "1B365D" }
+              fgColor: { rgb: "0B294F" }
             };
           }
         } else if (rowFirstCellValue === "Total") {
            ws[cellRef].s.font.bold = true;
+           if (options.theme === "navy") {
+             ws[cellRef].s.font.color = { rgb: "FFBD31" };
+             ws[cellRef].s.fill = {
+               patternType: "solid",
+               fgColor: { rgb: "0B294F" }
+             };
+           }
         }
       }
     }

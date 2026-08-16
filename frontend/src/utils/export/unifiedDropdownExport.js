@@ -50,7 +50,6 @@ export const exportUnifiedWithDropdown = async ({
 
   const navyColor = "0B294F";
   const goldColor = "FFBD31";
-  const totalBgColor = "FFD966";
   const borderStyle = { style: "thin", color: { argb: "FFD3D3D3" } };
 
   reportSheet.getRow(1).height = 30;
@@ -63,18 +62,45 @@ export const exportUnifiedWithDropdown = async ({
   // Title Banner
   reportSheet.mergeCells(`A1:${lastColLetter}1`);
   const titleCell = reportSheet.getCell("A1");
-  titleCell.value = reportTitle.toUpperCase();
-  titleCell.font = { name: "Segoe UI", size: 14, bold: true, color: { argb: "FFFFFF" } };
+  titleCell.value = "K.S DISTILLERY";
+  titleCell.font = { name: "Segoe UI", size: 14, bold: true, color: { argb: goldColor } };
   titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
   titleCell.alignment = { horizontal: "center", vertical: "middle" };
 
+  // Sub-banner: Left title, Right period
+  const halfCols = Math.max(1, Math.floor(displayColumns.length / 2));
+  const leftEndColLetter = getColLetter(halfCols);
+  const rightStartColLetter = getColLetter(halfCols + 1);
+
+  if (displayColumns.length > 1) {
+    reportSheet.mergeCells(`A2:${leftEndColLetter}2`);
+    reportSheet.mergeCells(`${rightStartColLetter}2:${lastColLetter}2`);
+  }
+
+  const leftSubCell = reportSheet.getCell("A2");
+  leftSubCell.value = dropdownLabel ? `${reportTitle.toUpperCase()} · ${dropdownLabel.toUpperCase()}` : reportTitle.toUpperCase();
+  leftSubCell.font = { name: "Segoe UI", size: 11, bold: true, color: { argb: "FFFFFF" } };
+  leftSubCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
+  leftSubCell.alignment = { horizontal: "left", vertical: "middle" };
+
+  const rightSubCell = reportSheet.getCell(`${rightStartColLetter}2`);
+  rightSubCell.value = periodLabel ? periodLabel.toUpperCase() : "";
+  rightSubCell.font = { name: "Segoe UI", size: 11, bold: true, color: { argb: goldColor } };
+  rightSubCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
+  rightSubCell.alignment = { horizontal: "right", vertical: "middle" };
+
+  for (let c = 1; c <= displayColumns.length; c++) {
+    const cell = reportSheet.getCell(2, c);
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
+  }
+
   // Dropdown Row
-  const selectLabelCell = reportSheet.getCell("A2");
+  const selectLabelCell = reportSheet.getCell("A3");
   selectLabelCell.value = `SELECT ${dropdownLabel.toUpperCase()}:`;
   selectLabelCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: navyColor } };
   selectLabelCell.alignment = { horizontal: "right", vertical: "middle" };
 
-  const dropdownCell = reportSheet.getCell("B2");
+  const dropdownCell = reportSheet.getCell("B3");
   dropdownCell.value = "All";
   dropdownCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "0000FF" } };
   dropdownCell.alignment = { horizontal: "left", vertical: "middle" };
@@ -95,15 +121,7 @@ export const exportUnifiedWithDropdown = async ({
     formulae: [warehousesRange]
   };
 
-  // Subtitle / Period Banner
-  reportSheet.mergeCells(`A3:${lastColLetter}3`);
-  const subtitleCell = reportSheet.getCell("A3");
-  subtitleCell.value = periodLabel;
-  subtitleCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
-  subtitleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
-  subtitleCell.alignment = { horizontal: "center", vertical: "middle" };
-
-  // Total (Filtered) row setup
+  // Total Row setup (Row 5)
   const tLabelCell = reportSheet.getCell("A5");
   tLabelCell.value = "TOTAL (FILTERED)";
   tLabelCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
@@ -113,7 +131,7 @@ export const exportUnifiedWithDropdown = async ({
     const cell = reportSheet.getCell(5, c);
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
     if (c > 1) {
-      cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFF" } };
+      cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
       cell.alignment = { horizontal: "center", vertical: "middle" };
     }
   }
@@ -126,11 +144,11 @@ export const exportUnifiedWithDropdown = async ({
       const colLetter = getColLetter(colIdx + 1);
       const sumCell = reportSheet.getCell(`${colLetter}5`);
       sumCell.value = { formula: `SUM(${colLetter}7:${colLetter}${lastDataRow})` };
-      sumCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFF" } };
+      sumCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
     }
   });
 
-  // Table Headers
+  // Table Headers (Row 6)
   const headerRow = reportSheet.getRow(6);
   headerRow.values = displayColumns;
   headerRow.eachCell((cell, idx) => {
@@ -138,7 +156,7 @@ export const exportUnifiedWithDropdown = async ({
       name: "Segoe UI",
       size: 10,
       bold: true,
-      color: { argb: (idx === 1 || idx === displayColumns.length) ? goldColor : "FFFFFF" }
+      color: { argb: goldColor }
     };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
     cell.alignment = { horizontal: idx === 1 ? "left" : "center", vertical: "middle" };
@@ -161,7 +179,7 @@ export const exportUnifiedWithDropdown = async ({
     const rawDataColIdx = columns.indexOf(displayColumns[c - 1]) + 1;
     const rawDataColLetter = getColLetter(rawDataColIdx);
     
-    const formula = `IFERROR(INDEX(RawData!${rawDataColLetter}:${rawDataColLetter}, SMALL(IF($B$2="All", ROW(RawData!$A$2:$A$${lastRawRow}), IF(RawData!$${whColLetter}$2:$${whColLetter}$${lastRawRow}=$B$2, ROW(RawData!$A$2:$A$${lastRawRow}))), ROW() - 6)), "")`;
+    const formula = `IFERROR(INDEX(RawData!${rawDataColLetter}:${rawDataColLetter}, SMALL(IF($B$3="All", ROW(RawData!$A$2:$A$${lastRawRow}), IF(RawData!$${whColLetter}$2:$${whColLetter}$${lastRawRow}=$B$3, ROW(RawData!$A$2:$A$${lastRawRow}))), ROW() - 6)), "")`;
     reportSheet.getCell(7, c).value = {
       formula,
       shareType: "array",
@@ -172,7 +190,7 @@ export const exportUnifiedWithDropdown = async ({
   // Set column widths
   reportSheet.getColumn(1).width = 45;
   for (let c = 2; c <= displayColumns.length; c++) {
-    reportSheet.getColumn(c).width = 15;
+    reportSheet.getColumn(c).width = 18;
   }
 
   for (let r = 7; r <= lastDataRow; r++) {
@@ -193,26 +211,19 @@ export const exportUnifiedWithDropdown = async ({
     }
   }
 
-  // Add Conditional Formatting to highlight totals and bold headers
+  // Add Conditional Formatting:
+  // 1. Hide borders & formatting for empty formula rows
+  // 2. Highlight row immediately following the last non-empty row as TOTAL
   try {
     reportSheet.addConditionalFormatting({
       ref: `A7:${lastColLetter}${lastDataRow}`,
       rules: [
-        // Bold and highlight rows containing "Total" (totals)
+        // Rule 1: Blank formula cells -> white text to conceal empty results
         {
           type: 'expression',
-          formulae: ['NOT(ISERR(SEARCH("Total", $A7)))'],
+          formulae: ['$A7=""'],
           style: {
-            font: { name: 'Segoe UI', bold: true, color: { argb: '1B365D' } },
-            fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFADC9E6' } }
-          }
-        },
-        // Bold headers (non-indented, non-empty, non-totals)
-        {
-          type: 'expression',
-          formulae: ['AND($A7<>"", LEFT($A7, 2)<>"  ", ISERR(SEARCH("Total", $A7)))'],
-          style: {
-            font: { name: 'Segoe UI', bold: true }
+            font: { color: { argb: 'FFFFFFFF' } }
           }
         }
       ]

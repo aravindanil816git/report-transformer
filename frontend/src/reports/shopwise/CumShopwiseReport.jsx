@@ -446,7 +446,11 @@ export default function CumulativeShopwiseReport() {
       mappingCols.forEach(col => {
         let val = row[col.key];
         if (col.key === firstColKey) {
-          val = row.shop_code ? `${row.shop_name} (${row.shop_code})` : formatName(row.warehouse);
+          if (row.shop_code) {
+            val = `${row.shop_code} - ${formatName(row.shop_name || row.warehouse)}`;
+          } else {
+            val = formatName(row.warehouse);
+          }
         } else {
           val = useWholeNumbers ? Math.round(Number(val || 0)) : Number(val || 0).toFixed(2);
         }
@@ -546,7 +550,7 @@ export default function CumulativeShopwiseReport() {
 
       const d1 = dateRange[0]?.format("D MMMM YYYY");
       const d2 = dateRange[1]?.format("D MMMM YYYY");
-      const subtitle = d1 && d2 ? `${d1} to ${d2} • cases • all channels (KSBC + Consumer Fed + BAR)` : "";
+      const subtitle = d1 && d2 ? `${d1} to ${d2}` : "";
 
       exportDailySecondaryExcel({
         data: exportData,
@@ -696,7 +700,7 @@ export default function CumulativeShopwiseReport() {
             const rowItem = {
               Bond: formatName(d.bond) || "",
               Warehouse: formatName(d.warehouse) || "",
-              "Shop Name": d.shop_name ? `${formatName(d.shop_name)} (${d.shop_code})` : d.shop_code
+              "Shop Name": d.shop_code ? `${d.shop_code} - ${formatName(d.shop_name || d.warehouse)}` : formatName(d.shop_name || d.warehouse)
             };
 
             if (view === "cumulative") {

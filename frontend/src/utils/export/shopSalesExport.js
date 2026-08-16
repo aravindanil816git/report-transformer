@@ -7,177 +7,217 @@ export const exportShopSalesExcel = async (data, metadata = {}, filename = "shop
     views: [{ showGridLines: true }]
   });
 
-  const navyColor = "0B294F";
-  const goldColor = "FFBD31";
-  const brandTotalBg = "D6E9C6"; // Light green
-  const grandTotalBg = "ADC9E6"; // Light blue
+  const navyColor = "0B294F";       // Deep Navy #0B294F
+  const goldColor = "FFBD31";       // Gold #FFBD31
+  const brandHeaderBg = "0B294F";   // Navy background for Brand headers
+  const brandHeaderFg = "FFFFFF";   // White text for Brand headers
+  const zebraBg = "F5F7FC";         // Light zebra fill
   const borderStyle = { style: "thin", color: { argb: "FFD3D3D3" } };
 
+  // Set initial row heights
   ws.getRow(1).height = 30;
   ws.getRow(2).height = 20;
-  ws.getRow(3).height = 10;
+  ws.getRow(3).height = 24;
+  ws.getRow(4).height = 24;
 
+  const reportTitle = (metadata.Title || "SHOP SALES CUMULATIVE").toUpperCase();
+  const periodStr = (metadata.Period || "").replace(/^COMBINED PERIOD\s*:\s*/i, "").replace(/^Report Period:\s*/i, "").trim();
+
+  // Row 1: K.S DISTILLERY Header Banner
   ws.mergeCells("A1:E1");
-  ws.mergeCells("A2:E2");
-
   const titleCell = ws.getCell("A1");
   titleCell.value = "K.S DISTILLERY";
   titleCell.font = { name: "Segoe UI", size: 14, bold: true, color: { argb: "FFFFFF" } };
   titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
   titleCell.alignment = { horizontal: "center", vertical: "middle" };
 
-  const periodStr = metadata.Period || "";
-  const subtitleCell = ws.getCell("A2");
-  subtitleCell.value = `SHOP SALES DAILY  •  ${periodStr}`;
-  subtitleCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
-  subtitleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
-  subtitleCell.alignment = { horizontal: "center", vertical: "middle" };
+  // Row 2: Subtitle Banner (Report Name on Left, Period on Right)
+  ws.mergeCells("A2:C2");
+  ws.mergeCells("D2:E2");
 
-  ws.getRow(4).height = 18;
-  ws.getRow(5).height = 18;
+  const subtitleReportCell = ws.getCell("A2");
+  subtitleReportCell.value = reportTitle;
+  subtitleReportCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
+  subtitleReportCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
+  subtitleReportCell.alignment = { horizontal: "left", vertical: "middle", indent: 1 };
 
-  ws.getCell("A4").value = "Bond:";
-  ws.getCell("A4").font = { name: "Segoe UI", size: 9, bold: true };
-  ws.getCell("B4").value = metadata.Bond || "All";
-  ws.getCell("B4").font = { name: "Segoe UI", size: 9 };
+  const subtitlePeriodCell = ws.getCell("D2");
+  subtitlePeriodCell.value = periodStr;
+  subtitlePeriodCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
+  subtitlePeriodCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
+  subtitlePeriodCell.alignment = { horizontal: "right", vertical: "middle" };
 
-  ws.getCell("C4").value = "Warehouse:";
-  ws.getCell("C4").font = { name: "Segoe UI", size: 9, bold: true };
-  ws.getCell("D4").value = metadata.Warehouse || "All";
-  ws.getCell("D4").font = { name: "Segoe UI", size: 9 };
-
-  ws.getCell("A5").value = "Shop:";
-  ws.getCell("A5").font = { name: "Segoe UI", size: 9, bold: true };
-  ws.getCell("B5").value = metadata.Shop || "All";
-  ws.getCell("B5").font = { name: "Segoe UI", size: 9 };
-
-  ws.getCell("C5").value = "View / Unit:";
-  ws.getCell("C5").font = { name: "Segoe UI", size: 9, bold: true };
-  ws.getCell("D5").value = metadata.View ? metadata.View.toUpperCase() : "CASE";
-  ws.getCell("D5").font = { name: "Segoe UI", size: 9 };
-
-  ws.getRow(7).height = 24;
-  const headers = ["Row Labels", "Opening", "Receipt", "Sales", "Closing"];
-  headers.forEach((h, idx) => {
-    const cell = ws.getCell(7, idx + 1);
-    cell.value = h;
-    cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFF" } };
+  for (let c = 1; c <= 5; c++) {
+    const cell = ws.getCell(2, c);
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
-    cell.alignment = { horizontal: idx === 0 ? "left" : "center", vertical: "middle" };
+  }
+
+  const shopNameStr = (metadata.Shop || metadata.Warehouse || "").replace(/^\d{6}-/, "").toUpperCase();
+  const bondNameStr = (metadata.Bond || "").replace(/\s+BOND$/i, "").replace(/^WH-/i, "").toUpperCase();
+
+  // Row 3: Shop Name Banner (Shop Name on left, Bond Name on right)
+  ws.mergeCells("A3:C3");
+  ws.mergeCells("D3:E3");
+
+  const shopCell = ws.getCell("A3");
+  shopCell.value = shopNameStr;
+  shopCell.font = { name: "Segoe UI", size: 11, bold: true, color: { argb: navyColor } };
+  shopCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: goldColor } };
+  shopCell.alignment = { horizontal: "left", vertical: "middle", indent: 1 };
+
+  const bondCell = ws.getCell("D3");
+  bondCell.value = bondNameStr;
+  bondCell.font = { name: "Segoe UI", size: 11, bold: true, color: { argb: navyColor } };
+  bondCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
+  bondCell.alignment = { horizontal: "right", vertical: "middle" };
+
+  for (let c = 1; c <= 5; c++) {
+    const cell = ws.getCell(3, c);
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: goldColor } };
+  }
+
+  // Row 4: Table Column Headers (BRAND/PACK | OPENING | RECEIPT | SALES | CLOSING)
+  const headers = ["BRAND/PACK", "OPENING", "RECEIPT", "SALES", "CLOSING"];
+  headers.forEach((h, idx) => {
+    const cell = ws.getCell(4, idx + 1);
+    cell.value = h;
+    cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
+    cell.alignment = { horizontal: idx === 0 ? "left" : "right", vertical: "middle" };
   });
 
-  let grandOpening = 0, grandInward = 0, grandOutward = 0, grandClosing = 0;
+  let totalOpening = 0, totalReceipt = 0, totalSales = 0, totalClosing = 0;
+  let rIdx = 5;
 
-  let rIdx = 8;
-  data.forEach(row => {
-    const label = row["Row Labels"] || "";
-    const labelVal = label.trim();
+  data.forEach((row) => {
+    const rawLabel = String(row["Row Labels"] || row["brand"] || row["label"] || "");
+    const label = rawLabel.trim();
 
-    if (!row["Row Labels"] && row["Opening"] === undefined) {
-      ws.getRow(rIdx).height = 6;
-      for (let c = 1; c <= 5; c++) {
-        ws.getCell(rIdx, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFF" } };
-      }
-      rIdx++;
+    // Skip empty trailing/spacer rows
+    if (!rawLabel && row["Opening"] === undefined && row["opening"] === undefined) {
       return;
     }
 
-    const rowVal = ws.getRow(rIdx);
-    rowVal.height = 20;
+    const op = Number(row["Opening"] ?? row["opening"] ?? 0);
+    const rec = Number(row["Receipt"] ?? row["receipt"] ?? row["inward"] ?? 0);
+    const sal = Number(row["Sales"] ?? row["sales"] ?? row["outward"] ?? 0);
+    const clo = Number(row["Closing"] ?? row["closing"] ?? 0);
 
-    const isGrandTotal = label.startsWith("GRAND TOTAL");
-    const isShopTotal = label.includes("Total") && (label.includes("(") || label.includes("Shop -"));
-    const isBrandTotal = label.includes("Total") && !isShopTotal && !isGrandTotal;
-    const isTotalRow = isGrandTotal || isShopTotal || isBrandTotal;
-    const isShopHeader = !label.startsWith("  ") && !isTotalRow && (label.includes("(") || label.includes("Shop -"));
-    const isBrandHeader = !label.startsWith("  ") && !isTotalRow && !isShopHeader;
+    const isPackRow = rawLabel.startsWith("  ") || Boolean(row["pack"]);
+    const isShopTotalRow = Boolean(row.isShopTotal) || (label.toUpperCase().includes("TOTAL") && (label.includes("Shop") || label.includes("(")));
+    const isBrandTotalRow = !isShopTotalRow && label.toUpperCase().endsWith("TOTAL");
+    const isBrandHeader = !isPackRow && !isShopTotalRow && !isBrandTotalRow && (row["Opening"] === undefined || row["Opening"] === "" || row["opening"] === undefined || row["opening"] === "");
+    const isShopHeader = !isPackRow && !isShopTotalRow && !isBrandTotalRow && !isBrandHeader && Boolean(row.isShopHeader);
 
-    const hasValues = row["Opening"] !== undefined;
+    ws.getRow(rIdx).height = 20;
 
     const cellL = ws.getCell(rIdx, 1);
-    cellL.value = label;
+    cellL.value = rawLabel;
     cellL.alignment = { horizontal: "left", vertical: "middle" };
 
-    const valCols = ["Opening", "Receipt", "Sales", "Closing"];
-    valCols.forEach((col, cIdx) => {
+    const valCols = [op, rec, sal, clo];
+    valCols.forEach((val, cIdx) => {
       const cellV = ws.getCell(rIdx, cIdx + 2);
-      const val = row[col];
-      if (val === 0 || val === null || val === undefined) {
-        cellV.value = isTotalRow || hasValues ? "-" : "";
-        cellV.font = { name: "Segoe UI", size: 10, color: { argb: "FF999999" } };
+      if (isBrandHeader) {
+        cellV.value = "";
       } else {
-        cellV.value = Number(val);
-        cellV.font = { name: "Segoe UI", size: 10 };
+        cellV.value = val;
+        cellV.numFmt = "0.00";
       }
-      cellV.alignment = { horizontal: "center", vertical: "middle" };
+      cellV.alignment = { horizontal: "right", vertical: "middle" };
     });
 
-    if (isGrandTotal) {
+    if (isShopTotalRow) {
+      cellL.value = rawLabel;
       for (let c = 1; c <= 5; c++) {
         const cell = ws.getCell(rIdx, c);
-        cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFF" } };
+        cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
+        cell.border = {
+          top: { style: "medium", color: { argb: goldColor } },
+          bottom: { style: "medium", color: { argb: goldColor } },
+          left: borderStyle,
+          right: borderStyle
+        };
+      }
+    } else if (isBrandTotalRow) {
+      cellL.value = "TOTAL";
+      for (let c = 1; c <= 5; c++) {
+        const cell = ws.getCell(rIdx, c);
+        cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
       }
-    } else if (isBrandTotal) {
+    } else if (isBrandHeader) {
       for (let c = 1; c <= 5; c++) {
         const cell = ws.getCell(rIdx, c);
-        cell.font = { name: "Segoe UI", size: 10, bold: true };
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: brandTotalBg } };
+        cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: brandHeaderFg } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: brandHeaderBg } };
       }
-    } else if (isShopTotal) {
-      for (let c = 1; c <= 5; c++) {
-        const cell = ws.getCell(rIdx, c);
-        cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "1B365D" } };
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: grandTotalBg } };
-      }
-    } else if (isShopHeader && !hasValues) {
-      cellL.font = { name: "Segoe UI", size: 11, bold: true, color: { argb: "A52A2A" } };
-    } else if (isBrandHeader && !hasValues) {
-      cellL.font = { name: "Segoe UI", size: 10, bold: true };
     } else {
-      cellL.font = { name: "Segoe UI", size: 10 };
-    }
-
-    if (isShopTotal) {
-      grandOpening += Number(row["Opening"] || 0);
-      grandInward += Number(row["Receipt"] || 0);
-      grandOutward += Number(row["Sales"] || 0);
-      grandClosing += Number(row["Closing"] || 0);
+      // Pack row
+      const isZebra = rIdx % 2 === 0;
+      for (let c = 1; c <= 5; c++) {
+        const cell = ws.getCell(rIdx, c);
+        cell.font = { name: "Segoe UI", size: 9.5, color: { argb: "333333" } };
+        if (isZebra) {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: zebraBg } };
+        }
+      }
+      totalOpening += op;
+      totalReceipt += rec;
+      totalSales += sal;
+      totalClosing += clo;
     }
 
     rIdx++;
   });
 
-  ws.getRow(rIdx).height = 20;
-  ws.getCell(rIdx, 1).value = "GRAND TOTAL";
-  ws.getCell(rIdx, 2).value = grandOpening;
-  ws.getCell(rIdx, 3).value = grandInward;
-  ws.getCell(rIdx, 4).value = grandOutward;
-  ws.getCell(rIdx, 5).value = grandClosing;
+  // Ensure bottom TOTAL row exists if not already included in data
+  const hasBottomTotal = data.some(r => (r["Row Labels"] || "").toUpperCase().includes("TOTAL") || r.isShopTotal);
+  if (!hasBottomTotal) {
+    ws.getRow(rIdx).height = 22;
+    const shopDisplayName = shopNameStr ? `TOTAL - ${shopNameStr}` : "TOTAL";
+    ws.getCell(rIdx, 1).value = shopDisplayName;
+    ws.getCell(rIdx, 2).value = totalOpening;
+    ws.getCell(rIdx, 3).value = totalReceipt;
+    ws.getCell(rIdx, 4).value = totalSales;
+    ws.getCell(rIdx, 5).value = totalClosing;
 
-  for (let c = 1; c <= 5; c++) {
-    const cell = ws.getCell(rIdx, c);
-    cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFF" } };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
-    cell.alignment = { horizontal: c === 1 ? "left" : "center", vertical: "middle" };
-  }
-  rIdx++;
-
-  ws.getColumn("A").width = 45;
-  ws.getColumn("B").width = 15;
-  ws.getColumn("C").width = 15;
-  ws.getColumn("D").width = 15;
-  ws.getColumn("E").width = 15;
-
-  for (let r = 7; r < rIdx; r++) {
     for (let c = 1; c <= 5; c++) {
-      const cell = ws.getCell(r, c);
+      const cell = ws.getCell(rIdx, c);
+      cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
+      cell.alignment = { horizontal: c === 1 ? "left" : "right", vertical: "middle" };
       cell.border = {
-        top: borderStyle,
+        top: { style: "medium", color: { argb: goldColor } },
+        bottom: { style: "medium", color: { argb: goldColor } },
         left: borderStyle,
-        bottom: borderStyle,
         right: borderStyle
       };
+      if (c >= 2) cell.numFmt = "0.00";
+    }
+    rIdx++;
+  }
+
+  // Column widths
+  ws.getColumn("A").width = 42;
+  ws.getColumn("B").width = 16;
+  ws.getColumn("C").width = 16;
+  ws.getColumn("D").width = 16;
+  ws.getColumn("E").width = 16;
+
+  // Apply default grid borders only where missing
+  for (let r = 1; r < rIdx; r++) {
+    for (let c = 1; c <= 5; c++) {
+      const cell = ws.getCell(r, c);
+      if (!cell.border) {
+        cell.border = {
+          top: borderStyle,
+          left: borderStyle,
+          bottom: borderStyle,
+          right: borderStyle
+        };
+      }
     }
   }
 

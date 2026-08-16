@@ -43,44 +43,20 @@ export const exportNewCumulativeExcel = async ({
   subtitleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
   subtitleCell.alignment = { horizontal: "center", vertical: "middle" };
 
-  // Write some metadata info on rows 4 and 5
-  ws.getRow(4).height = 18;
-  ws.getRow(5).height = 18;
-  
-  ws.getCell("A4").value = "Mode:";
-  ws.getCell("A4").font = { name: "Segoe UI", size: 9, bold: true };
-  ws.getCell("B4").value = metadata.Mode || "All";
-  ws.getCell("B4").font = { name: "Segoe UI", size: 9 };
-
-  ws.getCell("C4").value = "View:";
-  ws.getCell("C4").font = { name: "Segoe UI", size: 9, bold: true };
-  ws.getCell("D4").value = metadata.View || "cumulative";
-  ws.getCell("D4").font = { name: "Segoe UI", size: 9 };
-
-  ws.getCell("E4").value = "Warehouse:";
-  ws.getCell("E4").font = { name: "Segoe UI", size: 9, bold: true };
-  ws.getCell("F4").value = metadata.Warehouse || "All";
-  ws.getCell("F4").font = { name: "Segoe UI", size: 9 };
-
-  ws.getCell("G4").value = "Round off:";
-  ws.getCell("G4").font = { name: "Segoe UI", size: 9, bold: true };
-  ws.getCell("H4").value = metadata["Round off"] || "No";
-  ws.getCell("H4").font = { name: "Segoe UI", size: 9 };
-
-  // Header Rows starting at Row 7 and 8
-  ws.getRow(7).height = 24;
-  ws.getRow(8).height = 24;
+  // Header Rows starting at Row 4 and 5
+  ws.getRow(4).height = 24;
+  ws.getRow(5).height = 24;
 
   const mainHeaders = [
-    { cell: "A7", merge: "A7:A8", value: "#" },
-    { cell: "B7", merge: "B7:B8", value: firstColHeader.toUpperCase() },
-    { cell: "C7", merge: "C7:C8", value: "OPENING" },
-    { cell: "D7", merge: "D7:D8", value: "RECEIPT" },
-    { cell: "E7", merge: "E7:E8", value: "SALES" },
-    { cell: "F7", merge: "F7:F8", value: "CLOSING" },
-    { cell: "G7", merge: "G7:G8", value: "STOCK NET" },
-    { cell: "H7", merge: "H7:H8", value: "STOCK NET %" },
-    { cell: "I7", merge: "I7:I8", value: "SELL-THROUGH %" }
+    { cell: "A4", merge: "A4:A5", value: "#" },
+    { cell: "B4", merge: "B4:B5", value: firstColHeader.toUpperCase() },
+    { cell: "C4", merge: "C4:C5", value: "OPENING" },
+    { cell: "D4", merge: "D4:D5", value: "RECEIPT" },
+    { cell: "E4", merge: "E4:E5", value: "SALES" },
+    { cell: "F4", merge: "F4:F5", value: "CLOSING" },
+    { cell: "G4", merge: "G4:G5", value: "STOCK NET" },
+    { cell: "H4", merge: "H4:H5", value: "STOCK NET %" },
+    { cell: "I4", merge: "I4:I5", value: "SELL-THROUGH %" }
   ];
 
   // Apply main headers & vertical merges
@@ -94,18 +70,18 @@ export const exportNewCumulativeExcel = async ({
   });
 
   // AVERAGE SALES / DAY horizontal merge
-  ws.mergeCells("J7:L7");
-  const avgHeader = ws.getCell("J7");
+  ws.mergeCells("J4:L4");
+  const avgHeader = ws.getCell("J4");
   avgHeader.value = "AVERAGE SALES / DAY";
   avgHeader.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
   avgHeader.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
   avgHeader.alignment = { horizontal: "center", vertical: "middle" };
 
-  // Subheaders for AVERAGE SALES / DAY in row 8
+  // Subheaders for AVERAGE SALES / DAY in row 5
   const subHeaders = [
-    { cell: "J8", value: `Current Month Avg (${currentPeriodLabel})` },
-    { cell: "K8", value: `Last Month Avg (${lastMonthPeriodLabel})` },
-    { cell: "L8", value: "Difference" }
+    { cell: "J5", value: `Current Month Avg (${currentPeriodLabel})` },
+    { cell: "K5", value: `Last Month Avg (${lastMonthPeriodLabel})` },
+    { cell: "L5", value: "Difference" }
   ];
 
   subHeaders.forEach(sh => {
@@ -116,9 +92,9 @@ export const exportNewCumulativeExcel = async ({
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   });
 
-  // Ensure all headers have proper base cells styled in the merged ranges
+  // Ensure all header cells have proper base cells styled in rows 4 & 5
   const headerCols = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
-  [7, 8].forEach(rIdx => {
+  [4, 5].forEach(rIdx => {
     headerCols.forEach(col => {
       const cell = ws.getCell(`${col}${rIdx}`);
       if (!cell.fill) {
@@ -131,7 +107,7 @@ export const exportNewCumulativeExcel = async ({
   });
 
   let sNo = 1;
-  let rIdx = 9;
+  let rIdx = 6;
 
   const formatVal = (v) => {
     if (v === undefined || v === null || v === "") return "";

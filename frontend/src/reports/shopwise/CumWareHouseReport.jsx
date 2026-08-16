@@ -745,6 +745,10 @@ export default function CumulativeWarehouseReport() {
             sumKeys.push(...brandColumns.map(bc => bc.title));
           }
 
+          // Determine visible report columns for display (hiding Warehouse and Bond)
+          const hiddenCols = new Set(["Bond", "Warehouse"]);
+          const reportCols = Object.keys(exportData[0] || {}).filter(c => !hiddenCols.has(c));
+
           exportUnifiedWithDropdown({
             data: exportData,
             warehouses: uniqueList,
@@ -755,6 +759,7 @@ export default function CumulativeWarehouseReport() {
             sumCols: sumKeys,
             dropdownLabel: filterField,
             filterColumnName: filterField, // This matches the key in exportData ("Bond" or "Warehouse")
+            reportColumns: reportCols,
             theme: "navy"
           });
         } catch (e) {
@@ -781,7 +786,7 @@ export default function CumulativeWarehouseReport() {
 
           const d1 = dateRange[0]?.format("D MMMM YYYY");
           const d2 = dateRange[1]?.format("D MMMM YYYY");
-          const subtitle = d1 && d2 ? `${d1} to ${d2} • cases • all channels (KSBC + Consumer Fed + BAR)` : "";
+          const subtitle = d1 && d2 ? `${d1} to ${d2}` : "";
           exportDailySecondaryExcel({
             data: exportData,
             labels,
@@ -810,7 +815,7 @@ export default function CumulativeWarehouseReport() {
 
           const d1 = dateRange[0]?.format("D MMMM YYYY");
           const d2 = dateRange[1]?.format("D MMMM YYYY");
-          const subtitle = d1 && d2 ? `${d1} to ${d2} • cases • all channels (KSBC + Consumer Fed + BAR)` : "";
+          const subtitle = d1 && d2 ? `${d1} to ${d2}` : "";
 
           const brandKeys = brandColumns.map(bc => ({ title: bc.title, key: bc.dataIndex }));
 

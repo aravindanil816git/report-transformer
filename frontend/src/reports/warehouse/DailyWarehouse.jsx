@@ -146,22 +146,27 @@ export default function CleanupReport() {
             "Report Period": periodLabel
           },
           `physical_stock_report_${selectedWarehouse}.xlsx`,
-          "Physical Stock"
+          "Physical Stock",
+          { theme: "navy", autofilter: true }
         );
       } else if (mode === "unified") {
         if (!report?.data) return;
 
-        // Flatten all items across all warehouses
-        const exportData = report.data.flatMap(whData =>
-          (whData.items || []).map(item => ({
+        // Flatten all items across all warehouses, adhering to active pack filter
+        const exportData = report.data.flatMap(whData => {
+          let items = whData.items || [];
+          if (selectedPack !== "all") {
+            items = items.filter(item => item.pack === selectedPack);
+          }
+          return items.map(item => ({
             Warehouse: whData.warehouse,
             "Item Name": item.item_name,
             "Pack": item.pack,
             "Physical Stock": item.physical,
             "Allotable Stock": item.allotted,
             "Pending Stock": item.pending,
-          }))
-        );
+          }));
+        });
 
         exportUnifiedWithDropdown({
           data: exportData,

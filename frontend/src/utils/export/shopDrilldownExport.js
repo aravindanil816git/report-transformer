@@ -178,9 +178,10 @@ export const exportShopDrilldownPdfByBond = ({
   maxCaptionW = Math.max(maxCaptionW, cap1);
 
   bondShops.forEach(shop => {
-    const displayShopName = shop.shop_name ? `${shop.shop_code}-${shop.shop_name}` : shop.shop_code;
-    const bondText = bondName && bondName.toUpperCase() !== "CURRENT VIEW" ? `${bondName.toUpperCase()} BOND` : "";
-    const cap2 = getWidth(displayShopName.toUpperCase(), 11, true) + getWidth(bondText, 11, true) + 30;
+    const rawShopName = shop.shop_name ? `${shop.shop_code}-${shop.shop_name}` : shop.shop_code;
+    const displayShopName = String(rawShopName).replace(/^\d{6}-/, "").toUpperCase();
+    const bondText = bondName && bondName.toUpperCase() !== "CURRENT VIEW" ? bondName.toUpperCase().replace(/\s+BOND$/i, "").replace(/^WH-/i, "") : "";
+    const cap2 = getWidth(displayShopName, 11, true) + getWidth(bondText, 11, true) + 30;
     maxCaptionW = Math.max(maxCaptionW, cap2);
   });
 
@@ -224,9 +225,12 @@ export const exportShopDrilldownPdfByBond = ({
       doc.setFillColor(255, 189, 49); 
       doc.rect(0, 45.4 + 22.7, PAGE_WIDTH, 22.7, "F");
 
-      doc.text(shopName.toUpperCase(), 15, 45.4 + 22.7 + 15);
-      if (bondName && bondName.toUpperCase() !== "CURRENT VIEW") {
-        doc.text(`${bondName.toUpperCase()} BOND`, PAGE_WIDTH - 15, 45.4 + 22.7 + 15, { align: "right" });
+      const cleanShopName = (shopName || "").replace(/^\d{6}-/, "").toUpperCase();
+      const cleanBondName = (bondName || "").replace(/\s+BOND$/i, "").replace(/^WH-/i, "").toUpperCase();
+
+      doc.text(cleanShopName, 15, 45.4 + 22.7 + 15);
+      if (cleanBondName && cleanBondName !== "CURRENT VIEW") {
+        doc.text(cleanBondName, PAGE_WIDTH - 15, 45.4 + 22.7 + 15, { align: "right" });
       }
     } else {
       doc.setFillColor(255, 189, 49); 
@@ -235,9 +239,12 @@ export const exportShopDrilldownPdfByBond = ({
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(11, 41, 79); 
-      doc.text(shopName.toUpperCase(), 15, 15);
-      if (bondName && bondName.toUpperCase() !== "CURRENT VIEW") {
-        doc.text(`${bondName.toUpperCase()} BOND`, PAGE_WIDTH - 15, 15, { align: "right" });
+      const cleanShopName = (shopName || "").replace(/^\d{6}-/, "").toUpperCase();
+      const cleanBondName = (bondName || "").replace(/\s+BOND$/i, "").replace(/^WH-/i, "").toUpperCase();
+
+      doc.text(cleanShopName, 15, 15);
+      if (cleanBondName && cleanBondName !== "CURRENT VIEW") {
+        doc.text(cleanBondName, PAGE_WIDTH - 15, 15, { align: "right" });
       }
     }
   };
