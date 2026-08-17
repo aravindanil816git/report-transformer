@@ -111,9 +111,7 @@ export const exportBrandwiseCumExcel = async ({
       sNoCell.alignment = { horizontal: "center", vertical: "middle" };
       sNoCell.font = { name: "Segoe UI", size: 10 };
     } else if (isTotalRow) {
-      sNoCell.value = "TOTAL";
-      sNoCell.alignment = { horizontal: "center", vertical: "middle" };
-      sNoCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
+      sNoCell.value = "";
       sNoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
     }
 
@@ -177,13 +175,12 @@ export const exportBrandwiseCumExcel = async ({
     ws.getRow(totalRowIdx).height = 20;
 
     const sNoCell = ws.getCell(`A${totalRowIdx}`);
-    sNoCell.value = "TOTAL";
-    sNoCell.alignment = { horizontal: "center", vertical: "middle" };
-    sNoCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
+    sNoCell.value = "";
     sNoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
 
     const mainCell = ws.getCell(`B${totalRowIdx}`);
-    mainCell.value = "";
+    mainCell.value = "Grand Total";
+    mainCell.alignment = { horizontal: "left", vertical: "middle" };
     mainCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
 
     columns.forEach((col, idx) => {

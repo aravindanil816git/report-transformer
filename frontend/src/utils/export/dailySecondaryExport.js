@@ -135,9 +135,7 @@ export const exportDailySecondaryExcel = async ({
       sNoCell.alignment = { horizontal: "center", vertical: "middle" };
       sNoCell.font = { name: "Segoe UI", size: 10 };
     } else if (isTotalRow) {
-      sNoCell.value = "TOTAL";
-      sNoCell.alignment = { horizontal: "center", vertical: "middle" };
-      sNoCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
+      sNoCell.value = "";
       sNoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
     }
 
@@ -198,19 +196,23 @@ export const exportDailySecondaryExcel = async ({
   });
 
   // Append Grand Total Row if not present in the original dataset
-  const hasGrandTotalRow = data.some(row => String(row[firstColKey] || "").toLowerCase().includes("total"));
+  const hasGrandTotalRow = data.some(row => {
+    if (row.isClusterTotal) return false;
+    const str = String(row[firstColKey] || "").toLowerCase().trim();
+    return str === "total" || str === "grand total";
+  });
   if (!hasGrandTotalRow && data.length > 0) {
     const totalRowIdx = currentWordRowIdx;
     ws.getRow(totalRowIdx).height = 20;
 
     const sNoCell = ws.getCell(`A${totalRowIdx}`);
-    sNoCell.value = "TOTAL";
-    sNoCell.alignment = { horizontal: "center", vertical: "middle" };
-    sNoCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
+    sNoCell.value = "";
     sNoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
 
     const mainCell = ws.getCell(`B${totalRowIdx}`);
-    mainCell.value = "";
+    mainCell.value = "Grand Total";
+    mainCell.alignment = { horizontal: "left", vertical: "middle" };
+    mainCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
     mainCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
 
     labels.forEach((label, idx) => {
