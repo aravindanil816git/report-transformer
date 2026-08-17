@@ -3,7 +3,7 @@ import { Table, Button, Select, DatePicker, Space, message } from "antd";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { getReport, processReport, getJson } from "../../api";
 import dayjs from "dayjs";
-import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf, exportDailySecondaryExcel, exportDailySecondaryPdf, exportBrandwiseCumExcel } from "../../utils/exportUtils";
+import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf, exportDailySecondaryExcel, exportDailySecondaryPdf, exportBrandwiseCumExcel, exportBrandwiseSecondaryPdf } from "../../utils/exportUtils";
 import { FileExcelOutlined, FilePdfOutlined } from "@ant-design/icons";
 import DownloadDropdown from "../../components/DownloadDropdown";
 import { disabledFutureMonthDates } from "../../utils/dateUtils";
@@ -865,6 +865,58 @@ export default function CumulativeWarehouseReport() {
           sumCols.push(...labels);
         } else {
           sumCols.push(...PDF_REPLACEMENT_BRANDS.map(bc => bc.title));
+        }
+
+        const isBrandwiseType = isBrandwiseCumType || config?.type === "brandwise_cum_secondary_sales";
+
+        if (isBrandwiseType) {
+          const params = { mode: "shop" };
+          const d1 = dateRange[0]?.format("YYYY-MM-DD");
+          const d2 = dateRange[1]?.format("YYYY-MM-DD");
+          if (d1 && d2) {
+            params.start_date = d1;
+            params.end_date = d2;
+          }
+
+          const brandwisePeriod = dateRange.length === 2 
+            ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}`
+            : (config.start_date && config.num_days 
+                ? `${dayjs(config.start_date).format("D MMMM YYYY")} - ${dayjs(config.start_date).add(config.num_days - 1, 'day').format("D MMMM YYYY")}`
+                : period);
+
+          const [res] = await Promise.all([
+            getReport(id, null, view, params)
+          ]);
+
+          let fullData = (res.data?.data || []).map(d => ({
+            ...d,
+            warehouse: formatName(d.warehouse),
+            bond: formatName(d.bond),
+            "Shop Name": d.shop_name ? formatName(d.shop_name) : d.shop_code
+          }));
+
+          if (modeType === "current" && (warehouseFilter || bondFilter)) {
+            const filterVal = formatName(warehouseFilter || bondFilter);
+            fullData = fullData.filter(d => {
+              const wh = d.warehouse;
+              const bnd = d.bond;
+              return wh === filterVal || bnd === filterVal;
+            });
+          }
+
+          const brandList = brandColumns.map(bc => ({
+            title: bc.title,
+            key: bc.dataIndex
+          }));
+
+          exportBrandwiseSecondaryPdf({
+            data: fullData,
+            allBrands: brandList,
+            periodLabel: brandwisePeriod,
+            groupByField: mode === "bond" ? "bond" : "warehouse",
+            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_brandwise.pdf`
+          });
+          return;
         }
 
         if (modeType === "current") {
