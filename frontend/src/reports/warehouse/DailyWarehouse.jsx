@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Table, Select, Button, Space, Row, Col, message } from "antd";
 import { useParams } from "react-router-dom";
 import { getReport, getJson } from "../../api";
-import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf } from "../../utils/exportUtils";
+import { exportToExcel, exportMultiSheetExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf } from "../../utils/exportUtils";
 import DownloadDropdown from "../../components/DownloadDropdown";
 import dayjs from "dayjs";
 
@@ -293,29 +293,49 @@ export default function CleanupReport() {
   };
 
   const downloadAllWarehouses = async () => {
-    if (!report?.data) return;
+    if (!report?.data || report.data.length === 0) return;
 
-    for (const whData of report.data) {
-      const exportData = whData.items.map(item => ({
+    const sheets = report.data.map(whData => {
+      let items = whData.items || [];
+      if (selectedPack !== "all") {
+        items = items.filter(item => item.pack === selectedPack);
+      }
+
+      const exportData = items.map(item => ({
         "Item Name": item.item_name,
         "Pack": item.pack,
-        "Physical Stock (Case)": item.physical,
-        "Allotted Stock (Case)": item.allotted,
-        "Pending Stock (Case)": item.pending,
+        "Physical Stock": item.physical,
+        "Allotable Stock": item.allotted,
+        "Pending Stock": item.pending,
       }));
 
-      exportToExcel(
-        exportData,
-        {
-          Warehouse: whData.warehouse
+      const totalPhysical = items.reduce((sum, item) => sum + (Number(item.physical) || 0), 0);
+      const totalAllotted = items.reduce((sum, item) => sum + (Number(item.allotted) || 0), 0);
+      const totalPending = items.reduce((sum, item) => sum + (Number(item.pending) || 0), 0);
+
+      exportData.push({
+        "Item Name": "Total",
+        "Pack": "",
+        "Physical Stock": totalPhysical,
+        "Allotable Stock": totalAllotted,
+        "Pending Stock": totalPending,
+      });
+
+      // Clean sheet name (e.g. WH-FL-1 TRIVANDRUM -> TRIVANDRUM)
+      const cleanWh = String(whData.warehouse || "").replace(/^WH-/i, "").split(/\s+(?:FL|RFL)/i)[0].trim();
+
+      return {
+        sheetName: cleanWh || whData.warehouse,
+        data: exportData,
+        metadata: {
+          Warehouse: whData.warehouse,
+          "Report Period": periodLabel
         },
-        `physical_stock_${whData.warehouse}.xlsx`,
-        "Physical Stock"
-      );
-      
-      // Small delay to help browser handle multiple downloads
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
+        options: { theme: "navy", autofilter: true }
+      };
+    });
+
+    exportMultiSheetExcel(sheets, "physical_stock_report_all_warehouses.xlsx");
   };
 
   return (

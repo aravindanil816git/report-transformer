@@ -1,4 +1,4 @@
-export { exportToExcel, exportToPdf, parseLabelToDate } from "./export/core";
+export { exportToExcel, exportMultiSheetExcel, exportToPdf, parseLabelToDate } from "./export/core";
 export { exportUnifiedWithDropdown } from "./export/unifiedDropdownExport";
 export { exportClusterPdf, exportShopDrilldownPdfByBond } from "./export/shopDrilldownExport";
 export { exportDailySecondaryExcel, exportDailySecondaryPdf } from "./export/dailySecondaryExport";

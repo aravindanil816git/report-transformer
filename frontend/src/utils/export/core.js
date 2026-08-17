@@ -23,9 +23,9 @@ export const parseLabelToDate = (label, baseDateStr) => {
 };
 
 /**
- * Exports data to Excel with optional metadata rows at the top.
+ * Helper to build a styled worksheet object
  */
-export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", sheetName = "Report", options = {}) => {
+export const createWorksheet = (data, metadata = {}, options = {}) => {
   const wsData = [];
 
   if (Array.isArray(metadata)) {
@@ -180,8 +180,33 @@ export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", she
     }
   }
 
+  return ws;
+};
+
+/**
+ * Exports data to Excel with optional metadata rows at the top.
+ */
+export const exportToExcel = (data, metadata = {}, filename = "report.xlsx", sheetName = "Report", options = {}) => {
+  const ws = createWorksheet(data, metadata, options);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+  const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  saveAs(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), filename);
+};
+
+/**
+ * Exports multiple sheets into a single Excel workbook.
+ * sheets: Array of { sheetName, data, metadata, options }
+ */
+export const exportMultiSheetExcel = (sheets = [], filename = "all_reports.xlsx") => {
+  const wb = XLSX.utils.book_new();
+  sheets.forEach(({ sheetName, data, metadata, options }) => {
+    const ws = createWorksheet(data, metadata, options);
+    // Sheet names in Excel cannot exceed 31 characters or contain invalid chars : \ / ? * [ ]
+    const cleanSheetName = (sheetName || "Sheet").replace(/[:\\/?*\[\]]/g, "_").slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, cleanSheetName);
+  });
 
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
   saveAs(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), filename);
