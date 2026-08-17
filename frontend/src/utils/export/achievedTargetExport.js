@@ -6,8 +6,11 @@ import dayjs from "dayjs";
 
 const navyColor = "0B294F";
 const goldColor = "FFBD31";
-const yellowHighlight = "FFC000"; // For cluster totals
-const borderStyle = { style: "thin", color: { argb: "FFD3D3D3" } };
+const yellowHighlight = "FFBD31"; // Match PDF Gold highlight for cluster totals
+const tgtBgColor = "F1F1F1"; // Light grey for TGT row background matching PDF
+const achBgColor = "FFFFFF"; // White background for ACH row matching PDF
+const borderStyle = { style: "thin", color: { argb: "FF8C8C8C" } };
+const blockSeparatorBorder = { style: "medium", color: { argb: "0B294F" } };
 
 // Helpers
 const getAchPercentage = (target, achieved) => {
@@ -118,18 +121,14 @@ export const exportAchievedTargetExcel = async ({
       catTgtCell.font = { name: "Segoe UI", size: 9, bold: isCluster };
       catTgtCell.alignment = { horizontal: "center", vertical: "middle" };
       catTgtCell.border = borderStyle;
-      if (isCluster) {
-        catTgtCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: yellowHighlight } };
-      }
+      catTgtCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isCluster ? yellowHighlight : tgtBgColor } };
 
       const catAchCell = ws.getCell(`B${rIdx + 1}`);
       catAchCell.value = "ACH";
       catAchCell.font = { name: "Segoe UI", size: 9, bold: isCluster };
       catAchCell.alignment = { horizontal: "center", vertical: "middle" };
-      catAchCell.border = borderStyle;
-      if (isCluster) {
-        catAchCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: yellowHighlight } };
-      }
+      catAchCell.border = { ...borderStyle, bottom: blockSeparatorBorder };
+      catAchCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isCluster ? yellowHighlight : achBgColor } };
 
       // Brand columns & Totals
       let tgtSum = 0;
@@ -150,16 +149,13 @@ export const exportAchievedTargetExcel = async ({
         cellTgt.font = { name: "Segoe UI", size: 10, bold: isCluster };
         cellTgt.alignment = { horizontal: "center", vertical: "middle" };
         cellTgt.border = borderStyle;
+        cellTgt.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isCluster ? yellowHighlight : tgtBgColor } };
 
         cellAch.value = aVal;
         cellAch.font = { name: "Segoe UI", size: 10, bold: isCluster };
         cellAch.alignment = { horizontal: "center", vertical: "middle" };
-        cellAch.border = borderStyle;
-
-        if (isCluster) {
-          cellTgt.fill = { type: "pattern", pattern: "solid", fgColor: { argb: yellowHighlight } };
-          cellAch.fill = { type: "pattern", pattern: "solid", fgColor: { argb: yellowHighlight } };
-        }
+        cellAch.border = { ...borderStyle, bottom: blockSeparatorBorder };
+        cellAch.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isCluster ? yellowHighlight : achBgColor } };
       });
 
       // Grand Total column
@@ -169,17 +165,14 @@ export const exportAchievedTargetExcel = async ({
       gtTgtCell.font = { name: "Segoe UI", size: 10, bold: true };
       gtTgtCell.alignment = { horizontal: "center", vertical: "middle" };
       gtTgtCell.border = borderStyle;
+      gtTgtCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isCluster ? yellowHighlight : tgtBgColor } };
 
       const gtAchCell = ws.getCell(`${gtColLetter}${rIdx + 1}`);
       gtAchCell.value = achSum;
       gtAchCell.font = { name: "Segoe UI", size: 10, bold: true };
       gtAchCell.alignment = { horizontal: "center", vertical: "middle" };
-      gtAchCell.border = borderStyle;
-
-      if (isCluster) {
-        gtTgtCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: yellowHighlight } };
-        gtAchCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: yellowHighlight } };
-      }
+      gtAchCell.border = { ...borderStyle, bottom: blockSeparatorBorder };
+      gtAchCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isCluster ? yellowHighlight : achBgColor } };
 
       // ACH % column (merged vertically)
       const achPctColLetter = String.fromCharCode(68 + displayedBrands.length);
@@ -194,14 +187,11 @@ export const exportAchievedTargetExcel = async ({
         name: "Segoe UI",
         size: 10,
         bold: true,
-        color: { argb: pctNum >= 100 ? "3F8600" : "CF1322" }
+        color: { argb: isCluster ? "000000" : (pctNum >= 100 ? "3F8600" : "CF1322") }
       };
       achPctCell.alignment = { horizontal: "center", vertical: "middle" };
-      achPctCell.border = borderStyle;
-
-      if (isCluster) {
-        achPctCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: yellowHighlight } };
-      }
+      achPctCell.border = { ...borderStyle, bottom: blockSeparatorBorder };
+      achPctCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isCluster ? yellowHighlight : achBgColor } };
 
       rIdx += 2;
     }

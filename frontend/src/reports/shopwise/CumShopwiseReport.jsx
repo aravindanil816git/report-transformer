@@ -33,6 +33,7 @@ export default function CumulativeShopwiseReport() {
   const [shopLeaves, setShopLeaves] = useState([]);
   const [useWholeNumbers, setUseWholeNumbers] = useState(false);
   const [clusters, setClusters] = useState({});
+  const [warehouseClusters, setWarehouseClusters] = useState({});
 
   const formatVal = (v) => {
     if (v === undefined || v === null) return "";
@@ -43,6 +44,17 @@ export default function CumulativeShopwiseReport() {
     return num.toFixed(2);
   };
 
+  const normalizeWhName = (name) => {
+    if (!name) return "";
+    return name.replace(/^WH-/i, "").split(/\s+(?:FL|RFL)/i)[0].trim().toUpperCase();
+  };
+
+  const isWarehouseInCluster = (whName, clusterList) => {
+    if (!whName || !clusterList) return false;
+    const normalizedWh = normalizeWhName(whName);
+    return clusterList.some(item => normalizeWhName(item) === normalizedWh);
+  };
+
   useEffect(() => {
     getJson("leaves").then(res => {
       setShopLeaves(res.data?.shop || []);
@@ -50,6 +62,10 @@ export default function CumulativeShopwiseReport() {
 
     getJson("clusters").then(res => {
       setClusters(res.data || {});
+    }).catch(() => { });
+
+    getJson("warehouse_clusters").then(res => {
+      setWarehouseClusters(res.data || {});
     }).catch(() => { });
   }, []);
 
@@ -333,8 +349,107 @@ export default function CumulativeShopwiseReport() {
       return groupedData;
     }
 
+    if (mode === "warehouse" && !drilledWarehouse && Object.keys(warehouseClusters).length > 0) {
+      const groupedData = [];
+      const unclustered = [...baseData];
+
+      Object.entries(warehouseClusters).forEach(([clusterName, whList]) => {
+        const clusterRows = [];
+
+        for (let i = unclustered.length - 1; i >= 0; i--) {
+          const d = unclustered[i];
+          if (isWarehouseInCluster(d.warehouse, whList)) {
+            clusterRows.push(d);
+            unclustered.splice(i, 1);
+          }
+        }
+
+        if (clusterRows.length > 0) {
+          clusterRows.sort((a, b) => (a.warehouse || "").localeCompare(b.warehouse || ""));
+          groupedData.push(...clusterRows);
+
+          let clusterTotal = 0;
+          let clusterOpening = 0, clusterReceipt = 0, clusterSales = 0, clusterClosing = 0, clusterDiff = 0, clusterAvgSales = 0;
+          let clusterSums = {};
+          labels.forEach(l => clusterSums[l] = 0);
+
+          clusterRows.forEach(d => {
+            clusterTotal += (Number(d.total) || 0);
+            clusterOpening += (Number(d.opening) || 0);
+            clusterReceipt += (Number(d.receipt) || 0);
+            clusterSales += (Number(d.sales || d.outward) || 0);
+            clusterClosing += (Number(d.closing) || 0);
+            clusterDiff += (Number(d.difference) || 0);
+            clusterAvgSales += (Number(d.avg_sales_per_day) || 0);
+
+            labels.forEach(l => {
+              clusterSums[l] += (Number(d[l]) || 0);
+            });
+          });
+
+          const cleanClusterLabel = clusterName.toUpperCase().replace(/CLUSTER\s*-\s*/gi, "CLUSTER ");
+
+          groupedData.push({
+            isClusterTotal: true,
+            clusterName: cleanClusterLabel,
+            warehouse: `${cleanClusterLabel} TOTAL`,
+            total: clusterTotal,
+            opening: clusterOpening,
+            receipt: clusterReceipt,
+            sales: clusterSales,
+            closing: clusterClosing,
+            difference: clusterDiff,
+            avg_sales_per_day: clusterAvgSales,
+            ...clusterSums,
+            key: `total-${clusterName}`
+          });
+        }
+      });
+
+      if (unclustered.length > 0) {
+        unclustered.sort((a, b) => (a.warehouse || "").localeCompare(b.warehouse || ""));
+        groupedData.push(...unclustered);
+
+        let unclusteredTotal = 0;
+        let unclusteredOpening = 0, unclusteredReceipt = 0, unclusteredSales = 0, unclusteredClosing = 0, unclusteredDiff = 0, unclusteredAvgSales = 0;
+        let unclusteredSums = {};
+        labels.forEach(l => unclusteredSums[l] = 0);
+
+        unclustered.forEach(d => {
+          unclusteredTotal += (Number(d.total) || 0);
+          unclusteredOpening += (Number(d.opening) || 0);
+          unclusteredReceipt += (Number(d.receipt) || 0);
+          unclusteredSales += (Number(d.sales || d.outward) || 0);
+          unclusteredClosing += (Number(d.closing) || 0);
+          unclusteredDiff += (Number(d.difference) || 0);
+          unclusteredAvgSales += (Number(d.avg_sales_per_day) || 0);
+
+          labels.forEach(l => {
+            unclusteredSums[l] += (Number(d[l]) || 0);
+          });
+        });
+
+        groupedData.push({
+          isClusterTotal: true,
+          clusterName: "UNCLUSTERED WAREHOUSES",
+          warehouse: "UNCLUSTERED TOTAL",
+          total: unclusteredTotal,
+          opening: unclusteredOpening,
+          receipt: unclusteredReceipt,
+          sales: unclusteredSales,
+          closing: unclusteredClosing,
+          difference: unclusteredDiff,
+          avg_sales_per_day: unclusteredAvgSales,
+          ...unclusteredSums,
+          key: "total-unclustered"
+        });
+      }
+
+      return groupedData;
+    }
+
     return baseData;
-  }, [filteredData, netDays, mode, drilledBond, clusters, labels]);
+  }, [filteredData, netDays, mode, drilledBond, drilledWarehouse, clusters, warehouseClusters, labels]);
 
   const disabledDate = (current) => {
     return disabledFutureMonthDates(current);
