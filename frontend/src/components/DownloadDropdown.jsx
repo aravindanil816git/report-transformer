@@ -30,6 +30,15 @@ export default function DownloadDropdown({ onDownload, loading, disabled, showPd
         </div>
       ),
     },
+    all_warehouses: {
+      key: "xlsx-all-warehouses",
+      label: (
+        <div style={{ padding: "4px 8px" }}>
+          <div style={{ fontWeight: 600, fontSize: "14px", color: "#1f1f1f" }}>All Warehouses</div>
+          <div style={{ fontSize: "12px", color: "#8c8c8c", marginTop: "2px" }}>Downloads all warehouses as separate tabs in 1 Excel</div>
+        </div>
+      ),
+    },
   };
 
   const excelItems = excelOptions
@@ -75,6 +84,8 @@ export default function DownloadDropdown({ onDownload, loading, disabled, showPd
       onDownload("xlsx", "current");
     } else if (key === "xlsx-unified") {
       onDownload("xlsx", "unified");
+    } else if (key === "xlsx-all-warehouses") {
+      onDownload("xlsx", "all_warehouses");
     }
   };
 

@@ -149,34 +149,8 @@ export default function CleanupReport() {
           "Physical Stock",
           { theme: "navy", autofilter: true }
         );
-      } else if (mode === "unified") {
-        if (!report?.data) return;
-
-        // Flatten all items across all warehouses, adhering to active pack filter
-        const exportData = report.data.flatMap(whData => {
-          let items = whData.items || [];
-          if (selectedPack !== "all") {
-            items = items.filter(item => item.pack === selectedPack);
-          }
-          return items.map(item => ({
-            Warehouse: whData.warehouse,
-            "Item Name": item.item_name,
-            "Pack": item.pack,
-            "Physical Stock": item.physical,
-            "Allotable Stock": item.allotted,
-            "Pending Stock": item.pending,
-          }));
-        });
-
-        exportUnifiedWithDropdown({
-          data: exportData,
-          warehouses: warehouses,
-          reportTitle: "Warehouse Stock Report",
-          periodLabel: periodLabel,
-          filename: "physical_stock_report_unified.xlsx",
-          sheetName: "Physical Stock",
-          sumCols: ["Physical Stock", "Allotable Stock", "Pending Stock"]
-        });
+      } else if (mode === "all_warehouses") {
+        downloadAllWarehouses();
       }
     } else if (format === "pdf") {
       if (mode === "current") {
@@ -344,9 +318,6 @@ export default function CleanupReport() {
         <h2>Warehouse Stock Report</h2>
         <div>
         <Space>
-          <Button type="default" onClick={downloadAllWarehouses} disabled={!report?.data}>
-            Download All Warehouses
-          </Button>
           <Select
             placeholder="Select Warehouse"
             style={{ width: 250 }}
@@ -367,7 +338,11 @@ export default function CleanupReport() {
               ...packs.map(p => ({ label: p, value: p }))
             ]}
           />
-          <DownloadDropdown onDownload={handleDownload} disabled={!report?.data || report.data.length === 0} />
+          <DownloadDropdown 
+            onDownload={handleDownload} 
+            disabled={!report?.data || report.data.length === 0}
+            excelOptions={["current", "all_warehouses"]}
+          />
         </Space>
         </div>
       </div>
