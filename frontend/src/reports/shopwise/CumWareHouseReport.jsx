@@ -909,11 +909,39 @@ export default function CumulativeWarehouseReport() {
             key: bc.dataIndex
           }));
 
+          const groupByField = mode === "bond" ? "bond" : "warehouse";
+
+          if (modeType === "cluster") {
+            const clusterConfigName = mode === "bond" ? "clusters" : "warehouse_clusters";
+            const clusterRes = await getJson(clusterConfigName);
+            const clustersData = clusterRes.data || {};
+
+            for (const [clusterName, whList] of Object.entries(clustersData)) {
+              const clusterData = fullData.filter(row => {
+                const whVal = String(row[groupByField] || "").trim().toUpperCase().replace(/^WH-/i, "");
+                return whList.some(wh => wh.trim().toUpperCase().replace(/^WH-/i, "") === whVal);
+              });
+
+              if (clusterData.length > 0) {
+                const cleanClusterName = clusterName.replace(/\s+/g, "_").toLowerCase();
+                exportBrandwiseSecondaryPdf({
+                  data: clusterData,
+                  allBrands: brandList,
+                  periodLabel: brandwisePeriod,
+                  groupByField: groupByField,
+                  filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_${cleanClusterName}.pdf`
+                });
+                await new Promise(resolve => setTimeout(resolve, 300));
+              }
+            }
+            return;
+          }
+
           exportBrandwiseSecondaryPdf({
             data: fullData,
             allBrands: brandList,
             periodLabel: brandwisePeriod,
-            groupByField: mode === "bond" ? "bond" : "warehouse",
+            groupByField: groupByField,
             filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_brandwise.pdf`
           });
           return;
