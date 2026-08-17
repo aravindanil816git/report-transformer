@@ -18,14 +18,11 @@ class MonthlySummaryReportService(BaseReportService):
         start_date2 = kwargs.get("start_date2")
         end_date2 = kwargs.get("end_date2")
         
-        if start_date or end_date or start_date2 or end_date2:
-            from services.db import supabase
-            dependency_types = ["daily_warehouse_offtake", "shop_sales_cumulative", "combined_shopwise", "cumulative_shopwise"]
-            res = supabase.table("reports").select("id, name, type, status, config, uploads, created_at, path, file, storage_path, processed").in_("type", dependency_types).execute()
-            all_reports = res.data or []
-            return self._compute_summary(report.get("config", {}), all_reports, start_date, end_date, start_date2, end_date2)
-            
-        return report.get("processed", {"data": [], "meta": {}})
+        from services.db import supabase
+        dependency_types = ["daily_warehouse_offtake", "shop_sales_cumulative", "combined_shopwise", "cumulative_shopwise"]
+        res = supabase.table("reports").select("id, name, type, status, config, uploads, created_at, path, file, storage_path, processed").in_("type", dependency_types).execute()
+        all_reports = res.data or []
+        return self._compute_summary(report.get("config", {}), all_reports, start_date, end_date, start_date2, end_date2)
 
     def _compute_summary(self, config, all_reports, start_date=None, end_date=None, start_date2=None, end_date2=None):
         target_month_str = config.get("month")
@@ -132,55 +129,61 @@ class MonthlySummaryReportService(BaseReportService):
             
             if r_type == "daily_warehouse_offtake":
                 r_date = str(r.get("config", {}).get("date", ""))
-                # Match Cumulative Warehouse Report's whole-month behavior (which ignores sub-range filtering when indices are not specified)
-                if r_date.startswith(target_month_str):
+                if start_date and end_date:
+                    if start_date <= r_date <= end_date:
+                        offtake_by_date[r_date] = ("curr", r)
+                elif r_date.startswith(target_month_str):
                     offtake_by_date[r_date] = ("curr", r)
+
+                if start_date2 and end_date2:
+                    if start_date2 <= r_date <= end_date2:
+                        offtake_by_date[r_date] = ("prev", r)
                 elif r_date.startswith(prev_month_str):
-                    offtake_by_date[r_date] = ("prev", r)
+                    if r_date not in offtake_by_date:
+                        offtake_by_date[r_date] = ("prev", r)
         
-        # Select correct shop liquidation reports (combined_shopwise or fallback to shop_sales_cumulative)
+        # Select correct shop liquidation reports (shop_sales_cumulative prioritized, fallback to combined_shopwise)
         combined_reports = [r for r in all_reports if r.get("type") == "combined_shopwise" and r.get("status") in ["Processed", "Ready", "Uploaded"]]
         shop_sales_reports = [r for r in all_reports if r.get("type") == "shop_sales_cumulative" and r.get("status") in ["Processed", "Ready", "Uploaded"]]
         
+        def extract_unique_uploads(reports_list, month_prefix):
+            uploads_list = []
+            seen_files = set()
+            matching_reports = [r for r in reports_list if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))).startswith(month_prefix)]
+            for r in matching_reports:
+                for u in r.get("uploads", []):
+                    f_name = u.get("file") or u.get("path")
+                    if f_name and f_name not in seen_files:
+                        seen_files.add(f_name)
+                        u_copy = dict(u)
+                        if not u_copy.get("storage_path") and r.get("id") and u_copy.get("file"):
+                            u_copy["storage_path"] = f"{r.get('id')}/{u_copy.get('file')}"
+                        if r.get("config"):
+                            u_copy["config"] = r.get("config")
+                        uploads_list.append(u_copy)
+            return uploads_list
+
+        # Combine and deduplicate across shop sales and combined reports (prioritizing shop sales reports)
+        curr_uploads_all = extract_unique_uploads(shop_sales_reports, target_month_str) + extract_unique_uploads(combined_reports, target_month_str)
         curr_uploads = []
-        curr_files = []
-        curr_combined = [r for r in combined_reports if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))).startswith(target_month_str)]
-        for r in curr_combined:
-            for u in r.get("uploads", []):
-                u_copy = dict(u)
-                if not u_copy.get("storage_path") and r.get("id") and u_copy.get("file"):
-                    u_copy["storage_path"] = f"{r.get('id')}/{u_copy.get('file')}"
-                curr_uploads.append(u_copy)
-                curr_files.append(u.get("file"))
-                
-        curr_sales = [r for r in shop_sales_reports if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))).startswith(target_month_str)]
-        for r in curr_sales:
-            for u in r.get("uploads", []):
-                u_copy = dict(u)
-                if not u_copy.get("storage_path") and r.get("id") and u_copy.get("file"):
-                    u_copy["storage_path"] = f"{r.get('id')}/{u_copy.get('file')}"
-                curr_uploads.append(u_copy)
-                curr_files.append(u.get("file"))
-                
+        seen_curr = set()
+        for u in curr_uploads_all:
+            fn = u.get("file") or u.get("path")
+            if fn not in seen_curr:
+                seen_curr.add(fn)
+                curr_uploads.append(u)
+
+        prev_uploads_all = extract_unique_uploads(shop_sales_reports, prev_month_str) + extract_unique_uploads(combined_reports, prev_month_str)
         prev_uploads = []
-        prev_files = []
-        prev_combined = [r for r in combined_reports if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))).startswith(prev_month_str)]
-        for r in prev_combined:
-            for u in r.get("uploads", []):
-                u_copy = dict(u)
-                if not u_copy.get("storage_path") and r.get("id") and u_copy.get("file"):
-                    u_copy["storage_path"] = f"{r.get('id')}/{u_copy.get('file')}"
-                prev_uploads.append(u_copy)
-                prev_files.append(u.get("file"))
-                
-        prev_sales = [r for r in shop_sales_reports if str(r.get("config", {}).get("date1", r.get("config", {}).get("start_date", ""))).startswith(prev_month_str)]
-        for r in prev_sales:
-            for u in r.get("uploads", []):
-                u_copy = dict(u)
-                if not u_copy.get("storage_path") and r.get("id") and u_copy.get("file"):
-                    u_copy["storage_path"] = f"{r.get('id')}/{u_copy.get('file')}"
-                prev_uploads.append(u_copy)
-                prev_files.append(u.get("file"))
+        seen_prev = set()
+        for u in prev_uploads_all:
+            fn = u.get("file") or u.get("path")
+            if fn not in seen_prev:
+                seen_prev.add(fn)
+                prev_uploads.append(u)
+
+        curr_files = [u.get("file") for u in curr_uploads if u.get("file")]
+        prev_files = [u.get("file") for u in prev_uploads if u.get("file")]
 
         curr_virtual = {
             "id": "curr_virtual",
@@ -224,8 +227,12 @@ class MonthlySummaryReportService(BaseReportService):
                 "prev": {"shop_liq": 0, "sec_sales": 0, "fed_bar": 0, "total": 0}
             }
             
+        # Initialize all known bonds so no bond is missing
         bond_data = {}
- 
+        all_bonds = list(bond_to_cluster.keys()) if bond_to_cluster else list(set(shop_to_bond.values()))
+        for bnd in all_bonds:
+            bond_data[bnd] = get_default_metrics()
+
         # Parse Combined Shopwise (For Shop Liquidation)
         from services.registry import get_service
         combined_svc = get_service("combined_shopwise_multi")
@@ -246,7 +253,7 @@ class MonthlySummaryReportService(BaseReportService):
                         if not sc or sc.lower() == "nan": continue
                         
                         outward = float(row.get("outward", 0) or 0)
-                        bond = shop_to_bond.get(sc, "UNKNOWN")
+                        bond = row.get("bond") or shop_to_bond.get(sc, "UNKNOWN")
                         
                         if bond not in bond_data: bond_data[bond] = get_default_metrics()
                         bond_data[bond][period]["shop_liq"] += outward
@@ -255,13 +262,13 @@ class MonthlySummaryReportService(BaseReportService):
 
         # Parse Secondary Sales & FED/BAR from daily_warehouse_offtake (Shop Level)
         for r_date, (period, r) in offtake_by_date.items():
-            for row in (r.get("processed") or []):
+            for row in (r.get("processed") or r.get("data") or []):
                 sc = str(row.get("shop_code", "")).replace(".0", "").strip()
                 if not sc or sc.lower() == "nan": continue
                 
                 issues = float(row.get("issues", 0) or 0)
-                bond = shop_to_bond.get(sc, "UNKNOWN")
-                cat = shop_categories.get(sc, "KSBC").upper()
+                bond = row.get("bond") or shop_to_bond.get(sc, "UNKNOWN")
+                cat = (row.get("category") or shop_categories.get(sc, "KSBC")).upper()
                 
                 if bond not in bond_data: bond_data[bond] = get_default_metrics()
                 bond_data[bond][period]["sec_sales"] += issues

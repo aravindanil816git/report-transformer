@@ -28,25 +28,10 @@ class CombinedShopwiseMultiReportService(BaseReportService):
     # Upload handling
     # ---------------------------------------------------------------------
     def _parse_days(self, filename, report_config=None, default_start=1, default_end=16):
-        if not filename:
-            return default_start, default_end
-        lowered = filename.lower()
-        
-        # 1. Clean suffix letters like st, nd, rd, th from numbers (e.g. 1st -> 1, 7th -> 7)
-        clean_name = re.sub(r"(\d+)(?:st|nd|rd|th)", r"\1", lowered)
-        
-        # 2. Find all numbers and filter out year numbers (e.g., 2026) or other invalid days
-        numbers = [int(n) for n in re.findall(r"\d+", clean_name)]
-        days = [n for n in numbers if 1 <= n <= 31]
-        if len(days) >= 2:
-            start_day = days[0]
-            end_day = days[1]
-            return start_day, end_day
-                
-        # 4. Fallback to report config date range bounds
+        # 1. Prioritize report_config if date range bounds are explicitly set
         if report_config:
-            d1 = report_config.get("date1") or report_config.get("start_date")
-            d2 = report_config.get("date2") or report_config.get("end_date")
+            d1 = report_config.get("date1") or report_config.get("start_date") or report_config.get("date")
+            d2 = report_config.get("date2") or report_config.get("end_date") or report_config.get("date")
             if d1 and d2:
                 try:
                     start_day = int(pd.to_datetime(d1).day)
@@ -55,15 +40,26 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                         return start_day, end_day
                 except Exception:
                     pass
-            elif d1:
-                try:
-                    day = int(pd.to_datetime(d1).day)
-                    if day <= 16:
-                        return 1, 16
-                    else:
-                        return 17, 31
-                except Exception:
-                    pass
+
+        if not filename:
+            return default_start, default_end
+        lowered = filename.lower()
+        
+        # 2. Strip bracketed numbers like (23), (1), (2) which are browser duplicate file counters
+        clean_name = re.sub(r"\(\d+\)", "", lowered)
+
+        # 3. Clean suffix letters like st, nd, rd, th from numbers (e.g. 1st -> 1, 7th -> 7)
+        clean_name = re.sub(r"(\d+)(?:st|nd|rd|th)", r"\1", clean_name)
+        
+        # 4. Find all numbers and filter out year numbers (e.g., 2026) or other invalid days
+        numbers = [int(n) for n in re.findall(r"\d+", clean_name)]
+        days = [n for n in numbers if 1 <= n <= 31]
+        if len(days) >= 2:
+            start_day = days[0]
+            end_day = days[1]
+            return start_day, end_day
+        elif len(days) == 1:
+            return days[0], days[0]
                     
         # 5. Standard fallbacks
         if "1-16" in lowered or "1-15" in lowered or "1-12" in lowered:
@@ -151,8 +147,8 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         for u in uploads:
             r_key = u.get("range_key") or u.get("date", "default")
             
-            # Determine day range bounds for this upload (dynamically parse from filename to fix legacy/incorrect database entries)
-            u_start_day, u_end_day = self._parse_days(u.get("file") or u.get("path"), report.get("config"))
+            # Determine day range bounds for this upload (dynamically parse from filename or upload config)
+            u_start_day, u_end_day = self._parse_days(u.get("file") or u.get("path"), u.get("config") or report.get("config"))
             
             print(f"[DEBUG] Upload '{u.get('file')}' -> key={r_key}, u_start_day={u_start_day}, u_end_day={u_end_day}")
 
@@ -174,8 +170,8 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         selected_uploads = []
         if set1_uploads:
             if sel_end_day is not None:
-                # Sort by absolute difference between end_day and sel_end_day to find closest match
-                set1_uploads_sorted = sorted(set1_uploads, key=lambda x: abs((x.get("end_day") or 0) - sel_end_day))
+                # Sort by absolute difference between end_day and sel_end_day, tie-break preferring closest exact end_day
+                set1_uploads_sorted = sorted(set1_uploads, key=lambda x: (abs((x.get("end_day") or 0) - sel_end_day), - (x.get("end_day") or 0)))
                 selected_uploads.append(set1_uploads_sorted[0])
             else:
                 set1_uploads_sorted = sorted(set1_uploads, key=lambda x: (x.get("end_day") or 0))
@@ -184,8 +180,8 @@ class CombinedShopwiseMultiReportService(BaseReportService):
             
         if set2_uploads:
             if sel_end_day is not None:
-                # Sort by absolute difference between end_day and sel_end_day to find closest match
-                set2_uploads_sorted = sorted(set2_uploads, key=lambda x: abs((x.get("end_day") or 0) - sel_end_day))
+                # Sort by absolute difference between end_day and sel_end_day, tie-break preferring closest exact end_day
+                set2_uploads_sorted = sorted(set2_uploads, key=lambda x: (abs((x.get("end_day") or 0) - sel_end_day), - (x.get("end_day") or 0)))
                 selected_uploads.append(set2_uploads_sorted[0])
             else:
                 set2_uploads_sorted = sorted(set2_uploads, key=lambda x: (x.get("end_day") or 0))
