@@ -214,34 +214,61 @@ class ShopwiseReportService(BaseReportService):
         df_local[shop_col] = df_local[shop_col].astype(str).str.replace(".0", "", regex=False).str.strip()
 
         # Re-verify bond/warehouse info
-        if "warehouse_info" not in df_local.columns:
+        from core.mapping_utils import get_shop_to_parent_maps
+        shop_to_bond, shop_to_wh = get_shop_to_parent_maps()
+        if "warehouse_info" not in df_local.columns or df_local["warehouse_info"].eq("Unknown").all():
             wh_col = self._detect_warehouse_col(df_local)
             if wh_col:
                 df_local["warehouse_info"] = df_local[wh_col].astype(str).str.strip()
             else:
-                df_local["warehouse_info"] = "Unknown"
+                df_local["warehouse_info"] = df_local[shop_col].map(shop_to_wh).fillna("Unknown")
         if "bond_info" not in df_local.columns:
-             df_local["bond_info"] = "N/A"
+             df_local["bond_info"] = df_local[shop_col].map(shop_to_bond).fillna("N/A")
+
+        import re
+        def clean_wh_name(val):
+            if not val: return ""
+            v = str(val).upper().strip()
+            v = re.sub(r"^WH[-_/\s]+", "", v)
+            v = re.sub(r"\s+FL.*$", "", v)
+            v = re.sub(r"[-_/].*$", "", v)
+            return v.strip()
+
+        def clean_bond_name(val):
+            if not val: return ""
+            return str(val).upper().replace("-", "").replace("_", "").replace(" ", "").strip()
 
         # Apply filters
         if shop_code:
             df_local = df_local[df_local[shop_col] == str(shop_code).strip()]
         if warehouse:
-            import re
-            def clean_wh_name(val):
-                if not val: return ""
-                val = str(val).upper().strip()
-                val = re.sub(r"^WH[-_/\s]+", "", val)
-                val = re.sub(r"\s+(?:FL|RFL)$", "", val)
-                return val.strip()
-            clean_target = clean_wh_name(warehouse)
-            df_local = df_local[df_local["warehouse_info"].apply(clean_wh_name) == clean_target]
+            c_target = clean_wh_name(warehouse)
+            def matches_wh(row):
+                r_wh = str(row.get("warehouse_info", ""))
+                s_code = str(row.get(shop_col, "")).strip()
+                c_raw = clean_wh_name(r_wh)
+                c_map = clean_wh_name(shop_to_wh.get(s_code, ""))
+                if c_raw and (c_target == c_raw or c_target in c_raw or c_raw in c_target):
+                    return True
+                if c_map and (c_target == c_map or c_target in c_map or c_map in c_target):
+                    return True
+                return False
+
+            df_local = df_local[df_local.apply(matches_wh, axis=1)]
         if bond:
-            def clean_bond_name(val):
-                if not val: return ""
-                return str(val).upper().replace("-", "").replace("_", "").replace(" ", "").strip()
-            clean_target = clean_bond_name(bond)
-            df_local = df_local[df_local["bond_info"].apply(clean_bond_name) == clean_target]
+            c_target = clean_bond_name(bond)
+            def matches_bond(row):
+                r_bond = str(row.get("bond_info", ""))
+                s_code = str(row.get(shop_col, "")).strip()
+                c_raw = clean_bond_name(r_bond)
+                c_map = clean_bond_name(shop_to_bond.get(s_code, ""))
+                if c_raw and (c_target == c_raw or c_target in c_raw or c_raw in c_target):
+                    return True
+                if c_map and (c_target == c_map or c_target in c_map or c_map in c_target):
+                    return True
+                return False
+
+            df_local = df_local[df_local.apply(matches_bond, axis=1)]
         if start_date and "report_date" in df_local.columns:
             df_local = df_local[df_local["report_date"] >= start_date]
         if end_date and "report_date" in df_local.columns:

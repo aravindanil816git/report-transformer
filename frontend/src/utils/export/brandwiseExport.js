@@ -2,6 +2,12 @@ import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { jsPDF } from "jspdf";
 
+const fmtVal = (val, useWholeNumbers = false) => {
+  if (val === undefined || val === null || isNaN(val)) return 0;
+  const num = Number(val);
+  return useWholeNumbers ? Math.round(num) : Number(num.toFixed(2));
+};
+
 export const exportBrandwiseCumExcel = async ({
   data,
   columns,
@@ -11,7 +17,8 @@ export const exportBrandwiseCumExcel = async ({
   sheetName = "Brandwise Cumulative",
   firstColHeader = "Warehouse",
   firstColKey = "warehouse",
-  baseDateStr = null
+  baseDateStr = null,
+  useWholeNumbers = false
 }) => {
   const workbook = new ExcelJS.Workbook();
   const ws = workbook.addWorksheet(sheetName, {
@@ -137,7 +144,7 @@ export const exportBrandwiseCumExcel = async ({
         valCell.value = "-";
         valCell.font = { name: "Segoe UI", size: 10, color: { argb: "FF999999" } };
       } else {
-        valCell.value = Number(val);
+        valCell.value = fmtVal(val, useWholeNumbers);
         valCell.font = { name: "Segoe UI", size: 10, bold: isTotalRow };
         if (!isTotalRow && !row.isClusterHeader) {
           colSums[colKey] += Number(val);
@@ -154,10 +161,11 @@ export const exportBrandwiseCumExcel = async ({
 
     const totalCell = ws.getCell(`${totalColLetter}${currentWordRowIdx}`);
     const rTotal = Number(row.total || 0);
-    totalCell.value = rTotal;
+    totalCell.value = fmtVal(rTotal, useWholeNumbers);
     totalCell.alignment = { horizontal: "center", vertical: "middle" };
     totalCell.font = { name: "Segoe UI", size: 10, bold: true };
     if (isTotalRow) {
+      totalCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
       totalCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
       totalCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
     } else {
@@ -192,14 +200,14 @@ export const exportBrandwiseCumExcel = async ({
       const colKey = typeof col === "object" ? col.key : col;
       const val = colSums[colKey];
       
-      valCell.value = val === 0 ? "-" : val;
+      valCell.value = val === 0 ? "-" : fmtVal(val, useWholeNumbers);
       valCell.alignment = { horizontal: "center", vertical: "middle" };
       valCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFF" } };
       valCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
     });
 
     const totalCell = ws.getCell(`${totalColLetter}${totalRowIdx}`);
-    totalCell.value = grandTotalSum;
+    totalCell.value = fmtVal(grandTotalSum, useWholeNumbers);
     totalCell.alignment = { horizontal: "center", vertical: "middle" };
     totalCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
     totalCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
@@ -238,7 +246,8 @@ export const exportBrandwiseSecondaryPdf = ({
   allBrands = [],
   periodLabel = "",
   groupByField = "Warehouse",
-  filename = "secondary_sales_brandwise.pdf"
+  filename = "secondary_sales_brandwise.pdf",
+  useWholeNumbers = false
 }) => {
   // Group shops by warehouse
   const warehouseGroups = {};
@@ -544,7 +553,7 @@ export const exportBrandwiseSecondaryPdf = ({
         } else {
           doc.setFont("helvetica", "normal");
           doc.setTextColor(bodyTextRgb[0], bodyTextRgb[1], bodyTextRgb[2]);
-          doc.text(String(val), cellLeft + colWidth / 2, currentY + 10.5, { align: "center" });
+          doc.text(String(fmtVal(val, useWholeNumbers)), cellLeft + colWidth / 2, currentY + 10.5, { align: "center" });
         }
       });
 
@@ -552,7 +561,7 @@ export const exportBrandwiseSecondaryPdf = ({
       const rTot = s._rowTotal || 0;
       doc.setFont("helvetica", "bold");
       doc.setTextColor(bodyTextRgb[0], bodyTextRgb[1], bodyTextRgb[2]);
-      doc.text(String(rTot), totalLeft + colWidth / 2, currentY + 10.5, { align: "center" });
+      doc.text(String(fmtVal(rTot, useWholeNumbers)), totalLeft + colWidth / 2, currentY + 10.5, { align: "center" });
 
       currentY += 15;
     });
@@ -574,10 +583,10 @@ export const exportBrandwiseSecondaryPdf = ({
     keptBrandObjs.forEach((b, cIdx) => {
       const cellLeft = nameWidth + cIdx * colWidth;
       const bTot = brandTotals[b.key] || 0;
-      doc.text(String(bTot), cellLeft + colWidth / 2, currentY + 12.5, { align: "center" });
+      doc.text(String(fmtVal(bTot, useWholeNumbers)), cellLeft + colWidth / 2, currentY + 12.5, { align: "center" });
     });
 
-    doc.text(String(grandTotal), totalLeft + colWidth / 2, currentY + 12.5, { align: "center" });
+    doc.text(String(fmtVal(grandTotal, useWholeNumbers)), totalLeft + colWidth / 2, currentY + 12.5, { align: "center" });
 
     currentY += 19;
 

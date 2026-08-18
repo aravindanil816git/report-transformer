@@ -34,6 +34,16 @@ export default function AchievedTargetReport() {
   const [isEditingTargets, setIsEditingTargets] = useState(false);
   const [visibleBrands, setVisibleBrands] = useState(DEFAULT_VISIBLE_BRANDS);
   const [clusters, setClusters] = useState({});
+  const [useWholeNumbers, setUseWholeNumbers] = useState(false);
+
+  const formatVal = (val) => {
+    if (val === undefined || val === null || isNaN(val)) return useWholeNumbers ? "0" : "0.00";
+    const num = Number(val);
+    if (useWholeNumbers) {
+      return Math.round(num).toString();
+    }
+    return num.toFixed(2);
+  };
 
   // View States
   const [viewMode, setViewMode] = useState("bond"); // "bond" or "shop"
@@ -284,19 +294,20 @@ export default function AchievedTargetReport() {
             if (record.type === "Target") {
               const val = record.brands?.[brand]?.target || 0;
               if (record.isClusterTotal || !isEditingTargets) {
-                return <span>{Math.round(val)}</span>;
+                return <span>{formatVal(val)}</span>;
               }
               return (
                 <InputNumber
                   value={val}
                   min={0}
+                  step={useWholeNumbers ? 1 : 0.01}
                   onChange={(newVal) => handleTargetChange(record.bond, brand, newVal)}
                   style={{ width: "100%" }}
                 />
               );
             } else {
-              const val = Math.round(record.brands?.[brand]?.achieved || 0);
-              return val;
+              const val = record.brands?.[brand]?.achieved || 0;
+              return formatVal(val);
             }
           }
         });
@@ -317,7 +328,7 @@ export default function AchievedTargetReport() {
               }
             });
           }
-          return <b>{Math.round(total)}</b>;
+          return <b>{formatVal(total)}</b>;
         },
       });
 
@@ -424,8 +435,8 @@ export default function AchievedTargetReport() {
           width: 120,
           align: "right",
           render: (_, record) => {
-            const val = Math.round(record.brands?.[brand]?.achieved || 0);
-            return val || "-";
+            const val = record.brands?.[brand]?.achieved || 0;
+            return val ? formatVal(val) : "-";
           }
         });
       });
@@ -445,13 +456,13 @@ export default function AchievedTargetReport() {
               }
             });
           }
-          return <b>{Math.round(total)}</b>;
+          return <b>{formatVal(total)}</b>;
         },
       });
 
       return cols;
     }
-  }, [viewMode, brands, visibleBrands, isEditingTargets, data, shopData, drilledBond]);
+  }, [viewMode, brands, visibleBrands, isEditingTargets, data, shopData, drilledBond, useWholeNumbers]);
 
   const tableSummary = (pageData) => {
     if (viewMode === "bond") {
@@ -488,15 +499,15 @@ export default function AchievedTargetReport() {
           <Table.Summary.Row style={{ background: "#fafafa", fontWeight: "bold", borderTop: "2px solid #d9d9d9" }}>
             <Table.Summary.Cell index={0}>Grand Total</Table.Summary.Cell>
             <Table.Summary.Cell index={1}><span style={{ color: "#1890ff" }}>Target</span></Table.Summary.Cell>
-            {displayedBrands.map((b, i) => <Table.Summary.Cell key={`target-${b}`} index={i + 2} align="right">{Math.round(totalTarget[b])}</Table.Summary.Cell>)}
-            <Table.Summary.Cell index={displayedBrands.length + 2} align="right">{Math.round(grandTotalTarget)}</Table.Summary.Cell>
+            {displayedBrands.map((b, i) => <Table.Summary.Cell key={`target-${b}`} index={i + 2} align="right">{formatVal(totalTarget[b])}</Table.Summary.Cell>)}
+            <Table.Summary.Cell index={displayedBrands.length + 2} align="right">{formatVal(grandTotalTarget)}</Table.Summary.Cell>
             <Table.Summary.Cell index={displayedBrands.length + 3}></Table.Summary.Cell>
           </Table.Summary.Row>
           <Table.Summary.Row style={{ background: "#fafafa", fontWeight: "bold" }}>
             <Table.Summary.Cell index={0}></Table.Summary.Cell>
             <Table.Summary.Cell index={1}><span style={{ color: "#52c41a" }}>Achieved</span></Table.Summary.Cell>
-            {displayedBrands.map((b, i) => <Table.Summary.Cell key={`achieved-${b}`} index={i + 2} align="right">{Math.round(totalAchieved[b])}</Table.Summary.Cell>)}
-            <Table.Summary.Cell index={displayedBrands.length + 2} align="right">{Math.round(grandTotalAchieved)}</Table.Summary.Cell>
+            {displayedBrands.map((b, i) => <Table.Summary.Cell key={`achieved-${b}`} index={i + 2} align="right">{formatVal(totalAchieved[b])}</Table.Summary.Cell>)}
+            <Table.Summary.Cell index={displayedBrands.length + 2} align="right">{formatVal(grandTotalAchieved)}</Table.Summary.Cell>
             <Table.Summary.Cell index={displayedBrands.length + 3} align="right">
               {(() => {
                 if (grandTotalTarget === 0) {
@@ -531,8 +542,8 @@ export default function AchievedTargetReport() {
         <Table.Summary>
           <Table.Summary.Row style={{ background: "#fafafa", fontWeight: "bold", borderTop: "2px solid #d9d9d9" }}>
             <Table.Summary.Cell index={0} colSpan={4}>Grand Total Achieved</Table.Summary.Cell>
-            {displayedBrands.map((b, i) => <Table.Summary.Cell key={`achieved-${b}`} index={i + 4} align="right">{Math.round(grandTotalAchieved[b])}</Table.Summary.Cell>)}
-            <Table.Summary.Cell index={displayedBrands.length + 4} align="right"><b>{Math.round(totalSum)}</b></Table.Summary.Cell>
+            {displayedBrands.map((b, i) => <Table.Summary.Cell key={`achieved-${b}`} index={i + 4} align="right">{formatVal(grandTotalAchieved[b])}</Table.Summary.Cell>)}
+            <Table.Summary.Cell index={displayedBrands.length + 4} align="right"><b>{formatVal(totalSum)}</b></Table.Summary.Cell>
           </Table.Summary.Row>
         </Table.Summary>
       );
@@ -546,6 +557,7 @@ export default function AchievedTargetReport() {
       displayedBrands,
       dateRange,
       clusters,
+      useWholeNumbers,
       customTitle: drilledBond ? `TARGET VS ACHIEVEMENT - ${drilledBond.toUpperCase()}` : "TARGET VS ACHIEVEMENT",
       filename: drilledBond ? `TARGET_VS_ACHIEVEMENT_${drilledBond.toUpperCase()}.pdf` : "TARGET_VS_ACHIEVEMENT.pdf"
     });
@@ -571,6 +583,7 @@ export default function AchievedTargetReport() {
             displayedBrands,
             dateRange,
             clusters,
+            useWholeNumbers,
             customTitle: `TARGET VS ACHIEVEMENT - ${cleanName}`,
             filename: `TARGET_VS_ACHIEVEMENT_${cleanName.replace(/\s+/g, "_")}.pdf`,
             showGrandTotal: false
@@ -589,6 +602,7 @@ export default function AchievedTargetReport() {
           displayedBrands,
           dateRange,
           clusters,
+          useWholeNumbers,
           isSummaryOnly: true,
           customTitle: "TARGET VS ACHIEVEMENT - CLUSTER SUMMARY",
           filename: "TARGET_VS_ACHIEVEMENT_CLUSTER_SUMMARY.pdf"
@@ -665,12 +679,15 @@ export default function AchievedTargetReport() {
             disabledDate={disabledDate}
           />
           <Button type="primary" onClick={() => loadData(true)}>Apply Filter</Button>
+          <Checkbox checked={useWholeNumbers} onChange={e => setUseWholeNumbers(e.target.checked)}>
+            Round off
+          </Checkbox>
           {!isEditingTargets ? (
             <>
               <Button onClick={() => setIsEditingTargets(true)} disabled={viewMode === "shop"}>Edit Targets</Button>
               <Button 
                 type="primary" 
-                onClick={() => exportAchievedTargetExcel({ data: tableData, viewMode, displayedBrands, dateRange, clusters })}
+                onClick={() => exportAchievedTargetExcel({ data: tableData, viewMode, displayedBrands, dateRange, clusters, useWholeNumbers })}
                 disabled={data.length === 0}
               >
                 Export Excel

@@ -27,11 +27,18 @@ class CombinedShopwiseMultiReportService(BaseReportService):
     # ---------------------------------------------------------------------
     # Upload handling
     # ---------------------------------------------------------------------
-    def _parse_days(self, filename, report_config=None, default_start=1, default_end=16):
-        # 1. Prioritize report_config if date range bounds are explicitly set
-        if report_config:
-            d1 = report_config.get("date1") or report_config.get("start_date") or report_config.get("date")
-            d2 = report_config.get("date2") or report_config.get("end_date") or report_config.get("date")
+    def _parse_days(self, filename, upload_meta=None, default_start=1, default_end=16):
+        if upload_meta and isinstance(upload_meta, dict):
+            if upload_meta.get("start_day") and upload_meta.get("end_day"):
+                try:
+                    s_day = int(upload_meta["start_day"])
+                    e_day = int(upload_meta["end_day"])
+                    if 1 <= s_day <= 31 and 1 <= e_day <= 31:
+                        return s_day, e_day
+                except Exception:
+                    pass
+            d1 = upload_meta.get("from") or upload_meta.get("date1")
+            d2 = upload_meta.get("to") or upload_meta.get("date2")
             if d1 and d2:
                 try:
                     start_day = int(pd.to_datetime(d1).day)
@@ -40,34 +47,55 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                         return start_day, end_day
                 except Exception:
                     pass
+            rk = upload_meta.get("range_key") or upload_meta.get("date")
+            if rk and isinstance(rk, str) and "-" in rk:
+                parts = rk.split("-")
+                try:
+                    s_day, e_day = int(parts[0]), int(parts[1])
+                    if 1 <= s_day <= 31 and 1 <= e_day <= 31:
+                        return s_day, e_day
+                except Exception:
+                    pass
 
         if not filename:
             return default_start, default_end
-        lowered = filename.lower()
-        
-        # 2. Strip bracketed numbers like (23), (1), (2) which are browser duplicate file counters
-        clean_name = re.sub(r"\(\d+\)", "", lowered)
 
-        # 3. Clean suffix letters like st, nd, rd, th from numbers (e.g. 1st -> 1, 7th -> 7)
-        clean_name = re.sub(r"(\d+)(?:st|nd|rd|th)", r"\1", clean_name)
-        
-        # 4. Find all numbers and filter out year numbers (e.g., 2026) or other invalid days
-        numbers = [int(n) for n in re.findall(r"\d+", clean_name)]
-        days = [n for n in numbers if 1 <= n <= 31]
-        if len(days) >= 2:
-            start_day = days[0]
-            end_day = days[1]
-            return start_day, end_day
-        elif len(days) == 1:
-            return days[0], days[0]
-                    
-        # 5. Standard fallbacks
-        if "1-16" in lowered or "1-15" in lowered or "1-12" in lowered:
-            return 1, 16
-        elif "17-30" in lowered or "17-31" in lowered or "16-30" in lowered or "16-31" in lowered:
+        import os
+        name = os.path.basename(filename)
+        if len(name) > 37 and name[36] == '_':
+            name = name[37:]
+        clean = name.lower()
+
+        # Strip (23) style duplicate counters
+        clean = re.sub(r"\(\d+\)", "", clean)
+
+        # Check for date pattern like 4-7-26 or 15-7-2026 or 8-7-26 (D-M-YY or D-M-YYYY)
+        date_match = re.search(r"\b(\d{1,2})[-/](\d{1,2})[-/](20)?\d{2}\b", clean)
+        if date_match:
+            day = int(date_match.group(1))
+            month = int(date_match.group(2))
+            if month > 12 and day <= 12:
+                day = month
+            if day <= 16:
+                return 1, max(1, day)
+            else:
+                return 17, min(31, day)
+
+        # Strip 4-digit years
+        clean = re.sub(r"\b20\d\d\b", "", clean)
+        clean = re.sub(r"(\d+)(?:st|nd|rd|th)", r"\1", clean)
+
+        # Match explicit range 'X to Y' or 'X-Y'
+        m = re.search(r"(\d{1,2})\s*(?:-|to|\buntil\b)\s*(\d{1,2})", clean)
+        if m:
+            d1, d2 = int(m.group(1)), int(m.group(2))
+            if 1 <= d1 <= 31 and 1 <= d2 <= 31:
+                if d1 > d2: d1, d2 = d2, d1
+                return d1, d2
+
+        if any(k in clean for k in ["17", "30", "31"]):
             return 17, 31
-            
-        return default_start, default_end
+        return 1, 16
 
     def upload(self, report, path, file_name, date=None, **kwargs):
         """Read an Excel file and store it in ``report['uploads']``.
@@ -78,7 +106,7 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         stored under that key, overwriting any existing entry.
         """
         # Determine the key for this upload and store exact start/end day bounds
-        start_day, end_day = self._parse_days(file_name, report.get("config"))
+        start_day, end_day = self._parse_days(file_name)
         key = f"{start_day}-{end_day}"
 
         # Ensure the uploads list exists
@@ -145,17 +173,15 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         set2_uploads = []
         
         for u in uploads:
-            r_key = u.get("range_key") or u.get("date", "default")
+            # Parse days from the upload entry itself (never from query config)
+            u_start_day, u_end_day = self._parse_days(u.get("file") or u.get("path"), upload_meta=u)
             
-            # Determine day range bounds for this upload (dynamically parse from filename or upload config)
-            u_start_day, u_end_day = self._parse_days(u.get("file") or u.get("path"), u.get("config") or report.get("config"))
-            
-            print(f"[DEBUG] Upload '{u.get('file')}' -> key={r_key}, u_start_day={u_start_day}, u_end_day={u_end_day}")
+            print(f"[DEBUG] Upload '{u.get('file')}' -> u_start_day={u_start_day}, u_end_day={u_end_day}")
 
-            # Relaxed overlap date check: upload range must overlap with the selected range
+            # Overlap check: upload range [u_start_day, u_end_day] must overlap with selected range [sel_start_day, sel_end_day]
             if sel_start_day is not None and sel_end_day is not None:
                 if u_end_day < sel_start_day or u_start_day > sel_end_day:
-                    print(f"[DEBUG] Excluding upload '{u.get('file')}' because it does not overlap with selected range [{sel_start_day}, {sel_end_day}]")
+                    print(f"[DEBUG] Excluding upload '{u.get('file')}' ({u_start_day}-{u_end_day}) because it does not overlap with selected range [{sel_start_day}, {sel_end_day}]")
                     continue
                         
             u_copied = dict(u)
@@ -169,24 +195,17 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                 
         selected_uploads = []
         if set1_uploads:
-            if sel_end_day is not None:
-                # Sort by absolute difference between end_day and sel_end_day, tie-break preferring closest exact end_day
-                set1_uploads_sorted = sorted(set1_uploads, key=lambda x: (abs((x.get("end_day") or 0) - sel_end_day), - (x.get("end_day") or 0)))
-                selected_uploads.append(set1_uploads_sorted[0])
-            else:
-                set1_uploads_sorted = sorted(set1_uploads, key=lambda x: (x.get("end_day") or 0))
-                selected_uploads.append(set1_uploads_sorted[-1])
-            print(f"[DEBUG] Set 1 uploads sorted: {[x.get('file') for x in set1_uploads_sorted]} -> Selected: '{selected_uploads[-1].get('file')}'")
+            set1_uploads_sorted = sorted(set1_uploads, key=lambda x: (x.get("end_day") or 0))
+            selected_uploads.append(set1_uploads_sorted[-1])
+            print(f"[DEBUG] Set 1 selected: '{selected_uploads[-1].get('file')}' (range: {selected_uploads[-1].get('start_day')}-{selected_uploads[-1].get('end_day')})")
             
         if set2_uploads:
-            if sel_end_day is not None:
-                # Sort by absolute difference between end_day and sel_end_day, tie-break preferring closest exact end_day
-                set2_uploads_sorted = sorted(set2_uploads, key=lambda x: (abs((x.get("end_day") or 0) - sel_end_day), - (x.get("end_day") or 0)))
-                selected_uploads.append(set2_uploads_sorted[0])
-            else:
+            if sel_end_day is None or sel_end_day > 16:
                 set2_uploads_sorted = sorted(set2_uploads, key=lambda x: (x.get("end_day") or 0))
                 selected_uploads.append(set2_uploads_sorted[-1])
-            print(f"[DEBUG] Set 2 uploads sorted: {[x.get('file') for x in set2_uploads_sorted]} -> Selected: '{selected_uploads[-1].get('file')}'")
+                print(f"[DEBUG] Set 2 selected: '{selected_uploads[-1].get('file')}' (range: {selected_uploads[-1].get('start_day')}-{selected_uploads[-1].get('end_day')})")
+            else:
+                print(f"[DEBUG] Skipping Set 2 because sel_end_day ({sel_end_day}) <= 16")
 
         # Build DataFrames from selected upload entries
         dfs = []
@@ -283,33 +302,60 @@ class CombinedShopwiseMultiReportService(BaseReportService):
 
         # Enrichment
         from core.mapping_utils import get_shop_to_parent_maps
-        shop_to_bond, _ = get_shop_to_parent_maps()
+        shop_to_bond, shop_to_wh = get_shop_to_parent_maps()
         full_df["bond_info"] = full_df[shop_col].map(shop_to_bond).fillna("Unknown")
-        # Use warehouse from raw data if available, otherwise it's Unknown. Do not use mapping file.
+        
         wh_col = find_column(full_df, ["warehouse"])
         if wh_col:
             full_df["warehouse_info"] = full_df[wh_col].astype(str).str.strip()
         else:
-            full_df["warehouse_info"] = "Unknown"
+            full_df["warehouse_info"] = full_df[shop_col].map(shop_to_wh).fillna("Unknown")
+
+        # Helper clean functions
+        def clean_wh_name(val):
+            if not val: return ""
+            v = str(val).upper().strip()
+            v = re.sub(r"^WH[-_/\s]+", "", v)
+            v = re.sub(r"\s+FL.*$", "", v)
+            v = re.sub(r"[-_/].*$", "", v)
+            return v.strip()
+
+        def clean_bond_name(val):
+            if not val: return ""
+            return str(val).upper().replace("-", "").replace("_", "").replace(" ", "").strip()
 
         # Filtering
         if shop_code:
             full_df = full_df[full_df[shop_col] == str(shop_code).strip()]
         if warehouse:
-            def clean_wh_name(val):
-                if not val: return ""
-                val = str(val).upper().strip()
-                val = re.sub(r"^WH[-_/\s]+", "", val)
-                val = re.sub(r"\s+(?:FL|RFL)$", "", val)
-                return val.strip()
-            clean_target = clean_wh_name(warehouse)
-            full_df = full_df[full_df["warehouse_info"].apply(clean_wh_name) == clean_target]
+            c_target = clean_wh_name(warehouse)
+            def matches_wh(row):
+                r_wh = str(row.get("warehouse_info", ""))
+                s_code = str(row.get(shop_col, "")).strip()
+                c_raw = clean_wh_name(r_wh)
+                c_map = clean_wh_name(shop_to_wh.get(s_code, ""))
+                if c_raw and (c_target == c_raw or c_target in c_raw or c_raw in c_target):
+                    return True
+                if c_map and (c_target == c_map or c_target in c_map or c_map in c_target):
+                    return True
+                return False
+
+            full_df = full_df[full_df.apply(matches_wh, axis=1)]
+
         if bond:
-            def clean_bond_name(val):
-                if not val: return ""
-                return str(val).upper().replace("-", "").replace("_", "").replace(" ", "").strip()
-            clean_target = clean_bond_name(bond)
-            full_df = full_df[full_df["bond_info"].apply(clean_bond_name) == clean_target]
+            c_target = clean_bond_name(bond)
+            def matches_bond(row):
+                r_bond = str(row.get("bond_info", ""))
+                s_code = str(row.get(shop_col, "")).strip()
+                c_raw = clean_bond_name(r_bond)
+                c_map = clean_bond_name(shop_to_bond.get(s_code, ""))
+                if c_raw and (c_target == c_raw or c_target in c_raw or c_raw in c_target):
+                    return True
+                if c_map and (c_target == c_map or c_target in c_map or c_map in c_target):
+                    return True
+                return False
+
+            full_df = full_df[full_df.apply(matches_bond, axis=1)]
 
         if full_df.empty:
             return {"data": [], "uploads": report.get("uploads", []), "config": report.get("config", {})}

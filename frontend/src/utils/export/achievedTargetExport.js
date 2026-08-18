@@ -27,13 +27,20 @@ const getAchPercentageNum = (target, achieved) => {
   return (achieved * 100) / target;
 };
 
+const fmtVal = (val, useWholeNumbers = false) => {
+  if (val === undefined || val === null || isNaN(val)) return 0;
+  const num = Number(val);
+  return useWholeNumbers ? Math.round(num) : Number(num.toFixed(2));
+};
+
 // --- EXCEL EXPORT ---
 export const exportAchievedTargetExcel = async ({
   data,
   viewMode,
   displayedBrands,
   dateRange,
-  clusters
+  clusters,
+  useWholeNumbers = false
 }) => {
   const workbook = new ExcelJS.Workbook();
   const sheetName = viewMode === "bond" ? "Target vs Achievement" : "Shopwise Target vs Achievement";
@@ -139,8 +146,8 @@ export const exportAchievedTargetExcel = async ({
         const cellTgt = ws.getCell(`${colLetter}${rIdx}`);
         const cellAch = ws.getCell(`${colLetter}${rIdx + 1}`);
 
-        const tVal = Math.round(tgtRow.brands?.[brand]?.target || 0);
-        const aVal = Math.round(achRow.brands?.[brand]?.achieved || 0);
+        const tVal = fmtVal(tgtRow.brands?.[brand]?.target || 0, useWholeNumbers);
+        const aVal = fmtVal(achRow.brands?.[brand]?.achieved || 0, useWholeNumbers);
 
         tgtSum += tVal;
         achSum += aVal;
@@ -255,13 +262,13 @@ export const exportAchievedTargetExcel = async ({
       const cellTgt = ws.getCell(`${colLetter}${rIdx}`);
       const cellAch = ws.getCell(`${colLetter}${rIdx + 1}`);
 
-      cellTgt.value = Math.round(grandBrandTgts[brand]);
+      cellTgt.value = fmtVal(grandBrandTgts[brand], useWholeNumbers);
       cellTgt.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFF" } };
       cellTgt.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
       cellTgt.alignment = { horizontal: "center", vertical: "middle" };
       cellTgt.border = borderStyle;
 
-      cellAch.value = Math.round(grandBrandAchs[brand]);
+      cellAch.value = fmtVal(grandBrandAchs[brand], useWholeNumbers);
       cellAch.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFF" } };
       cellAch.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
       cellAch.alignment = { horizontal: "center", vertical: "middle" };
@@ -270,14 +277,14 @@ export const exportAchievedTargetExcel = async ({
 
     const gtValColLetter = String.fromCharCode(67 + displayedBrands.length);
     const gtValTgtCell = ws.getCell(`${gtValColLetter}${rIdx}`);
-    gtValTgtCell.value = Math.round(grandTgtSum);
+    gtValTgtCell.value = fmtVal(grandTgtSum, useWholeNumbers);
     gtValTgtCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
     gtValTgtCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
     gtValTgtCell.alignment = { horizontal: "center", vertical: "middle" };
     gtValTgtCell.border = borderStyle;
 
     const gtValAchCell = ws.getCell(`${gtValColLetter}${rIdx + 1}`);
-    gtValAchCell.value = Math.round(grandAchSum);
+    gtValAchCell.value = fmtVal(grandAchSum, useWholeNumbers);
     gtValAchCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
     gtValAchCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
     gtValAchCell.alignment = { horizontal: "center", vertical: "middle" };
@@ -456,7 +463,8 @@ export const exportAchievedTargetPdf = ({
   isSummaryOnly = false,
   customTitle = null,
   filename = null,
-  showGrandTotal = true
+  showGrandTotal = true,
+  useWholeNumbers = false
 }) => {
   const formattedDate = dateRange && dateRange[1] 
     ? `AS ON ${dayjs(dateRange[1]).format("D MMM YYYY")}` 
@@ -502,7 +510,7 @@ export const exportAchievedTargetPdf = ({
     const tableRows = data.map(row => {
       let rowTotal = 0;
       const brandVals = displayedBrands.map(b => {
-        const val = Math.round(row.brands?.[b]?.achieved || 0);
+        const val = fmtVal(row.brands?.[b]?.achieved || 0, useWholeNumbers);
         rowTotal += val;
         shopGrandTotals[b] += val;
         return val ? String(val) : "-";
@@ -515,14 +523,14 @@ export const exportAchievedTargetPdf = ({
         row.shop_name || "",
         row.bond || "",
         ...brandVals,
-        String(rowTotal)
+        String(fmtVal(rowTotal, useWholeNumbers))
       ];
     });
 
     tableRows.push([
       { content: "GRAND TOTAL ACHIEVED", colSpan: 4, styles: { halign: "center", fontStyle: "bold", fillColor: [11, 41, 79], textColor: [255, 189, 49] } },
-      ...displayedBrands.map(b => ({ content: String(Math.round(shopGrandTotals[b])), styles: { halign: "center", fontStyle: "bold", fillColor: [11, 41, 79], textColor: [255, 255, 255] } })),
-      { content: String(totalAchievedSum), styles: { halign: "center", fontStyle: "bold", fillColor: [11, 41, 79], textColor: [255, 189, 49] } }
+      ...displayedBrands.map(b => ({ content: String(fmtVal(shopGrandTotals[b], useWholeNumbers)), styles: { halign: "center", fontStyle: "bold", fillColor: [11, 41, 79], textColor: [255, 255, 255] } })),
+      { content: String(fmtVal(totalAchievedSum, useWholeNumbers)), styles: { halign: "center", fontStyle: "bold", fillColor: [11, 41, 79], textColor: [255, 189, 49] } }
     ]);
 
     autoTable(doc, {
@@ -584,8 +592,8 @@ export const exportAchievedTargetPdf = ({
     const achMap = {};
 
     displayedBrands.forEach(b => {
-      const tVal = Math.round(tgtRow.brands?.[b]?.target || 0);
-      const aVal = Math.round(achRow.brands?.[b]?.achieved || 0);
+      const tVal = fmtVal(tgtRow.brands?.[b]?.target || 0, useWholeNumbers);
+      const aVal = fmtVal(achRow.brands?.[b]?.achieved || 0, useWholeNumbers);
       tgtMap[b] = tVal;
       achMap[b] = aVal;
       tgtSum += tVal;

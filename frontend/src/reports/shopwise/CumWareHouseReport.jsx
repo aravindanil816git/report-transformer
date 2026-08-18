@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Table, Button, Select, DatePicker, Space, message } from "antd";
+import { Table, Button, Select, DatePicker, Space, message, Checkbox } from "antd";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { getReport, processReport, getJson } from "../../api";
 import dayjs from "dayjs";
@@ -40,6 +40,16 @@ export default function CumulativeWarehouseReport() {
   const [mode, setMode] = useState(searchParams.get("mode") || "bond");
   const [drilledWarehouse, setDrilledWarehouse] = useState(null);
   const [drilledBond, setDrilledBond] = useState(null);
+  const [useWholeNumbers, setUseWholeNumbers] = useState(false);
+
+  const formatVal = (val) => {
+    if (val === undefined || val === null || isNaN(val)) return useWholeNumbers ? "0" : "0.00";
+    const num = Number(val);
+    if (useWholeNumbers) {
+      return Math.round(num).toString();
+    }
+    return num.toFixed(2);
+  };
 
   const isDailyWiseType = config?.type === "dailywise_secondary_sales_cum";
   const isBrandwiseCumType = config?.type === "brandwise_cum_secondary_sales";
@@ -461,11 +471,12 @@ export default function CumulativeWarehouseReport() {
       align: "center",
       render: (v, record) => {
         if (record.isClusterHeader) return "";
-        if (record.isClusterTotal) return <strong>{v || 0}</strong>;
-        return v || 0;
+        const formatted = v !== undefined && v !== null && v !== 0 ? formatVal(v) : (useWholeNumbers ? "0" : "0.00");
+        if (record.isClusterTotal) return <strong>{formatted}</strong>;
+        return formatted;
       }
     }));
-  }, [data]);
+  }, [data, useWholeNumbers]);
 
   const disabledDate = (current) => {
     return disabledFutureMonthDates(current);
@@ -523,8 +534,9 @@ export default function CumulativeWarehouseReport() {
       align: "center",
       render: (v, record) => {
         if (record.isClusterHeader) return "";
-        if (record.isClusterTotal) return <strong>{v || 0}</strong>;
-        return v || 0;
+        const formatted = v !== undefined && v !== null && v !== 0 ? formatVal(v) : (useWholeNumbers ? "0" : "0.00");
+        if (record.isClusterTotal) return <strong>{formatted}</strong>;
+        return formatted;
       }
     })),
     {
@@ -534,8 +546,9 @@ export default function CumulativeWarehouseReport() {
       fixed: "right",
       render: (v, record) => {
         if (record.isClusterHeader) return "";
-        if (record.isClusterTotal) return <strong>{v || 0}</strong>;
-        return v || 0;
+        const formatted = v !== undefined && v !== null && v !== 0 ? formatVal(v) : (useWholeNumbers ? "0" : "0.00");
+        if (record.isClusterTotal) return <strong>{formatted}</strong>;
+        return formatted;
       }
     }
   ];
@@ -554,8 +567,9 @@ export default function CumulativeWarehouseReport() {
       width: 150,
       render: (v, record) => {
         if (record.isClusterHeader) return "";
-        if (record.isClusterTotal) return <strong>{v || 0}</strong>;
-        return v || 0;
+        const formatted = v !== undefined && v !== null && v !== 0 ? formatVal(v) : (useWholeNumbers ? "0" : "0.00");
+        if (record.isClusterTotal) return <strong>{formatted}</strong>;
+        return formatted;
       }
     },
   ];
@@ -812,12 +826,7 @@ export default function CumulativeWarehouseReport() {
               mainColKey: firstColVal
             };
           });
-
-          const d1 = dateRange[0]?.format("D MMMM YYYY");
-          const d2 = dateRange[1]?.format("D MMMM YYYY");
-          const subtitle = d1 && d2 ? `${d1} to ${d2}` : "";
-
-          const brandKeys = brandColumns.map(bc => ({ title: bc.title, key: bc.dataIndex }));
+const brandKeys = brandColumns.map(bc => ({ title: bc.title, key: bc.dataIndex }));
 
           exportBrandwiseCumExcel({
             data: exportData,
@@ -828,7 +837,8 @@ export default function CumulativeWarehouseReport() {
             sheetName: "Brandwise Cumulative",
             firstColHeader: getTitle(),
             firstColKey: "mainColKey",
-            baseDateStr: config.start_date
+            baseDateStr: config.start_date,
+            useWholeNumbers
           });
         } else {
           const exportData = processedData.map(d => ({
@@ -846,7 +856,8 @@ export default function CumulativeWarehouseReport() {
               Warehouse: warehouseFilter ? formatName(warehouseFilter) : null,
               "Date Range": dateRange.length === 2 ? `${dateRange[0].format("DD-MM-YYYY")} to ${dateRange[1].format("DD-MM-YYYY")}` : "All",
               "Start Date": config.start_date ? dayjs(config.start_date).format("DD-MM-YYYY") : null,
-              "Total Days": config.num_days
+              "Total Days": config.num_days,
+              useWholeNumbers
             },
             `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.xlsx`,
             reportTitle,
@@ -929,7 +940,8 @@ export default function CumulativeWarehouseReport() {
                   allBrands: brandList,
                   periodLabel: brandwisePeriod,
                   groupByField: groupByField,
-                  filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_${cleanClusterName}.pdf`
+                  filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_${cleanClusterName}.pdf`,
+                  useWholeNumbers
                 });
                 await new Promise(resolve => setTimeout(resolve, 300));
               }
@@ -942,14 +954,15 @@ export default function CumulativeWarehouseReport() {
             allBrands: brandList,
             periodLabel: brandwisePeriod,
             groupByField: groupByField,
-            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_brandwise.pdf`
+            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_brandwise.pdf`,
+            useWholeNumbers
           });
           return;
         }
 
         if (modeType === "current") {
           if (isDailyWiseType) {
-            const { columns: pdfCols, data: pdfData, head: pdfHead } = getPdfDataAndColumns(processedData);
+            const { columns: pdfCols, data: pdfData, head: pdfHead } = getPdfDataAndColumns(processedData, useWholeNumbers);
             exportToPdf({
               title: reportTitle,
               periodLabel: period,
@@ -962,7 +975,7 @@ export default function CumulativeWarehouseReport() {
             });
           } else {
             const title = getTitle();
-            const { columns: pdfCols, data: pdfData, head: pdfHead } = getPdfDataAndColumns(processedData);
+            const { columns: pdfCols, data: pdfData, head: pdfHead } = getPdfDataAndColumns(processedData, useWholeNumbers);
             const didParseCell = (cellData) => {
               if (cellData.section === 'body' && cellData.column.dataKey === 'TOT') {
                 cellData.cell.styles.fillColor = [255, 255, 240]; // Ivory background
@@ -1255,6 +1268,9 @@ export default function CumulativeWarehouseReport() {
         <Button onClick={resetFilters} disabled={loading || !dateRange || dateRange.length < 2}>
           Reset All
         </Button>
+        <Checkbox checked={useWholeNumbers} onChange={e => setUseWholeNumbers(e.target.checked)}>
+          Round off
+        </Checkbox>
         {(loading || !dateRange || dateRange.length < 2) && (
           <span style={{ color: '#8c8c8c', fontSize: '12px', fontStyle: 'italic' }}>
             Loading default dates...
@@ -1330,10 +1346,10 @@ export default function CumulativeWarehouseReport() {
                   <Table.Summary.Cell index={0} width={250}><b style={{ color: "#ffbd31" }}>Grand Total</b></Table.Summary.Cell>
                   {brandColumns.map((bc, idx) => (
                     <Table.Summary.Cell index={idx + 1} key={bc.dataIndex} width={120} align="center">
-                      <b style={{ color: "#ffbd31" }}>{brandSums[bc.dataIndex]}</b>
+                      <b style={{ color: "#ffbd31" }}>{formatVal(brandSums[bc.dataIndex])}</b>
                     </Table.Summary.Cell>
                   ))}
-                  <Table.Summary.Cell index={brandColumns.length + 1} width={150}><b style={{ color: "#ffbd31" }}>{totalSum}</b></Table.Summary.Cell>
+                  <Table.Summary.Cell index={brandColumns.length + 1} width={150}><b style={{ color: "#ffbd31" }}>{formatVal(totalSum)}</b></Table.Summary.Cell>
                 </Table.Summary.Row>
               </Table.Summary>
             );
@@ -1351,11 +1367,11 @@ export default function CumulativeWarehouseReport() {
                   <Table.Summary.Cell index={0} fixed="left" width={200}><b style={{ color: "#ffbd31" }}>Grand Total</b></Table.Summary.Cell>
                   {labels.map((l, idx) => (
                     <Table.Summary.Cell index={idx + 1} key={l} width={100} align="center">
-                      <b style={{ color: "#ffbd31" }}>{colSums[l]}</b>
+                      <b style={{ color: "#ffbd31" }}>{formatVal(colSums[l])}</b>
                     </Table.Summary.Cell>
                   ))}
                   <Table.Summary.Cell index={labels.length + 1} width={100}>
-                    <b style={{ color: "#ffbd31" }}>{totalSum}</b>
+                    <b style={{ color: "#ffbd31" }}>{formatVal(totalSum)}</b>
                   </Table.Summary.Cell>
                 </Table.Summary.Row>
               </Table.Summary>

@@ -502,11 +502,37 @@ class CumulativeShopwiseReportService(BaseReportService):
 
         bond = kwargs.get("bond")
         warehouse = kwargs.get("warehouse")
+
+        from core.mapping_utils import get_shop_to_parent_maps
+        shop_to_bond, shop_to_wh = get_shop_to_parent_maps()
+
+        def clean_wh_name(val):
+            if not val: return ""
+            v = str(val).upper().strip()
+            v = re.sub(r"^WH[-_/\s]+", "", v)
+            v = re.sub(r"\s+FL.*$", "", v)
+            v = re.sub(r"[-_/].*$", "", v)
+            return v.strip()
+
+        def clean_bond_name(val):
+            if not val: return ""
+            return str(val).upper().replace("-", "").replace("_", "").replace(" ", "").strip()
         
         if bond:
-            data = [d for d in data if d.get("bond") == bond]
+            c_target = clean_bond_name(bond)
+            def matches_bond(d):
+                c_raw = clean_bond_name(d.get("bond"))
+                c_map = clean_bond_name(shop_to_bond.get(str(d.get("shop_code", "")).strip()))
+                return (c_raw and (c_target == c_raw or c_target in c_raw or c_raw in c_target)) or (c_map and (c_target == c_map or c_target in c_map or c_map in c_target))
+            data = [d for d in data if matches_bond(d)]
+
         if warehouse:
-            data = [d for d in data if d.get("warehouse") == warehouse]
+            c_target = clean_wh_name(warehouse)
+            def matches_wh(d):
+                c_raw = clean_wh_name(d.get("warehouse"))
+                c_map = clean_wh_name(shop_to_wh.get(str(d.get("shop_code", "")).strip()))
+                return (c_raw and (c_target == c_raw or c_target in c_raw or c_raw in c_target)) or (c_map and (c_target == c_map or c_target in c_map or c_map in c_target))
+            data = [d for d in data if matches_wh(d)]
 
         if (
             start_idx is not None and end_idx is not None and
@@ -727,9 +753,20 @@ class CumulativeShopwiseReportService(BaseReportService):
             cumulative_data = processed.get("cumulative", [])
             
             if bond:
-                cumulative_data = [d for d in cumulative_data if d.get("bond") == bond]
+                c_target = clean_bond_name(bond)
+                def matches_bond(d):
+                    c_raw = clean_bond_name(d.get("bond"))
+                    c_map = clean_bond_name(shop_to_bond.get(str(d.get("shop_code", "")).strip()))
+                    return (c_raw and (c_target == c_raw or c_target in c_raw or c_raw in c_target)) or (c_map and (c_target == c_map or c_target in c_map or c_map in c_target))
+                cumulative_data = [d for d in cumulative_data if matches_bond(d)]
+
             if warehouse:
-                cumulative_data = [d for d in cumulative_data if d.get("warehouse") == warehouse]
+                c_target = clean_wh_name(warehouse)
+                def matches_wh(d):
+                    c_raw = clean_wh_name(d.get("warehouse"))
+                    c_map = clean_wh_name(shop_to_wh.get(str(d.get("shop_code", "")).strip()))
+                    return (c_raw and (c_target == c_raw or c_target in c_raw or c_raw in c_target)) or (c_map and (c_target == c_map or c_target in c_map or c_map in c_target))
+                cumulative_data = [d for d in cumulative_data if matches_wh(d)]
 
             if mode == "bond":
                 bond_map = {}

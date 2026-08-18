@@ -59,21 +59,59 @@ class CombinedShopwiseReportService(BaseReportService):
                 return {"data": [], "uploads": [], "config": report.get("config", {})}
 
         # --- Data Enrichment ---
-        # Use warehouse from raw data if available, otherwise it's Unknown. Do not use mapping file.
+        from core.mapping_utils import get_shop_to_parent_maps
+        shop_to_bond, shop_to_wh = get_shop_to_parent_maps()
         wh_col = find_column(full_df, ["warehouse"])
         if wh_col:
             full_df["warehouse_info"] = full_df[wh_col].astype(str).str.strip()
         else:
-            full_df["warehouse_info"] = "Unknown"
-        full_df["bond_info"] = full_df[shop_col].map(self.shop_to_bond).fillna("Unknown")
+            full_df["warehouse_info"] = full_df[shop_col].map(shop_to_wh).fillna("Unknown")
+        full_df["bond_info"] = full_df[shop_col].map(shop_to_bond).fillna("Unknown")
+
+        import re
+        def clean_wh_name(val):
+            if not val: return ""
+            v = str(val).upper().strip()
+            v = re.sub(r"^WH[-_/\s]+", "", v)
+            v = re.sub(r"\s+FL.*$", "", v)
+            v = re.sub(r"[-_/].*$", "", v)
+            return v.strip()
+
+        def clean_bond_name(val):
+            if not val: return ""
+            return str(val).upper().replace("-", "").replace("_", "").replace(" ", "").strip()
 
         # --- Filters ---
         if shop_code:
             full_df = full_df[full_df[shop_col] == str(shop_code).strip()]
         if warehouse:
-            full_df = full_df[full_df["warehouse_info"] == warehouse]
+            c_target = clean_wh_name(warehouse)
+            def matches_wh(row):
+                r_wh = str(row.get("warehouse_info", ""))
+                s_code = str(row.get(shop_col, "")).strip()
+                c_raw = clean_wh_name(r_wh)
+                c_map = clean_wh_name(shop_to_wh.get(s_code, ""))
+                if c_raw and (c_target == c_raw or c_target in c_raw or c_raw in c_target):
+                    return True
+                if c_map and (c_target == c_map or c_target in c_map or c_map in c_target):
+                    return True
+                return False
+
+            full_df = full_df[full_df.apply(matches_wh, axis=1)]
         if bond:
-            full_df = full_df[full_df["bond_info"] == bond]
+            c_target = clean_bond_name(bond)
+            def matches_bond(row):
+                r_bond = str(row.get("bond_info", ""))
+                s_code = str(row.get(shop_col, "")).strip()
+                c_raw = clean_bond_name(r_bond)
+                c_map = clean_bond_name(shop_to_bond.get(s_code, ""))
+                if c_raw and (c_target == c_raw or c_target in c_raw or c_raw in c_target):
+                    return True
+                if c_map and (c_target == c_map or c_target in c_map or c_map in c_target):
+                    return True
+                return False
+
+            full_df = full_df[full_df.apply(matches_bond, axis=1)]
 
         if full_df.empty:
             return {"data": [], "uploads": source_report.get("uploads", []), "config": report.get("config", {})}
