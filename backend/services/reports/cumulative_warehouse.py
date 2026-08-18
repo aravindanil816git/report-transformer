@@ -307,6 +307,27 @@ class CumulativeWarehouseMatrixService(BaseReportService):
         else:
             data = processed.get("daywise", [])
 
+        start_date = kwargs.get("start_date")
+        end_date = kwargs.get("end_date")
+
+        if (start_idx is None or end_idx is None) and start_date and end_date:
+            try:
+                s_d = datetime.strptime(start_date, "%Y-%m-%d")
+                e_d = datetime.strptime(end_date, "%Y-%m-%d")
+                matching_idxs = []
+                for idx, lbl in enumerate(labels):
+                    lbl_date_part = str(lbl).split(" ")[0]
+                    m = re.search(r"^\d+", lbl_date_part)
+                    if m:
+                        day_num = int(m.group(0))
+                        if s_d.day <= day_num <= e_d.day:
+                            matching_idxs.append(idx)
+                if matching_idxs:
+                    start_idx = matching_idxs[0]
+                    end_idx = matching_idxs[-1]
+            except Exception as e:
+                print(f"[WARN] [cumulative_warehouse] Failed to parse start_date/end_date: {e}")
+
         if (
             start_idx is not None and end_idx is not None and
             0 <= start_idx < len(labels) and
