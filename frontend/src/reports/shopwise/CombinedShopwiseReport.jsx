@@ -164,14 +164,8 @@ export default function CombinedShopwiseReport() {
       const endDateStr = reportConfig.end_date || reportConfig.date2;
 
       if (startDateStr && endDateStr) {
-        const configStart = dayjs(startDateStr);
-        const configEnd = dayjs(endDateStr);
-
-        if (defaultEnd.isAfter(configEnd)) defaultEnd = configEnd;
-        if (defaultEnd.isBefore(configStart)) defaultEnd = configEnd;
-
-        defaultStart = defaultEnd.startOf("month");
-        if (defaultStart.isBefore(configStart)) defaultStart = configStart;
+        defaultStart = dayjs(startDateStr);
+        defaultEnd = dayjs(endDateStr);
       }
 
       setDateRange([defaultStart, defaultEnd]);

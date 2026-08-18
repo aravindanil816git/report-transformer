@@ -146,6 +146,59 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         """No pre-processing needed as aggregation happens dynamically in get_report."""
         pass
 
+    def _select_uploads(self, uploads, sel_start_day=None, sel_end_day=None):
+        if not uploads:
+            return []
+
+        uploads_meta = []
+        for u in uploads:
+            u_start_day, u_end_day = self._parse_days(u.get("file") or u.get("path"), upload_meta=u)
+            u_copied = dict(u)
+            u_copied["start_day"] = u_start_day
+            u_copied["end_day"] = u_end_day
+            uploads_meta.append(u_copied)
+
+        if sel_start_day is None or sel_end_day is None:
+            set1 = [u for u in uploads_meta if u["start_day"] <= 16 and u["end_day"] <= 16]
+            set2 = [u for u in uploads_meta if u["start_day"] > 16 or u["end_day"] > 16]
+            res = []
+            if set1:
+                res.append(sorted(set1, key=lambda x: x["end_day"])[-1])
+            if set2:
+                latest_set2 = sorted(set2, key=lambda x: x["end_day"])[-1]
+                if not res or latest_set2["file"] != res[0]["file"]:
+                    res.append(latest_set2)
+            return res
+
+        # 1. If requested end day <= 16 (e.g. range 1-12 or 1-16):
+        if sel_end_day <= 16:
+            candidates = [u for u in uploads_meta if u["start_day"] <= sel_end_day and u["end_day"] <= sel_end_day]
+            if candidates:
+                return [sorted(candidates, key=lambda x: x["end_day"])[-1]]
+            else:
+                return [sorted(uploads_meta, key=lambda x: abs(x["end_day"] - sel_end_day))[0]]
+
+        # 2. If requested end day > 16 (e.g. 1-17, 1-30, 1-31):
+        # Check if a single full-month upload covers [sel_start_day, sel_end_day]
+        full_month = [u for u in uploads_meta if u["start_day"] <= sel_start_day and u["end_day"] >= sel_end_day]
+        if full_month:
+            return [sorted(full_month, key=lambda x: x["end_day"])[-1]]
+
+        # Otherwise, pick best Set 1 (<= 16) and best Set 2 (> 16 or ending >= 17)
+        set1 = [u for u in uploads_meta if u["start_day"] <= 16 and u["end_day"] <= 16]
+        set2 = [u for u in uploads_meta if u["start_day"] >= 16 or u["end_day"] > 16]
+
+        res = []
+        if set1:
+            res.append(sorted(set1, key=lambda x: x["end_day"])[-1])
+        if set2:
+            valid_set2 = [u for u in set2 if u["start_day"] <= sel_end_day]
+            if valid_set2:
+                latest_set2 = sorted(valid_set2, key=lambda x: x["end_day"])[-1]
+                if not res or latest_set2["file"] != res[0]["file"]:
+                    res.append(latest_set2)
+        return res
+
     # ---------------------------------------------------------------------
     # API exposure
     # ---------------------------------------------------------------------
@@ -168,44 +221,8 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         
         print(f"[DEBUG] get_report query: start_date={start_date}, end_date={end_date}, parsed sel_start_day={sel_start_day}, sel_end_day={sel_end_day}")
 
-        # Categorize and select the latest upload for Set 1 and Set 2 that fall within the date filter
-        set1_uploads = []
-        set2_uploads = []
-        
-        for u in uploads:
-            # Parse days from the upload entry itself (never from query config)
-            u_start_day, u_end_day = self._parse_days(u.get("file") or u.get("path"), upload_meta=u)
-            
-            print(f"[DEBUG] Upload '{u.get('file')}' -> u_start_day={u_start_day}, u_end_day={u_end_day}")
-
-            # Overlap check: upload range [u_start_day, u_end_day] must overlap with selected range [sel_start_day, sel_end_day]
-            if sel_start_day is not None and sel_end_day is not None:
-                if u_end_day < sel_start_day or u_start_day > sel_end_day:
-                    print(f"[DEBUG] Excluding upload '{u.get('file')}' ({u_start_day}-{u_end_day}) because it does not overlap with selected range [{sel_start_day}, {sel_end_day}]")
-                    continue
-                        
-            u_copied = dict(u)
-            u_copied["start_day"] = u_start_day
-            u_copied["end_day"] = u_end_day
-            
-            if u_start_day <= 16:
-                set1_uploads.append(u_copied)
-            else:
-                set2_uploads.append(u_copied)
-                
-        selected_uploads = []
-        if set1_uploads:
-            set1_uploads_sorted = sorted(set1_uploads, key=lambda x: (x.get("end_day") or 0))
-            selected_uploads.append(set1_uploads_sorted[-1])
-            print(f"[DEBUG] Set 1 selected: '{selected_uploads[-1].get('file')}' (range: {selected_uploads[-1].get('start_day')}-{selected_uploads[-1].get('end_day')})")
-            
-        if set2_uploads:
-            if sel_end_day is None or sel_end_day > 16:
-                set2_uploads_sorted = sorted(set2_uploads, key=lambda x: (x.get("end_day") or 0))
-                selected_uploads.append(set2_uploads_sorted[-1])
-                print(f"[DEBUG] Set 2 selected: '{selected_uploads[-1].get('file')}' (range: {selected_uploads[-1].get('start_day')}-{selected_uploads[-1].get('end_day')})")
-            else:
-                print(f"[DEBUG] Skipping Set 2 because sel_end_day ({sel_end_day}) <= 16")
+        selected_uploads = self._select_uploads(uploads, sel_start_day, sel_end_day)
+        print(f"[DEBUG] Selected uploads for range {sel_start_day}-{sel_end_day}: {[u.get('file') for u in selected_uploads]}")
 
         # Build DataFrames from selected upload entries
         dfs = []
