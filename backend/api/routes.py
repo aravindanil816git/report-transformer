@@ -238,7 +238,7 @@ def sync_cumulative_report(report, all_reports=None):
     # so the normal per-day mapping cannot link them. If we find a matching
     # shop_sales_cumulative source report for the same date range, reuse its
     # uploaded range entries directly.
-    if report.get("type") == "combined_shopwise":
+    if report.get("type") in ["combined_shopwise", "cumulative_shopwise", "new_cumulative_report"]:
         source_uploads_map = {}
         for r in all_reports:
             if r.get("id") == report.get("id"): continue

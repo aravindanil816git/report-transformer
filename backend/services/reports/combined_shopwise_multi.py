@@ -182,11 +182,33 @@ class CombinedShopwiseMultiReportService(BaseReportService):
 
         # 1. If requested end day <= 16 (e.g. range 1-12 or 1-16):
         if sel_end_day <= 16:
-            candidates = [u for u in uploads_meta if u["start_day"] <= sel_end_day and u["end_day"] <= sel_end_day]
+            candidates = [u for u in uploads_meta if u.get("status") == "uploaded" and u["start_day"] <= sel_end_day and u["end_day"] <= sel_end_day]
             if candidates:
-                return [sorted(candidates, key=lambda x: x["end_day"])[-1]]
+                # Check if there is a cumulative upload covering from ~1 to sel_end_day (e.g. 1-16)
+                cum = [u for u in candidates if u["start_day"] <= sel_start_day and u["end_day"] == sel_end_day]
+                if cum:
+                    return [sorted(cum, key=lambda x: x["end_day"])[-1]]
+                else:
+                    # Collect non-overlapping sequential daily uploads (e.g. 1-1 + 2-2 + ... 16-16)
+                    sorted_cand = sorted(candidates, key=lambda x: (x["start_day"], x["end_day"]))
+                    res = []
+                    curr_end = 0
+                    for u in sorted_cand:
+                        if u["start_day"] > curr_end:
+                            res.append(u)
+                            curr_end = u["end_day"]
+                        elif u["end_day"] > curr_end:
+                            if res and res[-1]["start_day"] == u["start_day"]:
+                                res[-1] = u
+                            else:
+                                res.append(u)
+                            curr_end = u["end_day"]
+                    return res if res else [sorted(candidates, key=lambda x: x["end_day"])[-1]]
             else:
-                return [sorted(uploads_meta, key=lambda x: abs(x["end_day"] - sel_end_day))[0]]
+                uploaded_meta = [u for u in uploads_meta if u.get("status") == "uploaded"]
+                if uploaded_meta:
+                    return [sorted(uploaded_meta, key=lambda x: abs(x["end_day"] - sel_end_day))[0]]
+                return []
 
         # 2. If requested end day > 16 (e.g. 1-17, 1-25, 1-30, 1-31):
         # ONLY select a single full-month upload if user requested a full month range (sel_start_day <= 2 and sel_end_day >= 28)
