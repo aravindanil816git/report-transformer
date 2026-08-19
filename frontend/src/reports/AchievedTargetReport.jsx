@@ -90,6 +90,16 @@ export default function AchievedTargetReport() {
           defaultEnd = today;
         }
         setDateRange([monthStart, defaultEnd]);
+
+        // Immediately fetch data for the default date range
+        const d1 = monthStart.format("YYYY-MM-DD");
+        const d2 = defaultEnd.format("YYYY-MM-DD");
+        getReport(id, null, null, { start_date: d1, end_date: d2 }).then((rangeRes) => {
+          if (rangeRes?.data?.data) {
+            setData(rangeRes.data.data);
+            setShopData(rangeRes.data.shop_data || []);
+          }
+        }).catch(() => {});
       }
 
       const allBrands = new Set(DEFAULT_VISIBLE_BRANDS);

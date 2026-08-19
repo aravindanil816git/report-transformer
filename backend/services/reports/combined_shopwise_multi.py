@@ -178,25 +178,33 @@ class CombinedShopwiseMultiReportService(BaseReportService):
             else:
                 return [sorted(uploads_meta, key=lambda x: abs(x["end_day"] - sel_end_day))[0]]
 
-        # 2. If requested end day > 16 (e.g. 1-17, 1-30, 1-31):
-        # Check if a single full-month upload covers [sel_start_day, sel_end_day]
-        full_month = [u for u in uploads_meta if u["start_day"] <= sel_start_day and u["end_day"] >= sel_end_day]
-        if full_month:
-            return [sorted(full_month, key=lambda x: x["end_day"])[-1]]
+        # 2. If requested end day > 16 (e.g. 1-17, 1-25, 1-30, 1-31):
+        # ONLY select a single full-month upload if user requested a full month range (sel_start_day <= 2 and sel_end_day >= 28)
+        if sel_start_day <= 2 and sel_end_day >= 28:
+            full_month = [u for u in uploads_meta if u["start_day"] <= sel_start_day and u["end_day"] >= sel_end_day]
+            if full_month:
+                return [sorted(full_month, key=lambda x: x["end_day"])[-1]]
 
-        # Otherwise, pick best Set 1 (<= 16) and best Set 2 (> 16 or ending >= 17)
+        # Otherwise select Set 1 (ending <= sel_end_day, capped at 16) and Set 2 (ending <= sel_end_day)
         set1 = [u for u in uploads_meta if u["start_day"] <= 16 and u["end_day"] <= 16]
         set2 = [u for u in uploads_meta if u["start_day"] >= 16 or u["end_day"] > 16]
 
         res = []
         if set1:
-            res.append(sorted(set1, key=lambda x: x["end_day"])[-1])
+            valid_set1 = [u for u in set1 if u["end_day"] <= sel_end_day]
+            if valid_set1:
+                res.append(sorted(valid_set1, key=lambda x: x["end_day"])[-1])
+            else:
+                res.append(sorted(set1, key=lambda x: x["end_day"])[-1])
+
         if set2:
-            valid_set2 = [u for u in set2 if u["start_day"] <= sel_end_day]
+            # Set 2 upload MUST have end_day <= sel_end_day
+            valid_set2 = [u for u in set2 if u["start_day"] <= sel_end_day and u["end_day"] <= sel_end_day]
             if valid_set2:
                 latest_set2 = sorted(valid_set2, key=lambda x: x["end_day"])[-1]
                 if not res or latest_set2["file"] != res[0]["file"]:
                     res.append(latest_set2)
+
         return res
 
     # ---------------------------------------------------------------------
