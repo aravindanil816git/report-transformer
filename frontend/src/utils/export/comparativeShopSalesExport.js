@@ -39,6 +39,54 @@ const formatColText = (val, colIndex, useWholeNumbers) => {
   return useWholeNumbers ? Math.round(num).toString() : num.toFixed(2);
 };
 
+const getSellThroughTier = (val, row) => {
+  let numVal = val;
+  if (typeof val === "string") {
+    numVal = val.replace("%", "").trim();
+  }
+  const op = Number(row?.opening || 0);
+  const rec = Number(row?.receipt !== undefined ? row.receipt : (row?.inward || 0));
+  const sal = Number(row?.sales !== undefined ? row.sales : (row?.outward || 0));
+  const cl = Number(row?.closing || 0);
+
+  const parsed = (numVal !== null && numVal !== undefined && numVal !== "") ? Number(numVal) : NaN;
+  const isNoActivity = (op === 0 && rec === 0 && sal === 0 && cl === 0) || isNaN(parsed);
+
+  if (isNoActivity) {
+    return {
+      fill: "#ECEFF1",
+      textDark: "#6B7280",
+      textBright: "#B0BEC5"
+    };
+  }
+  if (parsed >= 80) {
+    return {
+      fill: "#BBDEFB",
+      textDark: "#1565C0",
+      textBright: "#4FC3F7"
+    };
+  }
+  if (parsed >= 60) {
+    return {
+      fill: "#DCEDC8",
+      textDark: "#2E7D32",
+      textBright: "#81C784"
+    };
+  }
+  if (parsed >= 40) {
+    return {
+      fill: "#FFE0B2",
+      textDark: "#E65100",
+      textBright: "#FFB74D"
+    };
+  }
+  return {
+    fill: "#FFCDD2",
+    textDark: "#C62828",
+    textBright: "#E57373"
+  };
+};
+
 const getHeaderUnbreakableWords = (colIndex, firstColHeader) => {
   if (colIndex === 0) {
     return String(firstColHeader).toUpperCase().split(/\s+/);
@@ -284,7 +332,9 @@ export const exportComparativeShopSalesPdf = ({
       for (let c = 0; c < 11; c++) {
         let cellBg = rowBg;
         if (!isTotalRow && c === 7) {
-          cellBg = "#FFCCD1"; // PINK wash on sell-through for bond rows only
+          const val = getColValue(row, 7);
+          const tier = getSellThroughTier(val, row);
+          cellBg = tier.fill;
         }
 
         doc.setFillColor(cellBg);
@@ -314,9 +364,14 @@ export const exportComparativeShopSalesPdf = ({
           const label = cleanLabel(row.shop_code ? row.shop_name : (row.bond || row.warehouse));
           doc.text(label, colX[c] + 3 * PAD, baselineY, { align: "left", baseline: "middle" });
         } else if (c === 7) {
-          // Sell-through percentage is always bold red
+          // Sell-through percentage: color driven by tier
           doc.setFont("helvetica", "bold");
-          doc.setTextColor(isOverallTotal ? "#CF1322" : "#C62828");
+          const tier = getSellThroughTier(val, row);
+          let textColor = tier.textDark;
+          if (isClusterTotal) {
+            textColor = tier.textBright;
+          }
+          doc.setTextColor(textColor);
           const text = formatColText(val, c, useWholeNumbers);
           doc.text(text, colX[c] + colWidths[c] / 2, baselineY, { align: "center", baseline: "middle" });
         } else if (c === 10) {

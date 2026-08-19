@@ -106,7 +106,7 @@ class DailyWarehouseOfftakeService(BaseReportService):
                 return 1
 
             bpcs = df[pack_col].apply(get_bpc)
-            df["issues"] = cases + (bottles / bpcs).round()
+            df["issues"] = cases + (bottles / bpcs)
         else:
             df["issues"] = cases
 
