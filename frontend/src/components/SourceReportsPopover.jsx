@@ -5,13 +5,36 @@ import dayjs from "dayjs";
 
 const { Text } = Typography;
 
-export default function SourceReportsPopover({ uploads = [], labels = [], config = {}, onlyCombined = false }) {
-  // Filter out daily auto-synced entries if onlyCombined is true
+const MONTH_NAMES = {
+  jan: "January", feb: "February", mar: "March", apr: "April", may: "May", jun: "June",
+  jul: "July", aug: "August", sep: "September", oct: "October", nov: "November", dec: "December"
+};
+
+function getItemMonth(item, fallbackMonth) {
+  // 1. Check item date string e.g. "2026-08-15" or "2026-07-01"
+  const dStr = item.date1 || item.from || item.date;
+  if (dStr && typeof dStr === "string" && dStr.length >= 7 && dStr.startsWith("202")) {
+    const d = dayjs(dStr.slice(0, 10));
+    if (d.isValid()) return d.format("MMMM");
+  }
+
+  // 2. Check filename or path for month keywords e.g. "JULY", "AUG", "MAY", "JUNE"
+  const fileStr = String(item.file || item.path || "").toLowerCase();
+  for (const [shortM, fullM] of Object.entries(MONTH_NAMES)) {
+    if (fileStr.includes(shortM)) {
+      return fullM;
+    }
+  }
+
+  return fallbackMonth || dayjs().format("MMMM");
+}
+
+export default function SourceReportsPopover({ uploads = [], labels = [], config = {}, dateRange = [], onlyCombined = false }) {
+  // Filter valid uploads
   const validUploads = (uploads || []).filter(u => {
     if (!u) return false;
     const rawFile = u.file || "";
     const isAutoSynced = String(rawFile).toLowerCase().includes("auto-synced");
-    
     if (onlyCombined && isAutoSynced) return false;
     return u.file || u.status === "uploaded" || u.range_key || u.start_day || u.date;
   });
@@ -20,53 +43,53 @@ export default function SourceReportsPopover({ uploads = [], labels = [], config
     return null;
   }
 
-  // Determine active query bounds & month
-  const date1Str = config.start_date || config.date1;
-  const date2Str = config.end_date || config.date2;
-  
-  let targetMonth = "";
-  let queryStartDay = 1;
-  let queryEndDay = 31;
-
-  if (date1Str && dayjs(date1Str).isValid()) {
-    targetMonth = dayjs(date1Str).format("MMMM");
-    queryStartDay = dayjs(date1Str).date();
-  }
-  if (date2Str && dayjs(date2Str).isValid()) {
-    queryEndDay = dayjs(date2Str).date();
-    if (!targetMonth) targetMonth = dayjs(date2Str).format("MMMM");
+  // Determine fallback active month & query end day from dateRange
+  let fallbackMonth = "";
+  let activeEndDay = 31;
+  if (dateRange && dateRange.length === 2 && dateRange[0] && dateRange[1]) {
+    fallbackMonth = dayjs(dateRange[0]).format("MMMM");
+    activeEndDay = dayjs(dateRange[1]).date();
+  } else {
+    const d1Str = config.date1 || config.start_date;
+    const d2Str = config.date2 || config.end_date;
+    if (d1Str && dayjs(d1Str).isValid()) fallbackMonth = dayjs(d1Str).format("MMMM");
+    if (d2Str && dayjs(d2Str).isValid()) activeEndDay = dayjs(d2Str).date();
   }
 
-  // Format label as "Month DayRange" matching active query bounds e.g. "August 1-17", "August 17-19"
+  // Format label as "Month DayRange" e.g. "August 1-16", "July 17-19"
   const getFormattedLabel = (item) => {
     const rawFile = item.file || "";
-    
-    // Extract Item Month
-    let monthName = targetMonth;
-    const itemDateStr = item.date1 || item.date || item.from;
-    if (itemDateStr && dayjs(itemDateStr).isValid() && String(itemDateStr).length >= 7) {
-      monthName = dayjs(itemDateStr).format("MMMM");
-    } else if (!monthName) {
-      const mMatch = String(rawFile).match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*/i);
-      if (mMatch) {
-        const parsedM = dayjs(mMatch[0], "MMM");
-        if (parsedM.isValid()) monthName = parsedM.format("MMMM");
+    const monthName = getItemMonth(item, fallbackMonth);
+
+    // Extract Day Range
+    let sDay = item.start_day;
+    let eDay = item.end_day;
+
+    if (sDay === undefined || eDay === undefined) {
+      const clean = String(rawFile).replace(/(\d+)\s*(?:st|nd|rd|th)/gi, "$1");
+      const m = clean.match(/(\d{1,2})\s*(?:-|to)\s*(\d{1,2})/i);
+      if (m) {
+        sDay = int(m[1]);
+        eDay = int(m[2]);
+      } else {
+        const singleM = clean.match(/(\d{1,2})/);
+        if (singleM) {
+          sDay = 17;
+          eDay = parseInt(singleM[1], 10);
+        }
       }
     }
-    if (!monthName) monthName = dayjs().format("MMMM");
 
-    // Extract Day Range matching user's requested filter range bounds
-    const itemStart = item.start_day !== undefined ? item.start_day : 1;
-    const itemEnd = item.end_day !== undefined ? item.end_day : queryEndDay;
+    if (sDay === undefined) sDay = 1;
+    if (eDay === undefined) eDay = activeEndDay;
 
     let rangeStr = "";
-    if (itemStart <= 16) {
-      // Set 1 (Days 1 to 16/17)
-      const endBound = queryEndDay > 16 ? Math.min(17, queryEndDay) : itemEnd;
-      rangeStr = `1-${endBound}`;
+    if (sDay <= 16) {
+      const bound = (activeEndDay <= 16) ? eDay : Math.min(17, Math.max(16, eDay));
+      rangeStr = `1-${bound}`;
     } else {
-      // Set 2 (Days 17 to end)
-      rangeStr = `17-${queryEndDay > 17 ? queryEndDay : itemEnd}`;
+      const bound = Math.max(eDay, activeEndDay);
+      rangeStr = `17-${bound}`;
     }
 
     return `${monthName} ${rangeStr}`;

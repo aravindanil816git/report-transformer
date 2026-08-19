@@ -1035,7 +1035,7 @@ export default function CumulativeShopwiseReport() {
           }
         }}
       />
-      <SourceReportsPopover uploads={uploads} labels={labels} config={config} />
+      <SourceReportsPopover uploads={uploads} labels={labels} config={config} dateRange={dateRange} />
     </div>
   );
 }
