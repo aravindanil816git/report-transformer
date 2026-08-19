@@ -27,19 +27,7 @@ class CombinedShopwiseMultiReportService(BaseReportService):
     # ---------------------------------------------------------------------
     # Upload handling
     # ---------------------------------------------------------------------
-    def _parse_days(self, filename=None, upload_meta=None, default_start=1, default_end=16, config=None):
-        if config and isinstance(config, dict):
-            d1 = config.get("date1") or config.get("start_date")
-            d2 = config.get("date2") or config.get("end_date")
-            if d1 and d2:
-                try:
-                    s_day = int(pd.to_datetime(d1).day)
-                    e_day = int(pd.to_datetime(d2).day)
-                    if 1 <= s_day <= 31 and 1 <= e_day <= 31:
-                        return s_day, e_day
-                except Exception:
-                    pass
-
+    def _parse_days(self, filename=None, upload_meta=None, default_start=1, default_end=16):
         if upload_meta and isinstance(upload_meta, dict):
             if upload_meta.get("start_day") and upload_meta.get("end_day"):
                 try:
@@ -49,6 +37,7 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                         return s_day, e_day
                 except Exception:
                     pass
+
             d1 = upload_meta.get("from") or upload_meta.get("date1")
             d2 = upload_meta.get("to") or upload_meta.get("date2")
             if d1 and d2:
@@ -59,13 +48,22 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                         return start_day, end_day
                 except Exception:
                     pass
-            rk = upload_meta.get("range_key") or upload_meta.get("date")
-            if rk and isinstance(rk, str) and "-" in rk:
+
+            rk = upload_meta.get("range_key")
+            if rk and isinstance(rk, str) and "-" in rk and not (len(rk) >= 10 and rk[0:4].isdigit()):
                 parts = rk.split("-")
                 try:
                     s_day, e_day = int(parts[0]), int(parts[1])
                     if 1 <= s_day <= 31 and 1 <= e_day <= 31:
                         return s_day, e_day
+                except Exception:
+                    pass
+
+            dt = upload_meta.get("date") or upload_meta.get("range_key")
+            if dt and isinstance(dt, str) and len(dt) >= 10 and dt[0:4].isdigit():
+                try:
+                    d_day = int(pd.to_datetime(dt[:10]).day)
+                    return d_day, d_day
                 except Exception:
                     pass
 
