@@ -201,9 +201,27 @@ class CombinedShopwiseMultiReportService(BaseReportService):
             # Set 2 upload MUST have end_day <= sel_end_day
             valid_set2 = [u for u in set2 if u["start_day"] <= sel_end_day and u["end_day"] <= sel_end_day]
             if valid_set2:
-                latest_set2 = sorted(valid_set2, key=lambda x: x["end_day"])[-1]
-                if not res or latest_set2["file"] != res[0]["file"]:
-                    res.append(latest_set2)
+                # Check if there is a cumulative upload covering from ~17 to sel_end_day (e.g. 17-18 or 17-31)
+                cum_set2 = [u for u in valid_set2 if u["start_day"] <= 17 and u["end_day"] == sel_end_day]
+                if cum_set2:
+                    latest_set2 = sorted(cum_set2, key=lambda x: x["end_day"])[-1]
+                    if not res or latest_set2["file"] != res[0]["file"]:
+                        res.append(latest_set2)
+                else:
+                    # Collect non-overlapping sequential daily uploads in Set 2 (e.g. 17-17 + 18-18)
+                    sorted_set2 = sorted(valid_set2, key=lambda x: (x["start_day"], x["end_day"]))
+                    curr_end = 16
+                    for u in sorted_set2:
+                        if u["start_day"] > curr_end:
+                            if not res or u["file"] != res[0]["file"]:
+                                res.append(u)
+                                curr_end = u["end_day"]
+                        elif u["end_day"] > curr_end:
+                            if res and res[-1]["start_day"] == u["start_day"]:
+                                res[-1] = u
+                            elif not res or u["file"] != res[0]["file"]:
+                                res.append(u)
+                            curr_end = u["end_day"]
 
         return res
 
