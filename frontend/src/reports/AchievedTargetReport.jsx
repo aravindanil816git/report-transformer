@@ -8,6 +8,7 @@ import dayjs from "dayjs";
 import { disabledFutureMonthDates } from "../utils/dateUtils";
 import { exportAchievedTargetExcel, exportAchievedTargetPdf } from "../utils/exportUtils";
 import DownloadDropdown from "../components/DownloadDropdown";
+import SourceReportsPopover from "../components/SourceReportsPopover";
 
 const { RangePicker } = DatePicker;
 
@@ -29,6 +30,7 @@ export default function AchievedTargetReport() {
   const [shopData, setShopData] = useState([]);
   const [brands, setBrands] = useState([]);
   const [config, setConfig] = useState({});
+  const [uploads, setUploads] = useState([]);
   const [loading, setLoading] = useState(false);
   const [dateRange, setDateRange] = useState([]);
   const [isEditingTargets, setIsEditingTargets] = useState(false);
@@ -77,6 +79,7 @@ export default function AchievedTargetReport() {
       const reportData = res?.data?.data || [];
       setData(reportData);
       setShopData(res?.data?.shop_data || []);
+      setUploads(res?.data?.uploads || []);
       const reportConfig = res?.data?.config || {};
       setConfig(reportConfig);
 
@@ -769,6 +772,7 @@ export default function AchievedTargetReport() {
         pagination={false} 
         summary={tableSummary}
       />
+      <SourceReportsPopover uploads={uploads} config={config} onlyCombined={true} />
     </div>
   );
 }

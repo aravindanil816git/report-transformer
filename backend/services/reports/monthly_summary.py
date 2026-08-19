@@ -308,6 +308,7 @@ class MonthlySummaryReportService(BaseReportService):
             
         return {
             "data": sorted(results, key=lambda x: (x.get("cluster", "UNMAPPED CLUSTER"), x["bond"])),
+            "uploads": curr_shop_uploads + prev_shop_uploads,
             "meta": {
                 "curr_month": target_month_str,
                 "prev_month": prev_month_str,

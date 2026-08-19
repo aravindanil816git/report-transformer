@@ -762,6 +762,7 @@ class CumulativeShopwiseReportService(BaseReportService):
                             return {
                                 "data": combined_res.get("data"),
                                 "labels": selected_labels,
+                                "uploads": combined_res.get("uploads", []),
                                 "config": report.get("config", {})
                             }
                         else:

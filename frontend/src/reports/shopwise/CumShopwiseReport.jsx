@@ -9,6 +9,7 @@ import dayjs from "dayjs";
 import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf, exportDailySecondaryExcel, exportShopSalesExcel } from "../../utils/exportUtils";
 import DownloadDropdown from "../../components/DownloadDropdown";
 import { disabledFutureMonthDates } from "../../utils/dateUtils";
+import SourceReportsPopover from "../../components/SourceReportsPopover";
 
 const { RangePicker } = DatePicker;
 
@@ -21,6 +22,7 @@ export default function CumulativeShopwiseReport() {
   const [labels, setLabels] = useState([]);
   const [allLabels, setAllLabels] = useState([]);
   const [config, setConfig] = useState({});
+  const [uploads, setUploads] = useState([]);
   const [view, setView] = useState("daywise_sales");
 
   const [warehouseFilter, setWarehouseFilter] = useState(null);
@@ -91,6 +93,7 @@ export default function CumulativeShopwiseReport() {
       setData(cleaned);
       setLabels(res.data.labels || []);
       setConfig(res.data.config || {});
+      setUploads(res.data.uploads || []);
 
       if (allLabels.length === 0) {
         setAllLabels(res.data.labels || []);
@@ -1082,6 +1085,7 @@ export default function CumulativeShopwiseReport() {
           }
         }}
       />
+      <SourceReportsPopover uploads={uploads} labels={labels} config={config} />
     </div>
   );
 }

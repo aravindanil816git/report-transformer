@@ -5,6 +5,7 @@ import { DownloadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { getReport } from "../api";
 import { exportToExcel } from "../utils/exportUtils";
+import SourceReportsPopover from "../components/SourceReportsPopover";
 
 const { Title } = Typography;
 
@@ -12,6 +13,7 @@ export default function MonthlySummaryReport() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState([]);
+  const [uploads, setUploads] = useState([]);
   const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(false);
   const [reportInfo, setReportInfo] = useState({ name: "" });
@@ -39,6 +41,7 @@ export default function MonthlySummaryReport() {
       }
       const res = await getReport(id, null, null, params);
       setData(res.data?.data || []);
+      setUploads(res.data?.uploads || []);
       setMeta(res.data?.meta || null);
       setReportInfo({ name: res.data?.name || "Monthly Summary Report" });
     } catch (error) {
@@ -493,6 +496,7 @@ export default function MonthlySummaryReport() {
             );
           }}
         />
+        <SourceReportsPopover uploads={uploads} onlyCombined={true} />
       </Card>
     </div>
   );

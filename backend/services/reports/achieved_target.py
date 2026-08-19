@@ -59,6 +59,13 @@ class AchievedTargetReportService(BaseReportService):
                     res_full = supabase.table("reports").select("id, type, config, uploads").in_("id", target_ids).execute()
                     if res_full.data: reports_list.extend(res_full.data)
         
+        collected_uploads = []
+        for r in reports_list:
+            if r.get("type") == "shop_sales_cumulative":
+                for u in r.get("uploads", []):
+                    if u.get("status") == "uploaded" or u.get("file"):
+                        collected_uploads.append(u)
+
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         shop_to_bond = {}
         shop_type_lookup = {}
@@ -330,5 +337,6 @@ class AchievedTargetReportService(BaseReportService):
         return {
             "data": results,
             "shop_data": shop_results,
+            "uploads": collected_uploads,
             "config": report.get("config", {})
         }

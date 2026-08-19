@@ -558,9 +558,9 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                 v["closing"] = round(v["closing"], 2)
                 final_res.append(v)
                 
-            return {"data": final_res, "uploads": report.get("uploads", []), "config": config_out}
+            return {"data": final_res, "uploads": selected_uploads, "config": config_out}
 
-        return {"data": result, "uploads": report.get("uploads", []), "config": config_out}
+        return {"data": result, "uploads": selected_uploads, "config": config_out}
 
     def get_filters(self, report):
         # Get bonds and shops from mapping as a base

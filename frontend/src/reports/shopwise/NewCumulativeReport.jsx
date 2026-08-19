@@ -10,6 +10,8 @@ import { disabledFutureMonthDates } from "../../utils/dateUtils";
 import DownloadDropdown from "../../components/DownloadDropdown";
 import { getSellThroughColorConfig } from "../../utils/colorUtils";
 
+import SourceReportsPopover from "../../components/SourceReportsPopover";
+
 const { RangePicker } = DatePicker;
 
 const formatDateWithOrdinal = (dateVal) => {
@@ -28,6 +30,7 @@ export default function CumulativeShopwiseReport() {
   const [labels, setLabels] = useState([]);
   const [allLabels, setAllLabels] = useState([]);
   const [config, setConfig] = useState({});
+  const [uploads, setUploads] = useState([]);
   const [view, setView] = useState("cumulative");
 
   const [warehouseFilter, setWarehouseFilter] = useState(null);
@@ -83,10 +86,29 @@ export default function CumulativeShopwiseReport() {
         end_date: prevD2.format("YYYY-MM-DD")
       });
       const lastMonthData = prevRes.data?.data || prevRes.data || [];
+      const prevUploads = prevRes.data?.uploads || [];
+
+      if (prevUploads.length > 0) {
+        setUploads(current => {
+          const combined = [...(current || []), ...prevUploads];
+          const unique = [];
+          const seen = new Set();
+          combined.forEach(u => {
+            const k = u.file || u.range_key || u.date;
+            if (k && !seen.has(k)) {
+              seen.add(k);
+              unique.push(u);
+            }
+          });
+          return unique;
+        });
+      }
+
       console.log("[triggerLastMonthLoad] Loaded last month data for report:", id, {
         mode: selectedMode,
         rawRowsCount: lastMonthData.length,
-        rawRows: lastMonthData
+        rawRows: lastMonthData,
+        prevUploadsCount: prevUploads.length
       });
 
       const salesMap = {};
@@ -154,6 +176,7 @@ export default function CumulativeShopwiseReport() {
       setData(cleaned);
       setLabels(res.data.labels || []);
       setConfig(res.data.config || {});
+      setUploads(res.data.uploads || []);
 
       if (res.data.config?.date1 && res.data.config?.date2 && dateRange.length === 0) {
         setDateRange([dayjs(res.data.config.date1), dayjs(res.data.config.date2)]);
@@ -1012,6 +1035,7 @@ export default function CumulativeShopwiseReport() {
           }
         }}
       />
+      <SourceReportsPopover uploads={uploads} labels={labels} config={config} />
     </div>
   );
 }

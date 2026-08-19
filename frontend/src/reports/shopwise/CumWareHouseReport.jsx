@@ -7,6 +7,7 @@ import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf
 import { FileExcelOutlined, FilePdfOutlined } from "@ant-design/icons";
 import DownloadDropdown from "../../components/DownloadDropdown";
 import { disabledFutureMonthDates } from "../../utils/dateUtils";
+import SourceReportsPopover from "../../components/SourceReportsPopover";
 
 const { RangePicker } = DatePicker;
 
@@ -31,6 +32,7 @@ export default function CumulativeWarehouseReport() {
   const [labels, setLabels] = useState([]);
   const [allLabels, setAllLabels] = useState([]);
   const [config, setConfig] = useState({});
+  const [uploads, setUploads] = useState([]);
   const [view, setView] = useState(searchParams.get("view") || "daywise");
 
   const [bondFilter, setBondFilter] = useState(null);
@@ -118,6 +120,7 @@ export default function CumulativeWarehouseReport() {
       setData(cleaned);
       setLabels(res.data.labels || []);
       setConfig(res.data.config || {});
+      setUploads(res.data.uploads || []);
 
       if (allLabels.length === 0) {
         setAllLabels(res.data.labels || []);
@@ -1379,6 +1382,7 @@ const brandKeys = brandColumns.map(bc => ({ title: bc.title, key: bc.dataIndex }
           }
         }}
       />
+      <SourceReportsPopover uploads={uploads} labels={labels} config={config} />
     </div>
   );
 }
