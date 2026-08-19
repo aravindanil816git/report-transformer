@@ -27,7 +27,19 @@ class CombinedShopwiseMultiReportService(BaseReportService):
     # ---------------------------------------------------------------------
     # Upload handling
     # ---------------------------------------------------------------------
-    def _parse_days(self, filename, upload_meta=None, default_start=1, default_end=16):
+    def _parse_days(self, filename=None, upload_meta=None, default_start=1, default_end=16, config=None):
+        if config and isinstance(config, dict):
+            d1 = config.get("date1") or config.get("start_date")
+            d2 = config.get("date2") or config.get("end_date")
+            if d1 and d2:
+                try:
+                    s_day = int(pd.to_datetime(d1).day)
+                    e_day = int(pd.to_datetime(d2).day)
+                    if 1 <= s_day <= 31 and 1 <= e_day <= 31:
+                        return s_day, e_day
+                except Exception:
+                    pass
+
         if upload_meta and isinstance(upload_meta, dict):
             if upload_meta.get("start_day") and upload_meta.get("end_day"):
                 try:
@@ -83,7 +95,7 @@ class CombinedShopwiseMultiReportService(BaseReportService):
 
         # Strip 4-digit years
         clean = re.sub(r"\b20\d\d\b", "", clean)
-        clean = re.sub(r"(\d+)(?:st|nd|rd|th)", r"\1", clean)
+        clean = re.sub(r"(\d+)\s*(?:st|nd|rd|th)", r"\1", clean)
 
         # Match explicit range 'X to Y' or 'X-Y'
         m = re.search(r"(\d{1,2})\s*(?:-|to|\buntil\b)\s*(\d{1,2})", clean)
@@ -106,7 +118,7 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         stored under that key, overwriting any existing entry.
         """
         # Determine the key for this upload and store exact start/end day bounds
-        start_day, end_day = self._parse_days(file_name)
+        start_day, end_day = self._parse_days(file_name, upload_meta=kwargs, config=report.get("config", {}))
         key = f"{start_day}-{end_day}"
 
         # Ensure the uploads list exists

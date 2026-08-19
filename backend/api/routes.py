@@ -250,8 +250,24 @@ def sync_cumulative_report(report, all_reports=None):
                 # Accumulate uploads from ALL matching shop_sales_cumulative reports for the month
                 for u in r.get("uploads", []):
                     if u.get("status") == "uploaded":
-                        rk = u.get("range_key") or u.get("date") or "1-16"
-                        source_uploads_map[rk] = {**u, "status": "uploaded"}
+                        u_entry = {**u, "status": "uploaded"}
+                        r_d1 = r.get("config", {}).get("date1") or r.get("config", {}).get("start_date")
+                        r_d2 = r.get("config", {}).get("date2") or r.get("config", {}).get("end_date")
+                        if r_d1 and r_d2:
+                            try:
+                                import pandas as pd
+                                s_day = int(pd.to_datetime(r_d1).day)
+                                e_day = int(pd.to_datetime(r_d2).day)
+                                rk = f"{s_day}-{e_day}"
+                                u_entry["start_day"] = s_day
+                                u_entry["end_day"] = e_day
+                                u_entry["range_key"] = rk
+                                u_entry["date"] = rk
+                            except Exception:
+                                rk = u.get("range_key") or u.get("date") or "1-16"
+                        else:
+                            rk = u.get("range_key") or u.get("date") or "1-16"
+                        source_uploads_map[rk] = u_entry
 
         if source_uploads_map:
             report["uploads"] = list(source_uploads_map.values())
