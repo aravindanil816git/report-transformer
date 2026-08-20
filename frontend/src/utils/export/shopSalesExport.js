@@ -252,48 +252,61 @@ export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename =
 
     const days = getDaysList(startDate, endDate);
 
-    // 2. Define Clusters & Bonds (§15.2)
-    const CLUSTERS = [
-      {
+    // 2. Build CLUSTERS dynamically from mapping / passed metadata (No hardcoding)
+    const isWarehouseMode = (metadata.mode === "warehouse" || metadata.mode === "wh");
+
+    let CLUSTERS = [];
+    if (metadata.clusters && typeof metadata.clusters === "object" && Object.keys(metadata.clusters).length > 0) {
+      CLUSTERS = Object.entries(metadata.clusters).map(([cName, itemList], idx) => ({
+        id: idx + 1,
+        name: cName.toUpperCase().replace(/CLUSTER\s*-\s*/gi, "CLUSTER "),
+        items: Array.isArray(itemList) ? itemList : []
+      }));
+    } else {
+      // Dynamic grouping by distinct items directly from data if no clusters object was passed
+      const distinctItems = Array.from(new Set(
+        (Array.isArray(data) ? data : []).map(r => {
+          const raw = String(r.bond || r.bond_name || r.warehouse || r["Row Labels"] || r.label || r.name || "").trim();
+          return raw.replace(/^WH-/i, "").replace(/\s+BOND$/i, "").toUpperCase();
+        }).filter(Boolean)
+      )).sort();
+
+      CLUSTERS = [{
         id: 1,
-        name: "CLUSTER 1",
-        bonds: ["ALAPPUZHA", "ATTINGAL", "KOLLAM", "KOTTARAKARA", "NEDUMANGAD", "PATHANAMTHITTA"]
-      },
-      {
-        id: 2,
-        name: "CLUSTER 2",
-        bonds: ["ALUVA", "KOTTAYAM", "THODUPUZHA", "THRISSUR", "TRIPUNITHURA"]
-      },
-      {
-        id: 3,
-        name: "CLUSTER 3",
-        bonds: ["KANNUR", "KOZHIKODE", "PALAKKAD", "PERINTHALMANNA"]
-      }
-    ];
+        name: isWarehouseMode ? "WAREHOUSES" : "BONDS",
+        items: distinctItems
+      }];
+    }
 
     // 3. Build Row Structure and Compute Values (§15.1)
     const allBondRows = [];
     const clusterBlocks = [];
-
     const matchedRowIndices = new Set();
 
     CLUSTERS.forEach(cluster => {
-      const sortedBonds = [...cluster.bonds].sort((a, b) => a.localeCompare(b));
-      const blockBondRows = sortedBonds.map(bondName => {
-        const matchedRow = findBondRow(data, bondName);
+      const sortedItems = [...cluster.items].sort((a, b) => a.localeCompare(b));
+      const blockBondRows = [];
+
+      sortedItems.forEach(itemName => {
+        const matchedRow = findBondRow(data, itemName);
         if (matchedRow) {
           matchedRowIndices.add(matchedRow);
         }
         const values = days.map(d => getDayValue(matchedRow, d));
         const totalValue = values.reduce((sum, v) => sum + v, 0);
+
+        const cleanLabel = isWarehouseMode 
+          ? itemName.replace(/^WH-/i, "").split(/\s+(?:FL|RFL)/i)[0].trim().toUpperCase()
+          : itemName.toUpperCase();
+
         const rowObj = {
           type: "bond",
-          label: bondName,
+          label: cleanLabel,
           values,
           totalValue
         };
         allBondRows.push(rowObj);
-        return rowObj;
+        blockBondRows.push(rowObj);
       });
 
       const clusterValues = days.map((d, dIdx) => {
@@ -346,7 +359,7 @@ export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename =
       const extraClusterRow = {
         type: "cluster",
         clusterId: 99,
-        label: "OTHER REGIONS",
+        label: isWarehouseMode ? "OTHER WAREHOUSES" : "OTHER REGIONS",
         values: extraValues,
         totalValue: extraTotalValue
       };
@@ -765,17 +778,18 @@ function getDaysList(startDate, endDate) {
   return days;
 }
 
+function normalizeWhName(name) {
+  if (!name) return "";
+  return String(name).toUpperCase().replace(/^WH-/i, "").split(/\s+(?:FL|RFL)/i)[0].replace(/\s*-\s*/g, " ").trim();
+}
+
 function findBondRow(data, bondName) {
   if (!Array.isArray(data)) return null;
-  const cleanName = bondName.toUpperCase().replace(/\s*-\s*/g, " ").trim();
+  const cleanTarget = normalizeWhName(bondName);
   return data.find(row => {
-    const rName = String(
-      row.bond || row.bond_name || row.warehouse || row["Row Labels"] || row.label || row.name || ""
-    ).toUpperCase().replace(/\s*-\s*/g, " ").trim()
-      .replace(/^WH\s*/i, "")
-      .replace(/\s+BOND$/i, "")
-      .trim();
-    return rName === cleanName || rName.includes(cleanName) || cleanName.includes(rName);
+    const rawVal = row.warehouse || row.bond || row.bond_name || row["Row Labels"] || row.label || row.name || "";
+    const cleanRowName = normalizeWhName(rawVal);
+    return cleanRowName === cleanTarget || cleanRowName.includes(cleanTarget) || cleanTarget.includes(cleanRowName);
   });
 }
 

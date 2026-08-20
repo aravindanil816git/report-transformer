@@ -660,7 +660,7 @@ export default function CumulativeShopwiseReport() {
             }
             const isPositive = num > 0;
             const color = isPositive ? "#3f8600" : "#cf1322";
-            const arrow = isPositive ? "▲" : "▼";
+            const arrow = mode === "warehouse" ? "" : (isPositive ? "▲" : "▼");
             const content = `${arrow}${formatted}`;
             return record.isClusterTotal ? <strong style={{ color }}>{content}</strong> : <span style={{ color, fontWeight: "600" }}>{content}</span>;
           }
@@ -983,7 +983,7 @@ export default function CumulativeShopwiseReport() {
             if (totalAvgDiff !== null && totalAvgDiff !== undefined && totalAvgDiff !== "" && !isNaN(diffNum) && diffNum !== 0) {
               const isPositive = diffNum > 0;
               diffColor = isPositive ? "#3f8600" : "#cf1322";
-              const arrow = isPositive ? "▲" : "▼";
+              const arrow = mode === "warehouse" ? "" : (isPositive ? "▲" : "▼");
               diffContent = `${arrow}${formattedDiff}`;
             }
 

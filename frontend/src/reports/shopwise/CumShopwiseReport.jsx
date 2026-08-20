@@ -780,31 +780,15 @@ export default function CumulativeShopwiseReport() {
           sumCols.push("Total", ...labels);
         }
 
-        if (mode === "bond") {
-          exportShopSalesDailyBondPdf(cleanLeafData, {
-            startDate: dateRange[0],
-            endDate: dateRange[1],
-            Period: period,
-            Title: reportTitle,
-            mode: mode,
-            useWholeNumbers
-          }, `shop_sales_daily_${mode}.pdf`);
-          return;
-        }
-
-        const { columns: pdfCols, data: pdfData, head: pdfHead } = getPdfDataAndColumns(cleanLeafData);
-
-        exportToPdf({
-          title: reportTitle,
-          periodLabel: period,
-          columns: pdfCols,
-          data: pdfData,
-          head: pdfHead,
-          sumCols: sumCols,
-          filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}.pdf`,
-          zeroMargin: true,
-          orientation: "landscape"
-        });
+        exportShopSalesDailyBondPdf(cleanLeafData, {
+          startDate: dateRange[0],
+          endDate: dateRange[1],
+          Period: period,
+          Title: reportTitle,
+          mode: mode,
+          useWholeNumbers,
+          clusters: mode === "warehouse" ? warehouseClusters : clusters
+        }, `shop_sales_daily_${mode}.pdf`);
         return;
 
         if (modeType === "current") {
