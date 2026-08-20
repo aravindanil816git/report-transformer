@@ -3,7 +3,7 @@ import { Table, Button, Select, DatePicker, Space, message, Checkbox } from "ant
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { getReport, processReport, getJson } from "../../api";
 import dayjs from "dayjs";
-import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf, exportDailySecondaryExcel, exportDailySecondaryPdf, exportBrandwiseCumExcel, exportBrandwiseSecondaryPdf } from "../../utils/exportUtils";
+import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf, exportDailySecondaryExcel, exportDailySecondaryPdf, exportBrandwiseCumExcel, exportBrandwiseSecondaryPdf, exportShopSalesDailyBondPdf } from "../../utils/exportUtils";
 import { FileExcelOutlined, FilePdfOutlined } from "@ant-design/icons";
 import DownloadDropdown from "../../components/DownloadDropdown";
 import { disabledFutureMonthDates } from "../../utils/dateUtils";
@@ -965,17 +965,17 @@ const brandKeys = brandColumns.map(bc => ({ title: bc.title, key: bc.dataIndex }
 
         if (modeType === "current") {
           if (isDailyWiseType) {
-            const { columns: pdfCols, data: pdfData, head: pdfHead } = getPdfDataAndColumns(processedData, useWholeNumbers);
-            exportToPdf({
-              title: reportTitle,
-              periodLabel: period,
-              columns: pdfCols,
-              data: pdfData,
-              head: pdfHead,
-              filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}_current.pdf`,
-              zeroMargin: true,
-              orientation: "landscape"
-            });
+            const cleanLeafData = (processedData || []).filter(d => !d.isClusterTotal);
+            exportShopSalesDailyBondPdf(cleanLeafData, {
+              startDate: dateRange[0],
+              endDate: dateRange[1],
+              Period: period,
+              Title: isDailyWiseType ? "DAILY SECONDARY SALES" : reportTitle,
+              mode: mode,
+              useWholeNumbers,
+              clusters: mode === "warehouse" ? clusters : bondClusters
+            }, `daily_secondary_sales_${mode}.pdf`);
+            return;
           } else {
             const title = getTitle();
             const { columns: pdfCols, data: pdfData, head: pdfHead } = getPdfDataAndColumns(processedData, useWholeNumbers);
