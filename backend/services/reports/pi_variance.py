@@ -203,6 +203,7 @@ class PiVarianceReportService(BaseReportService):
                         "bond": shop_to_bond.get(str(code).strip(), "UNMAPPED")
                     })
             master_df = pd.DataFrame(master_shops_list).drop_duplicates(subset=['shop_code'])
+            master_df['shop_code'] = master_df['shop_code'].astype(str).str.strip().str.lstrip('0')
         except Exception as e:
             report["processed"] = {"error": f"Failed to load mapping files: {e}"}
             return
@@ -281,7 +282,7 @@ class PiVarianceReportService(BaseReportService):
         def enrich_and_map_brands(df):
             if df.empty:
                 return df
-            df['shop_code'] = df['shop_code'].astype(str).str.strip()
+            df['shop_code'] = df['shop_code'].astype(str).str.strip().str.lstrip('0')
             
             # Exclude unwanted shop categories based on the filtered master list
             valid_shops = set(master_df['shop_code'].unique())
@@ -318,7 +319,7 @@ class PiVarianceReportService(BaseReportService):
                 return pd.DataFrame()
 
             pivot = df.pivot_table(
-                index=['warehouse', 'bond', 'shop_code', 'shop_name'],
+                index=['shop_code'],
                 columns='brand_short',
                 values=existing_metrics,
                 aggfunc='sum'
@@ -332,9 +333,9 @@ class PiVarianceReportService(BaseReportService):
 
         if pivot_cm.empty and pivot_lm.empty:
             final_df = pd.DataFrame()
-            final_df.index = pd.MultiIndex.from_tuples([], names=['warehouse', 'bond', 'shop_code', 'shop_name'])
+            final_df.index.name = 'shop_code'
         else:
-            # Merge CM and LM data
+            # Merge CM and LM data by shop_code
             if not pivot_lm.empty and not pivot_cm.empty:
                 final_df = pivot_cm.merge(pivot_lm, left_index=True, right_index=True, how='outer').fillna(0)
             elif not pivot_lm.empty:
@@ -377,9 +378,24 @@ class PiVarianceReportService(BaseReportService):
 
         final_df = final_df.reset_index()
 
-        # Merge with master list to ensure all shops are present
+        # Merge with master list to attach shop details and ensure all shops are present
         final_df['shop_code'] = final_df['shop_code'].astype(str)
-        merged_df = master_df.merge(final_df, on=['shop_code', 'shop_name', 'warehouse', 'bond'], how='left').fillna(0)
+        master_df['shop_code'] = master_df['shop_code'].astype(str)
+        merged_df = master_df.merge(final_df, on='shop_code', how='left').fillna(0)
+
+        # Reconciliation Guard: Verify LM shop presence
+        if not df_lm.empty:
+            raw_lm_shops = set(df_lm['shop_code'].astype(str).unique())
+            merged_lm_shops = set(merged_df[merged_df[[c for c in merged_df.columns if c.endswith('_lm')]].sum(axis=1) > 0]['shop_code'].unique())
+            missing_lm_shops = raw_lm_shops - merged_lm_shops
+            if missing_lm_shops:
+                msg = f"WARNING: Reconciliation Guard detected {len(missing_lm_shops)} LM shops missing non-zero data after merge: {sorted(list(missing_lm_shops))}"
+                report_logs.append(msg)
+                print(f"DEBUG: {msg}")
+            else:
+                msg = f"Reconciliation Guard: All {len(raw_lm_shops)} LM shops successfully matched and merged."
+                report_logs.append(msg)
+                print(f"DEBUG: {msg}")
 
         report["processed"] = merged_df.to_dict('records')
 

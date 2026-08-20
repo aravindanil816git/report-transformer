@@ -88,13 +88,9 @@ export default function PiVarianceReport() {
     const initialTotalTemplate = {};
     meta.brands.forEach(brand => {
       METRICS.forEach(metric => {
-        if (metric === 'l3ms') {
-          initialTotalTemplate[`${brand}_${metric}_cm`] = 0;
-        } else {
-          ['cm', 'lm', 'var'].forEach(type => {
-            initialTotalTemplate[`${brand}_${metric}_${type}`] = 0;
-          });
-        }
+        ['cm', 'lm', 'var'].forEach(type => {
+          initialTotalTemplate[`${brand}_${metric}_${type}`] = 0;
+        });
       });
     });
 
@@ -178,7 +174,7 @@ export default function PiVarianceReport() {
     const brandCols = (meta.brands || []).map(brand => ({
       title: brand,
       children: METRICS.map(metric => {
-        if (!comparativeMode || metric === 'l3ms') {
+        if (!comparativeMode) {
           return {
             title: metric.toUpperCase(),
             dataIndex: `${brand}_${metric}_cm`,

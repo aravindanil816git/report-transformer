@@ -1340,6 +1340,19 @@ def get_report(
     result["name"] = report.get("name")
     result["type"] = report.get("type")
 
+    if not result.get("uploads"):
+        raw_uploads = report.get("uploads", [])
+        if report.get("type") in ["cumulative_shopwise", "new_cumulative_report", "combined_shopwise"]:
+            cm_svc = get_service("combined_shopwise_multi")
+            if cm_svc and raw_uploads:
+                s_day = int(start_date.split("-")[2]) if start_date and "-" in start_date and start_date != "RESET" else None
+                e_day = int(end_date.split("-")[2]) if end_date and "-" in end_date and end_date != "RESET" else None
+                result["uploads"] = cm_svc._select_uploads(raw_uploads, s_day, e_day)
+            else:
+                result["uploads"] = raw_uploads
+        else:
+            result["uploads"] = raw_uploads
+
     return clean_nan(result)
 
 
