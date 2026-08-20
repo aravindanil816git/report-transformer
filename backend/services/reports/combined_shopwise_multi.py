@@ -27,19 +27,25 @@ class CombinedShopwiseMultiReportService(BaseReportService):
     # ---------------------------------------------------------------------
     # Upload handling
     # ---------------------------------------------------------------------
-    def _parse_days(self, filename=None, upload_meta=None, default_start=1, default_end=16):
+    def _parse_days(self, filename=None, upload_meta=None, default_start=1, default_end=16, config=None, **kwargs):
+        meta = {}
+        if config and isinstance(config, dict):
+            meta.update(config)
         if upload_meta and isinstance(upload_meta, dict):
-            if upload_meta.get("start_day") and upload_meta.get("end_day"):
+            meta.update(upload_meta)
+
+        if meta:
+            if meta.get("start_day") and meta.get("end_day"):
                 try:
-                    s_day = int(upload_meta["start_day"])
-                    e_day = int(upload_meta["end_day"])
+                    s_day = int(meta["start_day"])
+                    e_day = int(meta["end_day"])
                     if 1 <= s_day <= 31 and 1 <= e_day <= 31:
                         return s_day, e_day
                 except Exception:
                     pass
 
-            d1 = upload_meta.get("from") or upload_meta.get("date1")
-            d2 = upload_meta.get("to") or upload_meta.get("date2")
+            d1 = meta.get("from") or meta.get("date1")
+            d2 = meta.get("to") or meta.get("date2")
             if d1 and d2:
                 try:
                     start_day = int(pd.to_datetime(d1).day)
@@ -49,7 +55,7 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                 except Exception:
                     pass
 
-            rk = upload_meta.get("range_key")
+            rk = meta.get("range_key")
             if rk and isinstance(rk, str) and "-" in rk and not (len(rk) >= 10 and rk[0:4].isdigit()):
                 parts = rk.split("-")
                 try:
@@ -59,7 +65,7 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                 except Exception:
                     pass
 
-            dt = upload_meta.get("date") or upload_meta.get("range_key")
+            dt = meta.get("date") or meta.get("range_key")
             if dt and isinstance(dt, str) and len(dt) >= 10 and dt[0:4].isdigit():
                 try:
                     d_day = int(pd.to_datetime(dt[:10]).day)
