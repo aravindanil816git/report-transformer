@@ -36,6 +36,21 @@ export default function SourceReportsPopover({ uploads = [], labels = [], config
     const rawFile = u.file || "";
     const isAutoSynced = String(rawFile).toLowerCase().includes("auto-synced");
     if (onlyCombined && isAutoSynced) return false;
+    if (u.status && u.status !== "uploaded") return false;
+
+    // Filter out uploads outside current active dateRange if dateRange is provided
+    if (dateRange && dateRange.length === 2 && dateRange[0] && dateRange[1]) {
+      const activeStart = dateRange[0].date();
+      const activeEnd = dateRange[1].date();
+      const sDay = u.start_day !== undefined ? u.start_day : (u.range_key && u.range_key.includes("-") ? parseInt(u.range_key.split("-")[0], 10) : (u.date && u.date.includes("-") ? parseInt(u.date.split("-")[0], 10) : 1));
+      const eDay = u.end_day !== undefined ? u.end_day : (u.range_key && u.range_key.includes("-") ? parseInt(u.range_key.split("-")[1], 10) : (u.date && u.date.includes("-") ? parseInt(u.date.split("-")[1], 10) : 31));
+
+      if (!isNaN(sDay) && !isNaN(eDay)) {
+        if (eDay < activeStart || sDay > activeEnd) {
+          return false;
+        }
+      }
+    }
     return u.file || u.status === "uploaded" || u.range_key || u.start_day || u.date;
   });
 
@@ -56,7 +71,7 @@ export default function SourceReportsPopover({ uploads = [], labels = [], config
     if (d2Str && dayjs(d2Str).isValid()) activeEndDay = dayjs(d2Str).date();
   }
 
-  // Format label as "Month DayRange" e.g. "August 1-16", "July 17-19"
+  // Format label as "Month DayRange" e.g. "August 1-16", "August 17-19"
   const getFormattedLabel = (item) => {
     const rawFile = item.file || "";
     const monthName = getItemMonth(item, fallbackMonth);
@@ -66,16 +81,16 @@ export default function SourceReportsPopover({ uploads = [], labels = [], config
     let eDay = item.end_day;
 
     if (sDay === undefined || eDay === undefined) {
-      const clean = String(rawFile).replace(/(\d+)\s*(?:st|nd|rd|th)/gi, "$1");
-      const m = clean.match(/(\d{1,2})\s*(?:-|to)\s*(\d{1,2})/i);
-      if (m) {
-        sDay = int(m[1]);
-        eDay = int(m[2]);
+      if (item.range_key && item.range_key.includes("-")) {
+        const parts = item.range_key.split("-");
+        sDay = parseInt(parts[0], 10);
+        eDay = parseInt(parts[1], 10);
       } else {
-        const singleM = clean.match(/(\d{1,2})/);
-        if (singleM) {
-          sDay = 17;
-          eDay = parseInt(singleM[1], 10);
+        const clean = String(rawFile).replace(/(\d+)\s*(?:st|nd|rd|th)/gi, "$1");
+        const m = clean.match(/(\d{1,2})\s*(?:-|to)\s*(\d{1,2})/i);
+        if (m) {
+          sDay = parseInt(m[1], 10);
+          eDay = parseInt(m[2], 10);
         }
       }
     }
@@ -83,16 +98,7 @@ export default function SourceReportsPopover({ uploads = [], labels = [], config
     if (sDay === undefined) sDay = 1;
     if (eDay === undefined) eDay = activeEndDay;
 
-    let rangeStr = "";
-    if (sDay <= 16) {
-      const bound = (activeEndDay <= 16) ? eDay : Math.min(17, Math.max(16, eDay));
-      rangeStr = `1-${bound}`;
-    } else {
-      const bound = Math.max(eDay, activeEndDay);
-      rangeStr = `17-${bound}`;
-    }
-
-    return `${monthName} ${rangeStr}`;
+    return `${monthName} ${sDay}-${eDay}`;
   };
 
   // Deduplicate by formatted label

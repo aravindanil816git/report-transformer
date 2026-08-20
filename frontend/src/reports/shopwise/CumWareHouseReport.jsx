@@ -1382,7 +1382,7 @@ const brandKeys = brandColumns.map(bc => ({ title: bc.title, key: bc.dataIndex }
           }
         }}
       />
-      <SourceReportsPopover uploads={uploads} labels={labels} config={config} />
+      <SourceReportsPopover uploads={uploads} labels={labels} config={config} dateRange={dateRange} />
     </div>
   );
 }

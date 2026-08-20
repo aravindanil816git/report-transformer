@@ -946,7 +946,7 @@ export default function CombinedShopwiseReport() {
           return "data-row";
         }}
       />
-      <SourceReportsPopover uploads={uploads} config={config} />
+      <SourceReportsPopover uploads={uploads} config={config} dateRange={dateRange} />
       <style>{`
         .spacer-row td { padding: 2px 0 !important; background-color: #fff !important; height: 4px; border: none !important; }
         .group-total-row td { background-color: #D6E9C6 !important; border: 1px solid #999 !important; }
