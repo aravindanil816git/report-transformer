@@ -344,10 +344,14 @@ export const exportToPdf = ({
       const insideTotalExists = lastRowFirstCell.startsWith("total") || lastRowFirstCell.startsWith("grand");
 
       if (sumCols.length > 0 && !insideTotalExists) {
+        const leafRows = groupRows.filter(r => {
+          const firstVal = String(r[columns[0]] || r[groupByField] || "").trim().toLowerCase();
+          return !firstVal.includes("total") && !firstVal.includes("grand");
+        });
         const totalsRow = columns.map(col => {
           if (col === groupByField || col === columns[0]) return "TOTAL";
           if (sumCols.includes(col)) {
-            return groupRows.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
+            return leafRows.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
           }
           return "";
         });

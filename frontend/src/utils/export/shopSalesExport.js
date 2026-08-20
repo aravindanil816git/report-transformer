@@ -106,7 +106,7 @@ export const exportShopSalesExcel = async (data, metadata = {}, filename = "shop
     const clo = Number(row["Closing"] ?? row["closing"] ?? 0);
 
     const isPackRow = rawLabel.startsWith("  ") || Boolean(row["pack"]);
-    const isShopTotalRow = Boolean(row.isShopTotal) || (label.toUpperCase().includes("TOTAL") && (label.includes("Shop") || label.includes("(")));
+    const isShopTotalRow = Boolean(row.isShopTotal) || label.toUpperCase().includes("TOTAL");
     const isBrandTotalRow = !isShopTotalRow && label.toUpperCase().endsWith("TOTAL");
     const isBrandHeader = !isPackRow && !isShopTotalRow && !isBrandTotalRow && (row["Opening"] === undefined || row["Opening"] === "" || row["opening"] === undefined || row["opening"] === "");
     const isShopHeader = !isPackRow && !isShopTotalRow && !isBrandTotalRow && !isBrandHeader && Boolean(row.isShopHeader);
@@ -156,7 +156,7 @@ export const exportShopSalesExcel = async (data, metadata = {}, filename = "shop
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: brandHeaderBg } };
       }
     } else {
-      // Pack row
+      // Leaf pack row only
       const isZebra = rIdx % 2 === 0;
       for (let c = 1; c <= 5; c++) {
         const cell = ws.getCell(rIdx, c);
