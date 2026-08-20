@@ -182,8 +182,20 @@ class MonthlySummaryReportService(BaseReportService):
                 seen_prev.add(fn)
                 prev_uploads.append(u)
 
-        curr_files = [u.get("file") for u in curr_uploads if u.get("file")]
-        prev_files = [u.get("file") for u in prev_uploads if u.get("file")]
+        from services.registry import get_service
+        combined_svc = get_service("combined_shopwise_multi")
+
+        import pandas as pd
+        curr_sel_start = int(pd.to_datetime(start_date).day) if start_date else None
+        curr_sel_end = int(pd.to_datetime(end_date).day) if end_date else None
+        prev_sel_start = int(pd.to_datetime(start_date2).day) if start_date2 else None
+        prev_sel_end = int(pd.to_datetime(end_date2).day) if end_date2 else None
+
+        actual_curr = combined_svc._select_uploads(curr_uploads, curr_sel_start, curr_sel_end) if combined_svc else curr_uploads
+        actual_prev = combined_svc._select_uploads(prev_uploads, prev_sel_start, prev_sel_end) if combined_svc else prev_uploads
+
+        curr_files = [u.get("file") for u in actual_curr if u.get("file")]
+        prev_files = [u.get("file") for u in actual_prev if u.get("file")]
 
         curr_virtual = {
             "id": "curr_virtual",
@@ -308,7 +320,7 @@ class MonthlySummaryReportService(BaseReportService):
             
         return {
             "data": sorted(results, key=lambda x: (x.get("cluster", "UNMAPPED CLUSTER"), x["bond"])),
-            "uploads": curr_shop_uploads + prev_shop_uploads,
+            "uploads": actual_curr + actual_prev,
             "meta": {
                 "curr_month": target_month_str,
                 "prev_month": prev_month_str,

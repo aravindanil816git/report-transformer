@@ -2,7 +2,7 @@ export { exportToExcel, exportMultiSheetExcel, exportToPdf, parseLabelToDate } f
 export { exportUnifiedWithDropdown } from "./export/unifiedDropdownExport";
 export { exportClusterPdf, exportShopDrilldownPdfByBond } from "./export/shopDrilldownExport";
 export { exportDailySecondaryExcel, exportDailySecondaryPdf } from "./export/dailySecondaryExport";
-export { exportShopSalesExcel } from "./export/shopSalesExport";
+export { exportShopSalesExcel, exportShopSalesDailyBondPdf, exportShopSalesPdf } from "./export/shopSalesExport";
 export { exportBrandwiseCumExcel, exportBrandwiseSecondaryPdf } from "./export/brandwiseExport";
 export { exportNewCumulativeExcel } from "./export/newCumulativeExport";
 export { exportAchievedTargetExcel, exportAchievedTargetPdf } from "./export/achievedTargetExport";

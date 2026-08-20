@@ -101,16 +101,64 @@ export default function SourceReportsPopover({ uploads = [], labels = [], config
     return `${monthName} ${sDay}-${eDay}`;
   };
 
-  // Deduplicate by formatted label
-  const uniqueItemsMap = new Map();
+  // Group and select non-overlapping cumulative files per month
+  const groupedByMonth = {};
   validUploads.forEach(u => {
-    const formattedLabel = getFormattedLabel(u);
-    if (!uniqueItemsMap.has(formattedLabel)) {
-      uniqueItemsMap.set(formattedLabel, { ...u, displayLabel: formattedLabel });
+    const rawFile = u.file || "";
+    const monthName = getItemMonth(u, fallbackMonth);
+
+    let sDay = u.start_day;
+    let eDay = u.end_day;
+
+    if (sDay === undefined || eDay === undefined) {
+      if (u.range_key && u.range_key.includes("-")) {
+        const parts = u.range_key.split("-");
+        sDay = parseInt(parts[0], 10);
+        eDay = parseInt(parts[1], 10);
+      } else {
+        const clean = String(rawFile).replace(/(\d+)\s*(?:st|nd|rd|th)/gi, "$1");
+        const m = clean.match(/(\d{1,2})\s*(?:-|to)\s*(\d{1,2})/i);
+        if (m) {
+          sDay = parseInt(m[1], 10);
+          eDay = parseInt(m[2], 10);
+        }
+      }
     }
+    if (sDay === undefined) sDay = 1;
+    if (eDay === undefined) eDay = activeEndDay;
+
+    if (!groupedByMonth[monthName]) groupedByMonth[monthName] = [];
+    groupedByMonth[monthName].push({ ...u, sDay, eDay, monthName });
   });
 
-  const sourceItems = Array.from(uniqueItemsMap.values());
+  const sourceItems = [];
+  Object.entries(groupedByMonth).forEach(([mName, items]) => {
+    // 1. Range 1 (<= 16)
+    const range1 = items.filter(i => i.sDay <= 16 && i.eDay <= 16);
+    if (range1.length > 0) {
+      range1.sort((a, b) => b.eDay - a.eDay);
+      const topRange1 = range1[0];
+      topRange1.displayLabel = `${mName} ${topRange1.sDay}-${topRange1.eDay}`;
+      sourceItems.push(topRange1);
+    }
+    // 2. Range 2 (> 16)
+    const range2 = items.filter(i => i.sDay > 16 || i.eDay > 16);
+    if (range2.length > 0) {
+      range2.sort((a, b) => b.eDay - a.eDay);
+      const topRange2 = range2[0];
+      if (!range1.length || topRange2.file !== range1[0].file) {
+        topRange2.displayLabel = `${mName} ${topRange2.sDay}-${topRange2.eDay}`;
+        sourceItems.push(topRange2);
+      }
+    }
+    // Fallback if neither condition caught any items
+    if (range1.length === 0 && range2.length === 0 && items.length > 0) {
+      items.forEach(it => {
+        it.displayLabel = `${mName} ${it.sDay}-${it.eDay}`;
+        sourceItems.push(it);
+      });
+    }
+  });
 
   if (sourceItems.length === 0) return null;
 

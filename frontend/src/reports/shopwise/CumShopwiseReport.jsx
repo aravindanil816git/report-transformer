@@ -6,7 +6,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { FilePdfOutlined, FileExcelOutlined } from "@ant-design/icons";
 import { getReport, processReport, getJson } from "../../api";
 import dayjs from "dayjs";
-import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf, exportDailySecondaryExcel, exportShopSalesExcel } from "../../utils/exportUtils";
+import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportClusterPdf, exportDailySecondaryExcel, exportShopSalesExcel, exportShopSalesDailyBondPdf } from "../../utils/exportUtils";
 import DownloadDropdown from "../../components/DownloadDropdown";
 import { disabledFutureMonthDates } from "../../utils/dateUtils";
 import SourceReportsPopover from "../../components/SourceReportsPopover";
@@ -777,6 +777,15 @@ export default function CumulativeShopwiseReport() {
           sumCols.push("Total", ...labels);
         }
 
+        if (mode === "bond") {
+          exportShopSalesDailyBondPdf(processedData, {
+            startDate: dateRange[0],
+            endDate: dateRange[1],
+            Period: period
+          }, "SHOP SALES DAILY - AUG 1-19 (SPEC APPLIED).pdf");
+          return;
+        }
+
         if (modeType === "current") {
           const { columns: pdfCols, data: pdfData, head: pdfHead } = getPdfDataAndColumns(processedData);
 
@@ -871,7 +880,7 @@ export default function CumulativeShopwiseReport() {
         }
       } catch (e) {
         console.error("Error exporting PDF:", e);
-        message.error("Failed to export PDF");
+        message.error("Failed to export PDF: " + (e.message || String(e)));
       } finally {
         setLoading(false);
       }
