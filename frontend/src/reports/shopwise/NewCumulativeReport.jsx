@@ -62,13 +62,29 @@ export default function CumulativeShopwiseReport() {
     }).catch(() => { });
   }, []);
 
-  // Initialize default date range (1st of current month to today) on load
+  // Initialize default date range from report config on load
   useEffect(() => {
-    const defaultStart = dayjs().startOf("month");
-    const defaultEnd = dayjs();
+    getReport(id, null, view, { mode }).then((res) => {
+      const repConfig = res.data.config || {};
+      let defaultStart = dayjs().startOf("month");
+      let defaultEnd = dayjs();
 
-    setDateRange([defaultStart, defaultEnd]);
-    load(null, null, null, null, "bond", defaultStart.format("YYYY-MM-DD"), defaultEnd.format("YYYY-MM-DD"));
+      const startDateStr = repConfig.date1 || repConfig.start_date;
+      const endDateStr = repConfig.date2 || repConfig.end_date;
+
+      if (startDateStr && endDateStr) {
+        defaultStart = dayjs(startDateStr);
+        defaultEnd = dayjs(endDateStr);
+      }
+
+      setDateRange([defaultStart, defaultEnd]);
+      load(null, null, null, null, "bond", defaultStart.format("YYYY-MM-DD"), defaultEnd.format("YYYY-MM-DD"));
+    }).catch(() => {
+      const defaultStart = dayjs().startOf("month");
+      const defaultEnd = dayjs();
+      setDateRange([defaultStart, defaultEnd]);
+      load(null, null, null, null, "bond", defaultStart.format("YYYY-MM-DD"), defaultEnd.format("YYYY-MM-DD"));
+    });
   }, [id]);
 
   // 🔹 triggerLastMonthLoad

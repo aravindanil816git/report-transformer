@@ -86,7 +86,7 @@ class CombinedShopwiseMultiReportService(BaseReportService):
         clean = re.sub(r"\(\d+\)", "", clean)
 
         # Check for date pattern like 4-7-26 or 15-7-2026 or 8-7-26 (D-M-YY or D-M-YYYY)
-        date_match = re.search(r"\b(\d{1,2})[-/](\d{1,2})[-/](20)?\d{2}\b", clean)
+        date_match = re.search(r"(?:^|[^0-9])(\d{1,2})[-/](\d{1,2})[-/](?:20)?\d{2}(?:$|[^0-9])", clean)
         if date_match:
             day = int(date_match.group(1))
             month = int(date_match.group(2))

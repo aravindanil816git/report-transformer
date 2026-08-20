@@ -153,13 +153,45 @@ export default function CombinedShopwiseReport() {
     }).catch(() => setLoading(false));
   };
 
-  // Initialize default date range (1st of current month to today) on load
+  // Initialize default date range from report configuration or uploads on load
   useEffect(() => {
-    const defaultStart = dayjs().startOf("month");
-    const defaultEnd = dayjs();
+    setLoading(true);
+    getReport(id, shop, view, { warehouse, bond }).then((res) => {
+      const repConfig = res.data.config || {};
+      const repUploads = res.data.uploads || [];
 
-    setDateRange([defaultStart, defaultEnd]);
-    load(defaultStart.format("YYYY-MM-DD"), defaultEnd.format("YYYY-MM-DD"));
+      setData(res.data.data || []);
+      setUploads(repUploads);
+      setConfig(repConfig);
+
+      let defaultStart = dayjs().startOf("month");
+      let defaultEnd = dayjs();
+
+      const startDateStr = repConfig.date1 || repConfig.start_date;
+      const endDateStr = repConfig.date2 || repConfig.end_date;
+
+      if (startDateStr && endDateStr) {
+        defaultStart = dayjs(startDateStr);
+        defaultEnd = dayjs(endDateStr);
+      } else if (repUploads.length > 0) {
+        const activeUploads = repUploads.filter(u => u.status === 'uploaded');
+        if (activeUploads.length > 0) {
+          const minStart = Math.min(...activeUploads.map(u => u.start_day || 1));
+          const maxEnd = Math.max(...activeUploads.map(u => u.end_day || 31));
+          const baseMonth = (startDateStr || endDateStr) ? dayjs(startDateStr || endDateStr) : dayjs();
+          defaultStart = baseMonth.date(minStart);
+          defaultEnd = baseMonth.date(maxEnd);
+        }
+      }
+
+      setDateRange([defaultStart, defaultEnd]);
+
+      const initialCollapsed = {};
+      const uniqueShops = [...new Set((res.data.data || []).map(r => r.shop_code))];
+      uniqueShops.forEach(s => initialCollapsed[s] = true);
+      setCollapsedShops(initialCollapsed);
+      setLoading(false);
+    }).catch(() => setLoading(false));
   }, [id]);
 
   const handleApply = () => {
