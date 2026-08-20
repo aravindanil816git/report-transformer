@@ -426,7 +426,8 @@ export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename =
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(13);
     pdf.setTextColor(...NAVY);
-    pdf.text("SHOP SALES DAILY", 12, 45.4 + (26 + 13 * 0.7) / 2);
+    const pdfReportTitle = (metadata.Title || "SHOP SALES DAILY").toUpperCase();
+    pdf.text(pdfReportTitle, 12, 45.4 + (26 + 13 * 0.7) / 2);
 
     const startD = days.length > 0 ? days[0].date : dayjs("2026-08-01");
     const endD = days.length > 0 ? days[days.length - 1].date : dayjs("2026-08-19");

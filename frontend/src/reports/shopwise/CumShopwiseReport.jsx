@@ -777,14 +777,14 @@ export default function CumulativeShopwiseReport() {
           sumCols.push("Total", ...labels);
         }
 
-        if (mode === "bond") {
-          exportShopSalesDailyBondPdf(processedData, {
-            startDate: dateRange[0],
-            endDate: dateRange[1],
-            Period: period
-          }, "SHOP SALES DAILY - AUG 1-19 (SPEC APPLIED).pdf");
-          return;
-        }
+        exportShopSalesDailyBondPdf(processedData, {
+          startDate: dateRange[0],
+          endDate: dateRange[1],
+          Period: period,
+          Title: reportTitle,
+          mode: mode
+        }, `shop_sales_daily_${mode}.pdf`);
+        return;
 
         if (modeType === "current") {
           const { columns: pdfCols, data: pdfData, head: pdfHead } = getPdfDataAndColumns(processedData);
