@@ -184,23 +184,31 @@ class PiVarianceReportService(BaseReportService):
             with open(warehouse_mapping_path, "r", encoding="utf-8") as f:
                 warehouse_mapping = json.load(f)
 
-            bond_mapping_path = os.path.join(os.path.dirname(__file__), "..", "..", "bond_mapping.json")
-            with open(bond_mapping_path, "r", encoding="utf-8") as f:
-                bond_mapping = json.load(f)
+            shopcode_mapping_path = os.path.join(os.path.dirname(__file__), "..", "..", "shopcode_mapping.json")
+            with open(shopcode_mapping_path, "r", encoding="utf-8") as f:
+                shopcode_mapping = json.load(f)
 
-            shop_to_warehouse = {shop.strip(): wh for wh, shops in warehouse_mapping.items() for shop in shops}
-            shop_to_bond = {shop.strip(): bond for bond, data in bond_mapping.items() for shop in data.get("shops", [])}
-            shop_code_to_name = {code.strip(): details.get("shop_name", "Unknown") for code, details in all_shops_data.items()}
+            shop_to_warehouse = {str(shop).strip().lstrip('0'): wh for wh, shops in warehouse_mapping.items() for shop in shops}
+            
+            shop_to_bond = {}
+            for region, shops in shopcode_mapping.items():
+                for s in shops:
+                    code = str(s.get("shop_code", "")).replace(".0", "").strip().lstrip('0')
+                    if code:
+                        shop_to_bond[code] = region.strip()
+                        
+            shop_code_to_name = {str(code).strip().lstrip('0'): details.get("shop_name", "Unknown") for code, details in all_shops_data.items()}
 
             master_shops_list = []
             for code, details in all_shops_data.items():
                 cat = str(details.get("category", "")).strip().upper()
+                clean_code = str(code).strip().lstrip('0')
                 if cat == "KSBC":
                     master_shops_list.append({
-                        "shop_code": str(code).strip(),
+                        "shop_code": clean_code,
                         "shop_name": details.get("shop_name", "Unknown"),
-                        "warehouse": shop_to_warehouse.get(str(code).strip(), "UNMAPPED"),
-                        "bond": shop_to_bond.get(str(code).strip(), "UNMAPPED")
+                        "warehouse": shop_to_warehouse.get(clean_code, "UNMAPPED"),
+                        "bond": shop_to_bond.get(clean_code, "UNMAPPED")
                     })
             master_df = pd.DataFrame(master_shops_list).drop_duplicates(subset=['shop_code'])
             master_df['shop_code'] = master_df['shop_code'].astype(str).str.strip().str.lstrip('0')
@@ -433,11 +441,34 @@ class PiVarianceReportService(BaseReportService):
                 "logs": report.get("processed_logs", [])
             }
         
-        # Safely handle older processed reports that might not have these columns saved
-        if 'warehouse' not in df.columns:
-            df['warehouse'] = 'UNMAPPED'
-        if 'bond' not in df.columns:
-            df['bond'] = 'UNMAPPED'
+        # Dynamic re-enrichment of warehouse and bond mappings
+        try:
+            warehouse_mapping_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "frontend", "src", "data", "warehouse_mapping.json")
+            with open(warehouse_mapping_path, "r", encoding="utf-8") as f:
+                warehouse_mapping = json.load(f)
+
+            shopcode_mapping_path = os.path.join(os.path.dirname(__file__), "..", "..", "shopcode_mapping.json")
+            with open(shopcode_mapping_path, "r", encoding="utf-8") as f:
+                shopcode_mapping = json.load(f)
+
+            shop_to_wh = {str(shop).strip().lstrip('0'): wh for wh, shops in warehouse_mapping.items() for shop in shops}
+            shop_to_bnd = {}
+            for region, shops in shopcode_mapping.items():
+                for s in shops:
+                    code = str(s.get("shop_code", "")).replace(".0", "").strip().lstrip('0')
+                    if code:
+                        shop_to_bnd[code] = region.strip()
+
+            df['shop_code_clean'] = df['shop_code'].astype(str).str.strip().str.lstrip('0')
+            df['warehouse'] = df['shop_code_clean'].map(shop_to_wh).fillna('UNMAPPED')
+            df['bond'] = df['shop_code_clean'].map(shop_to_bnd).fillna('UNMAPPED')
+            df.drop(columns=['shop_code_clean'], inplace=True, errors='ignore')
+        except Exception as e:
+            print(f"DEBUG: Failed to re-map warehouse/bond dynamically in get_report: {e}")
+            if 'warehouse' not in df.columns:
+                df['warehouse'] = 'UNMAPPED'
+            if 'bond' not in df.columns:
+                df['bond'] = 'UNMAPPED'
 
         # Extract unique warehouses and brands for frontend filters/columns
         warehouses = sorted(df['warehouse'].unique().tolist())
