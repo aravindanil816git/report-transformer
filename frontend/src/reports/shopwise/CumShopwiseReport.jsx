@@ -622,10 +622,11 @@ export default function CumulativeShopwiseReport() {
 
   // 🔥 DOWNLOAD
   const downloadExcel = () => {
+    const cleanLeafData = (processedData || []).filter(d => !d.isClusterTotal);
     let exportData = [];
     if (view === "cumulative") {
       // Map to fit the format for exportShopSalesExcel
-      exportData = processedData.map(d => ({
+      exportData = cleanLeafData.map(d => ({
         "Row Labels": d.shop_code ? `${d.shop_name} (${d.shop_code})` : formatName(d.warehouse),
         Opening: useWholeNumbers ? Math.round(d.opening || 0) : d.opening,
         Receipt: useWholeNumbers ? Math.round(d.receipt || 0) : d.receipt,
@@ -645,7 +646,7 @@ export default function CumulativeShopwiseReport() {
         "Cumulative Shopwise"
       );
     } else {
-      exportData = processedData.map(row => {
+      exportData = cleanLeafData.map(row => {
         const firstColVal = row.shop_code
           ? (row.shop_name ? `${formatName(row.shop_name)} (${row.shop_code})` : row.shop_code)
           : formatName(row.warehouse);
@@ -686,6 +687,8 @@ export default function CumulativeShopwiseReport() {
 
   const handleDownload = async (format, modeType) => {
     const reportTitle = "Shop Sales Daily";
+
+    const cleanLeafData = (processedData || []).filter(d => !d.isClusterTotal);
 
     if (format === "xlsx") {
       if (modeType === "unified") {
@@ -777,17 +780,19 @@ export default function CumulativeShopwiseReport() {
           sumCols.push("Total", ...labels);
         }
 
-        exportShopSalesDailyBondPdf(processedData, {
-          startDate: dateRange[0],
-          endDate: dateRange[1],
-          Period: period,
-          Title: reportTitle,
-          mode: mode,
-          useWholeNumbers
-        }, `shop_sales_daily_${mode}.pdf`);
-        return;
+        if (mode === "bond") {
+          exportShopSalesDailyBondPdf(cleanLeafData, {
+            startDate: dateRange[0],
+            endDate: dateRange[1],
+            Period: period,
+            Title: reportTitle,
+            mode: mode,
+            useWholeNumbers
+          }, `shop_sales_daily_${mode}.pdf`);
+          return;
+        }
 
-        const { columns: pdfCols, data: pdfData, head: pdfHead } = getPdfDataAndColumns(processedData);
+        const { columns: pdfCols, data: pdfData, head: pdfHead } = getPdfDataAndColumns(cleanLeafData);
 
         exportToPdf({
           title: reportTitle,
