@@ -229,7 +229,11 @@ export const exportShopSalesExcel = async (data, metadata = {}, filename = "shop
 
 export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename = "SHOP SALES DAILY - AUG 1-19 (SPEC APPLIED).pdf") => {
   try {
-    // 1. Determine Date Range
+    const useWholeNumbers = Boolean(metadata.useWholeNumbers || metadata.use_whole_numbers);
+    const formatNum = (val) => {
+      const num = Number(val || 0);
+      return useWholeNumbers ? Math.round(num).toString() : num.toFixed(2);
+    };
     let startDate = metadata.startDate || metadata.start_date || metadata.date1;
     let endDate = metadata.endDate || metadata.end_date || metadata.date2;
 
@@ -271,10 +275,15 @@ export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename =
     const allBondRows = [];
     const clusterBlocks = [];
 
+    const matchedRowIndices = new Set();
+
     CLUSTERS.forEach(cluster => {
       const sortedBonds = [...cluster.bonds].sort((a, b) => a.localeCompare(b));
       const blockBondRows = sortedBonds.map(bondName => {
         const matchedRow = findBondRow(data, bondName);
+        if (matchedRow) {
+          matchedRowIndices.add(matchedRow);
+        }
         const values = days.map(d => getDayValue(matchedRow, d));
         const totalValue = values.reduce((sum, v) => sum + v, 0);
         const rowObj = {
@@ -306,6 +315,48 @@ export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename =
         clusterRow: clusterRowObj
       });
     });
+
+    // Dynamic sweep: capture any unassigned/dynamic bonds or warehouses in data
+    const unmatchedRows = (Array.isArray(data) ? data : []).filter(r => {
+      const label = String(r.bond || r.bond_name || r.warehouse || r["Row Labels"] || r.label || r.name || "").trim();
+      return label && !label.toUpperCase().includes("TOTAL") && !matchedRowIndices.has(r);
+    });
+
+    if (unmatchedRows.length > 0) {
+      const extraBondRows = unmatchedRows.map(r => {
+        const rawLabel = String(r.bond || r.bond_name || r.warehouse || r["Row Labels"] || r.label || r.name || "").trim();
+        const cleanLabel = rawLabel.replace(/^WH-/i, "").replace(/\s+BOND$/i, "").toUpperCase();
+        const values = days.map(d => getDayValue(r, d));
+        const totalValue = values.reduce((sum, v) => sum + v, 0);
+        const rowObj = {
+          type: "bond",
+          label: cleanLabel,
+          values,
+          totalValue
+        };
+        allBondRows.push(rowObj);
+        return rowObj;
+      });
+
+      const extraValues = days.map((d, dIdx) => {
+        return extraBondRows.reduce((sum, r) => sum + (r.values[dIdx] || 0), 0);
+      });
+      const extraTotalValue = extraValues.reduce((sum, v) => sum + v, 0);
+
+      const extraClusterRow = {
+        type: "cluster",
+        clusterId: 99,
+        label: "OTHER REGIONS",
+        values: extraValues,
+        totalValue: extraTotalValue
+      };
+
+      clusterBlocks.push({
+        clusterId: 99,
+        bondRows: extraBondRows,
+        clusterRow: extraClusterRow
+      });
+    }
 
     // Grand Total (§15.1) — bond rows only, never cluster rows!
     const grandTotalValues = days.map((d, dIdx) => {
@@ -356,18 +407,18 @@ export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename =
       const w1 = getTextWidth(d.weekdayStr, true, 10);
       const w2 = getTextWidth(d.dayNumStr, true, 10);
       const w3 = allBondRows.length > 0 
-        ? Math.max(...allBondRows.map(r => getTextWidth((r.values[dIdx] || 0).toFixed(2), false, 11))) 
+        ? Math.max(...allBondRows.map(r => getTextWidth(formatNum(r.values[dIdx]), false, 11))) 
         : 21.406;
       const w4 = clusterBlocks.length > 0 
-        ? Math.max(...clusterBlocks.map(b => getTextWidth((b.clusterRow.values[dIdx] || 0).toFixed(2), true, 11))) 
+        ? Math.max(...clusterBlocks.map(b => getTextWidth(formatNum(b.clusterRow.values[dIdx]), true, 11))) 
         : 21.406;
-      const w5 = getTextWidth((grandTotalRowObj.values[dIdx] || 0).toFixed(2), true, 11);
+      const w5 = getTextWidth(formatNum(grandTotalRowObj.values[dIdx]), true, 11);
       return Math.max(w1, w2, w3, w4, w5) + 10;
     });
 
     const wTotalHeader = getTextWidth("TOTAL", true, 10);
     const maxBodyTotalWidth = bodyRows.length > 0 
-      ? Math.max(...bodyRows.map(r => getTextWidth((r.totalValue || 0).toFixed(2), true, 11))) 
+      ? Math.max(...bodyRows.map(r => getTextWidth(formatNum(r.totalValue), true, 11))) 
       : 33.638;
     const totalColWidth = Math.max(wTotalHeader, maxBodyTotalWidth) + 10;
 
@@ -538,8 +589,8 @@ export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename =
         days.forEach((d, dIdx) => {
           const x = colX[dIdx + 1];
           const w = dayColWidths[dIdx];
-          const valStr = (row.values[dIdx] || 0).toFixed(2);
-          const isZero = (valStr === "0.00");
+          const valStr = formatNum(row.values[dIdx]);
+          const isZero = Number(row.values[dIdx] || 0) === 0;
           pdf.setFont("helvetica", "normal");
           pdf.setFontSize(11);
           pdf.setTextColor(...(isZero ? TEXT_ZERO : TEXT_VALUE));
@@ -548,8 +599,8 @@ export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename =
         });
 
         // Total cell text
-        const totStr = (row.totalValue || 0).toFixed(2);
-        const isZero = (totStr === "0.00");
+        const totStr = formatNum(row.totalValue);
+        const isZero = Number(row.totalValue || 0) === 0;
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(11);
         pdf.setTextColor(...(isZero ? TEXT_ZERO : TEXT_VALUE));
@@ -589,8 +640,8 @@ export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename =
         days.forEach((d, dIdx) => {
           const x = colX[dIdx + 1];
           const w = dayColWidths[dIdx];
-          const valStr = (row.values[dIdx] || 0).toFixed(2);
-          const isZero = (valStr === "0.00");
+          const valStr = formatNum(row.values[dIdx]);
+          const isZero = Number(row.values[dIdx] || 0) === 0;
           pdf.setFont("helvetica", "bold");
           pdf.setFontSize(11);
           pdf.setTextColor(...(isZero ? TEXT_ZERO : GOLD));
@@ -599,8 +650,8 @@ export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename =
         });
 
         // Total cell text
-        const totStr = (row.totalValue || 0).toFixed(2);
-        const isZero = (totStr === "0.00");
+        const totStr = formatNum(row.totalValue);
+        const isZero = Number(row.totalValue || 0) === 0;
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(11);
         pdf.setTextColor(...(isZero ? TEXT_ZERO : GOLD));
@@ -638,8 +689,8 @@ export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename =
         days.forEach((d, dIdx) => {
           const x = colX[dIdx + 1];
           const w = dayColWidths[dIdx];
-          const valStr = (row.values[dIdx] || 0).toFixed(2);
-          const isZero = (valStr === "0.00");
+          const valStr = formatNum(row.values[dIdx]);
+          const isZero = Number(row.values[dIdx] || 0) === 0;
           pdf.setFont("helvetica", "bold");
           pdf.setFontSize(11);
           pdf.setTextColor(...(isZero ? TEXT_ZERO_GOLD : NAVY));
@@ -648,8 +699,8 @@ export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename =
         });
 
         // Total cell text
-        const totStr = (row.totalValue || 0).toFixed(2);
-        const isZero = (totStr === "0.00");
+        const totStr = formatNum(row.totalValue);
+        const isZero = Number(row.totalValue || 0) === 0;
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(11);
         pdf.setTextColor(...(isZero ? TEXT_ZERO_GOLD : NAVY));

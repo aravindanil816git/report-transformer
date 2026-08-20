@@ -782,8 +782,24 @@ export default function CumulativeShopwiseReport() {
           endDate: dateRange[1],
           Period: period,
           Title: reportTitle,
-          mode: mode
+          mode: mode,
+          useWholeNumbers
         }, `shop_sales_daily_${mode}.pdf`);
+        return;
+
+        const { columns: pdfCols, data: pdfData, head: pdfHead } = getPdfDataAndColumns(processedData);
+
+        exportToPdf({
+          title: reportTitle,
+          periodLabel: period,
+          columns: pdfCols,
+          data: pdfData,
+          head: pdfHead,
+          sumCols: sumCols,
+          filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${mode}.pdf`,
+          zeroMargin: true,
+          orientation: "landscape"
+        });
         return;
 
         if (modeType === "current") {
