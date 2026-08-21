@@ -8,3 +8,5 @@ export { exportNewCumulativeExcel } from "./export/newCumulativeExport";
 export { exportAchievedTargetExcel, exportAchievedTargetPdf } from "./export/achievedTargetExport";
 export { exportComparativeShopSalesPdf } from "./export/comparativeShopSalesExport";
 export { exportMonthlySummaryExcel, exportMonthlySummaryPdf } from "./export/monthlySummaryExport";
+export { exportPiVarianceExcel } from "./export/piVarianceExport";
+export { exportPiVariancePdf } from "./export/piVariancePdfExport";

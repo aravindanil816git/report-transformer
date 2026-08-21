@@ -1,9 +1,10 @@
 import { useEffect, useState, useMemo } from "react";
-import { Table, Select, Segmented, Row, Col, Button, Checkbox, Spin, Alert, Typography, Card, message } from "antd";
+import { Table, Select, Segmented, Row, Col, Button, Checkbox, Spin, Alert, Typography, Card, message, Space } from "antd";
 import { useParams, useNavigate } from "react-router-dom";
 import { PlusSquareOutlined, MinusSquareOutlined } from "@ant-design/icons";
 import { getReport } from "../api";
-import { exportToExcel } from "../utils/exportUtils";
+import { exportPiVarianceExcel, exportPiVariancePdf } from "../utils/exportUtils";
+import { DownloadOutlined, FileExcelOutlined, FilePdfOutlined } from "@ant-design/icons";
 
 const { Title } = Typography;
 const METRICS = ['l3ms', 'rl', 'rq', 'mq'];
@@ -86,7 +87,7 @@ export default function PiVarianceReport() {
     }, {});
 
     const initialTotalTemplate = {};
-    meta.brands.forEach(brand => {
+    (meta.brands || []).forEach(brand => {
       METRICS.forEach(metric => {
         ['cm', 'lm', 'var'].forEach(type => {
           initialTotalTemplate[`${brand}_${metric}_${type}`] = 0;
@@ -122,14 +123,6 @@ export default function PiVarianceReport() {
             display_name: `${item.shop_name} (${item.shop_code})`,
           });
         });
-
-        rows.push({
-          key: `total_${key}`,
-          display_name: `${key} Total`,
-          isGroupTotal: true,
-          ...groupTotal
-        });
-        rows.push({ key: `spacer_${key}`, isSpacer: true });
       }
 
       Object.keys(grandTotal).forEach(totalKey => {
@@ -155,6 +148,7 @@ export default function PiVarianceReport() {
       dataIndex: 'display_name',
       fixed: 'left',
       width: 280,
+      className: 'row-label-col',
       render: (text, record) => {
         if (record.isSpacer) return null;
         if (record.isGroupHeader) {
@@ -171,15 +165,20 @@ export default function PiVarianceReport() {
       }
     }];
 
-    const brandCols = (meta.brands || []).map(brand => ({
+    const brandCols = (meta.brands || []).map((brand) => ({
       title: brand,
-      children: METRICS.map(metric => {
+      className: "brand-header-cell",
+      children: METRICS.map((metric, mIdx) => {
+        const isMq = metric === 'mq';
+        const isLastMetric = mIdx === METRICS.length - 1;
+
         if (!comparativeMode) {
           return {
             title: metric.toUpperCase(),
             dataIndex: `${brand}_${metric}_cm`,
             align: 'right',
             width: 85,
+            className: `${isMq ? 'mq-header' : ''} ${isLastMetric ? 'brand-last-col' : ''}`.trim(),
             render: (val, record) => {
               if (record.isSpacer) return null;
               const isTotal = record.isGroupHeader || record.isGroupTotal || record.isGrandTotal;
@@ -188,27 +187,33 @@ export default function PiVarianceReport() {
             }
           };
         }
+
         return {
           title: metric.toUpperCase(),
-          children: ['cm', 'lm', 'var'].map(type => ({
-            title: type.toUpperCase(),
-            dataIndex: `${brand}_${metric}_${type}`,
-            align: 'right',
-            width: 85,
-            render: (val, record) => {
-              if (record.isSpacer) return null;
-              const isTotal = record.isGroupHeader || record.isGroupTotal || record.isGrandTotal;
-              const formattedVal = formatVal(val);
-              
-              if (type === 'var') {
-                const num = Number(val);
-                const color = num < 0 ? 'red' : (num > 0 ? 'green' : 'inherit');
-                return <span style={{ color, fontWeight: isTotal ? 'bold' : 'normal' }}>{formattedVal}</span>;
+          className: `${isMq ? 'mq-header' : ''} metric-last-col ${isLastMetric ? 'brand-last-col' : ''}`.trim(),
+          children: ['cm', 'lm', 'var'].map((type, tIdx) => {
+            const isLastSubCol = (tIdx === 2);
+            return {
+              title: type.toUpperCase(),
+              dataIndex: `${brand}_${metric}_${type}`,
+              align: 'right',
+              width: 85,
+              className: `${isMq ? 'mq-header' : ''} ${isLastSubCol ? 'metric-last-col' : ''} ${isLastMetric && isLastSubCol ? 'brand-last-col' : ''}`.trim(),
+              render: (val, record) => {
+                if (record.isSpacer) return null;
+                const isTotal = record.isGroupHeader || record.isGroupTotal || record.isGrandTotal;
+                const formattedVal = formatVal(val);
+
+                if (type === 'var') {
+                  const num = Number(val);
+                  const color = num < 0 ? '#FF7875' : (num > 0 ? '#52C41A' : 'inherit');
+                  return <span style={{ color, fontWeight: isTotal ? 'bold' : 'normal' }}>{formattedVal}</span>;
+                }
+
+                return isTotal ? <b>{formattedVal}</b> : formattedVal;
               }
-              
-              return isTotal ? <b>{formattedVal}</b> : formattedVal;
-            }
-          }))
+            };
+          })
         };
       })
     }));
@@ -217,37 +222,34 @@ export default function PiVarianceReport() {
   }, [meta.brands, useWholeNumbers, collapsedGroups, mode, comparativeMode]);
 
   const downloadExcel = () => {
-    const dataForExport = tableData.filter(r => !r.isSpacer).map(row => {
-        const exportRow = { 'Row Labels': row.display_name };
-        columns.slice(1).forEach(brandCol => {
-            brandCol.children.forEach(metricCol => {
-                if (metricCol.children) {
-                    metricCol.children.forEach(typeCol => {
-                        const key = `${brandCol.title} ${metricCol.title} ${typeCol.title}`;
-                        exportRow[key] = formatVal(row[typeCol.dataIndex]);
-                    });
-                } else {
-                    const key = `${brandCol.title} ${metricCol.title}`;
-                    exportRow[key] = formatVal(row[metricCol.dataIndex]);
-                }
-            });
-        });
-        return exportRow;
+    if (data.length === 0) {
+      message.warning("No data available to export");
+      return;
+    }
+    exportPiVarianceExcel({
+      tableData,
+      meta,
+      config,
+      mode,
+      useWholeNumbers,
+      comparativeMode,
+      filename: `pi_variance_report_${config.month || "export"}.xlsx`
     });
+  };
 
-    exportToExcel(
-      dataForExport,
-      {
-        "Report": "PI Variance",
-        "Month": config.month || "N/A",
-        "View": mode.charAt(0).toUpperCase() + mode.slice(1),
-        "Warehouse Filter": selectedWarehouse,
-        "Bond Filter": selectedBond,
-        "Round off": useWholeNumbers ? "Yes" : "No",
-        "Comparative Mode": comparativeMode ? "Yes" : "No"
-      },
-      `pi_variance_report_${config.month}.xlsx`
-    );
+  const downloadPdf = () => {
+    if (data.length === 0) {
+      message.warning("No data available to export");
+      return;
+    }
+    exportPiVariancePdf({
+      data: filteredData,
+      meta,
+      config,
+      mode,
+      useWholeNumbers,
+      filename: `pi_variance_purchase_instruction_${config.month || "export"}.pdf`
+    });
   };
 
   if (loading) {
@@ -318,7 +320,10 @@ export default function PiVarianceReport() {
             </Checkbox>
           </Col>
           <Col>
-            <Button onClick={downloadExcel}>Download Excel</Button>
+            <Space>
+              <Button type="primary" icon={<FileExcelOutlined />} onClick={downloadExcel}>Export Excel</Button>
+              <Button type="primary" icon={<FilePdfOutlined />} onClick={downloadPdf}>Export PDF</Button>
+            </Space>
           </Col>
         </Row>
 
@@ -361,25 +366,42 @@ export default function PiVarianceReport() {
             border: none !important;
           }
           .group-header-row td, .group-total-row td {
-            background-color: #f2f2f2 !important;
+            background-color: #f5f5f5 !important;
+            font-weight: bold;
+            border-top: 1.5px solid #FAAF19 !important;
+            border-bottom: 1.5px solid #FAAF19 !important;
+          }
+          .group-header-row td b {
+            color: #a52a2a !important;
           }
           .grand-total-row td {
             background-color: #e6f7ff !important;
             font-weight: bold;
+            border-top: 2px solid #FAAF19 !important;
+            border-bottom: 2px solid #FAAF19 !important;
           }
           .ant-table-thead > tr > th {
             background-color: #fafafa !important;
+            color: #1f1f1f !important;
             text-align: center !important;
             font-weight: bold !important;
+            border-top: 1.5px solid #FAAF19 !important;
+            border-bottom: 1.5px solid #FAAF19 !important;
           }
-          .ant-table-summary tr td {
-              font-weight: bold;
+          .metric-last-col {
+            border-right: 1.5px solid #FAAF19 !important;
+          }
+          .brand-last-col, .brand-header-cell, .row-label-col {
+            border-right: 2.5px solid #FAAF19 !important;
           }
           .ant-table-cell-fix-left {
-              background: #fff;
+            background: #fff;
           }
-          .group-header-row .ant-table-cell-fix-left {
-              background: #f2f2f2;
+          .group-header-row .ant-table-cell-fix-left, .group-total-row .ant-table-cell-fix-left {
+            background: #f5f5f5 !important;
+          }
+          .grand-total-row .ant-table-cell-fix-left {
+            background: #e6f7ff !important;
           }
         `}</style>
       </Card>
