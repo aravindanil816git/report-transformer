@@ -7,3 +7,4 @@ export { exportBrandwiseCumExcel, exportBrandwiseSecondaryPdf } from "./export/b
 export { exportNewCumulativeExcel } from "./export/newCumulativeExport";
 export { exportAchievedTargetExcel, exportAchievedTargetPdf } from "./export/achievedTargetExport";
 export { exportComparativeShopSalesPdf } from "./export/comparativeShopSalesExport";
+export { exportMonthlySummaryExcel, exportMonthlySummaryPdf } from "./export/monthlySummaryExport";

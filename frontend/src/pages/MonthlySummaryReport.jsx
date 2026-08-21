@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Table, Button, Space, message, Typography, Checkbox, DatePicker } from "antd";
-import { DownloadOutlined } from "@ant-design/icons";
+import { DownloadOutlined, FileExcelOutlined, FilePdfOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { getReport } from "../api";
-import { exportToExcel } from "../utils/exportUtils";
+import { exportMonthlySummaryExcel, exportMonthlySummaryPdf } from "../utils/exportUtils";
 import SourceReportsPopover from "../components/SourceReportsPopover";
 
 const { Title } = Typography;
@@ -205,86 +205,36 @@ export default function MonthlySummaryReport() {
     return Number(Number(val).toFixed(2));
   };
 
-  const handleExport = () => {
+  const handleExportExcel = () => {
     if (data.length === 0) {
       message.warning("No data available to export");
       return;
     }
-    
-    // Flatten headers for Excel export
-    const flatData = tableData.map((row) => ({
-      "Bond": row.isClusterTotal ? `${row.cluster} TOTAL` : row.bond,
-      
-      "Shop Liq Curr": formatForExcel(row.curr_shop_liq),
-      "Shop Liq Prev": formatForExcel(row.prev_shop_liq),
-      "Shop Liq Var": formatForExcel(row.var_shop_liq),
-      "Shop Liq %": formatForExcel(row.pct_shop_liq),
-      
-      "Sec Sales Curr": formatForExcel(row.curr_sec_sales),
-      "Sec Sales Prev": formatForExcel(row.prev_sec_sales),
-      "Sec Sales Var": formatForExcel(row.var_sec_sales),
-      "Sec Sales %": formatForExcel(row.pct_sec_sales),
-      
-      "Fed/Bar Curr": formatForExcel(row.curr_fed_bar),
-      "Fed/Bar Prev": formatForExcel(row.prev_fed_bar),
-      "Fed/Bar Var": formatForExcel(row.var_fed_bar),
-      "Fed/Bar %": formatForExcel(row.pct_fed_bar),
-      
-      "Total Liq Curr": formatForExcel(row.curr_total),
-      "Total Liq Prev": formatForExcel(row.prev_total),
-      "Total Liq Var": formatForExcel(row.var_total),
-      "Total Liq %": formatForExcel(row.pct_total),
-    }));
-
-    // Add totals to Excel
-    flatData.push({
-      "Bond": "TOTAL",
-      "Shop Liq Curr": formatForExcel(totals.curr_shop_liq),
-      "Shop Liq Prev": formatForExcel(totals.prev_shop_liq),
-      "Shop Liq Var": formatForExcel(totals.var_shop_liq),
-      "Shop Liq %": formatForExcel(totals.pct_shop_liq),
-      
-      "Sec Sales Curr": formatForExcel(totals.curr_sec_sales),
-      "Sec Sales Prev": formatForExcel(totals.prev_sec_sales),
-      "Sec Sales Var": formatForExcel(totals.var_sec_sales),
-      "Sec Sales %": formatForExcel(totals.pct_sec_sales),
-      
-      "Fed/Bar Curr": formatForExcel(totals.curr_fed_bar),
-      "Fed/Bar Prev": formatForExcel(totals.prev_fed_bar),
-      "Fed/Bar Var": formatForExcel(totals.var_fed_bar),
-      "Fed/Bar %": formatForExcel(totals.pct_fed_bar),
-      
-      "Total Liq Curr": formatForExcel(totals.curr_total),
-      "Total Liq Prev": formatForExcel(totals.prev_total),
-      "Total Liq Var": formatForExcel(totals.var_total),
-      "Total Liq %": formatForExcel(totals.pct_total),
+    exportMonthlySummaryExcel({
+      data: tableData,
+      totals,
+      averages,
+      meta,
+      title: reportInfo.name || "BOND LIQUIDATION SCORECARD",
+      useWholeNumbers,
+      filename: `${(reportInfo.name || "monthly_summary_scorecard").toLowerCase().replace(/\s+/g, '_')}.xlsx`
     });
+  };
 
-    // Add Averages to Excel
-    flatData.push({
-      "Bond": "AVERAGE DAILY SALE",
-      "Shop Liq Curr": formatForExcel(averages.curr_shop_liq),
-      "Shop Liq Prev": formatForExcel(averages.prev_shop_liq),
-      "Shop Liq Var": formatForExcel(averages.var_shop_liq),
-      "Shop Liq %": formatForExcel(averages.pct_shop_liq),
-      
-      "Sec Sales Curr": formatForExcel(averages.curr_sec_sales),
-      "Sec Sales Prev": formatForExcel(averages.prev_sec_sales),
-      "Sec Sales Var": formatForExcel(averages.var_sec_sales),
-      "Sec Sales %": formatForExcel(averages.pct_sec_sales),
-      
-      "Fed/Bar Curr": formatForExcel(averages.curr_fed_bar),
-      "Fed/Bar Prev": formatForExcel(averages.prev_fed_bar),
-      "Fed/Bar Var": formatForExcel(averages.var_fed_bar),
-      "Fed/Bar %": formatForExcel(averages.pct_fed_bar),
-      
-      "Total Liq Curr": formatForExcel(averages.curr_total),
-      "Total Liq Prev": formatForExcel(averages.prev_total),
-      "Total Liq Var": formatForExcel(averages.var_total),
-      "Total Liq %": formatForExcel(averages.pct_total),
+  const handleExportPdf = () => {
+    if (data.length === 0) {
+      message.warning("No data available to export");
+      return;
+    }
+    exportMonthlySummaryPdf({
+      data: tableData,
+      totals,
+      averages,
+      meta,
+      title: reportInfo.name || "BOND LIQUIDATION SCORECARD",
+      useWholeNumbers,
+      filename: `${(reportInfo.name || "monthly_summary_scorecard").toLowerCase().replace(/\s+/g, '_')}.pdf`
     });
-
-    exportToExcel(flatData, { "Report Name": reportInfo.name, "Round off": useWholeNumbers ? "Yes" : "No" }, `${reportInfo.name}.xlsx`);
   };
 
   // Dynamic Date Formatting
@@ -427,8 +377,11 @@ export default function MonthlySummaryReport() {
             <Checkbox checked={useWholeNumbers} onChange={(e) => setUseWholeNumbers(e.target.checked)}>
               Round off
             </Checkbox>
-            <Button icon={<DownloadOutlined />} onClick={handleExport}>
+            <Button icon={<FileExcelOutlined />} type="primary" onClick={handleExportExcel}>
               Export Excel
+            </Button>
+            <Button icon={<FilePdfOutlined />} type="primary" onClick={handleExportPdf}>
+              Export PDF
             </Button>
           </Space>
         </div>
