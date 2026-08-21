@@ -27,7 +27,7 @@ export const exportPiVarianceExcel = async ({
 }) => {
   const workbook = new ExcelJS.Workbook();
   const ws = workbook.addWorksheet("PI Variance", {
-    views: [{ showGridLines: true }]
+    views: [{ state: "frozen", xSplit: 1, ySplit: 5, showGridLines: true }]
   });
 
   const NAVY = "0B2C52";
@@ -77,7 +77,7 @@ export const exportPiVarianceExcel = async ({
   ws.getRow(2).height = 24;
   ws.mergeCells(`A2:${lastColLetter}2`);
   const r2Cell = ws.getCell("A2");
-  
+
   let formattedDateStr = "1 AUGUST 2026";
   if (config.month) {
     const parsedDate = dayjs(config.month, ["YYYY-MM-DD", "YYYY-MM", "MMMM YYYY", "MMMM"]);
@@ -87,7 +87,7 @@ export const exportPiVarianceExcel = async ({
       formattedDateStr = String(config.month).toUpperCase();
     }
   }
-  
+
   r2Cell.value = `PURCHASE INSTRUCTION · ${formattedDateStr}`;
   r2Cell.font = { name: "Segoe UI", size: 12, bold: true, color: { argb: NAVY } };
   r2Cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GOLD } };
@@ -243,7 +243,7 @@ export const exportPiVarianceExcel = async ({
           }
 
           cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: cellBg } };
-          cell.alignment = { horizontal: "right", vertical: "middle" };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
 
           const isBrandBoundary = ((colIdx - 1) % colsPerBrand === 0) || colIdx === totalCols;
           const isLeftBoundary = ((colIdx - 2) % colsPerBrand === 0);

@@ -278,7 +278,7 @@ export const exportMonthlySummaryExcel = async ({
 
       if (isGrandTotal || isAvgRow) {
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBgColor } };
-        cell.alignment = { horizontal: "right", vertical: "middle" };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
         
         if (colInfo.isVar || colInfo.isPct) {
           const isPos = numVal > 0;
@@ -294,7 +294,7 @@ export const exportMonthlySummaryExcel = async ({
         }
       } else if (isClusterTotal) {
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
-        cell.alignment = { horizontal: "right", vertical: "middle" };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
 
         if (colInfo.isVar || colInfo.isPct) {
           const isPos = numVal > 0;
@@ -312,7 +312,7 @@ export const exportMonthlySummaryExcel = async ({
         // Leaf row
         const isZebra = rIdx % 2 === 0;
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isZebra ? ROW_TINT : ROW_WHITE } };
-        cell.alignment = { horizontal: "right", vertical: "middle" };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
 
         if (colInfo.isVar || colInfo.isPct) {
           const isPos = numVal > 0;

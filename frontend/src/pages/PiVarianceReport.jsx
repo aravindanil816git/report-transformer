@@ -120,7 +120,7 @@ export default function PiVarianceReport() {
           rows.push({
             ...item,
             key: `shop_${item.shop_code}`,
-            display_name: `${item.shop_name} (${item.shop_code})`,
+            display_name: item.shop_name,
           });
         });
       }
