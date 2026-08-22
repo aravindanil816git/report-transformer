@@ -3,7 +3,7 @@ import { Table, Select, Segmented, Row, Col, Button, Checkbox, DatePicker, messa
 import { useParams, useNavigate } from "react-router-dom";
 import { PlusSquareOutlined, MinusSquareOutlined, FilePdfOutlined, FileExcelOutlined } from "@ant-design/icons";
 import { getReport, getFilters, getJson } from "../../api";
-import { exportToExcel, exportUnifiedWithDropdown, exportToPdf, exportShopDrilldownPdfByBond, exportShopSalesExcel } from "../../utils/exportUtils";
+import { exportToExcel, exportUnifiedWithDropdown, exportShopSalesMultiTabExcel, exportToPdf, exportShopDrilldownPdfByBond, exportShopSalesExcel } from "../../utils/exportUtils";
 import dayjs from "dayjs";
 import { disabledFutureMonthDates } from "../../utils/dateUtils";
 import DownloadDropdown from "../../components/DownloadDropdown";
@@ -657,19 +657,19 @@ export default function CombinedShopwiseReport() {
 
           const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
 
-          exportUnifiedWithDropdown({
-            data: exportData,
-            warehouses: uniqueList,
-            reportTitle: `${reportTitle} (Unified - Shop Drilldown)`,
+          await exportShopSalesMultiTabExcel({
+            fullData,
+            filterMode,
+            reportTitle,
             periodLabel: period,
-            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${filterMode}_unified.xlsx`,
-            sheetName: "Shop Drilldown",
-            sumCols: ["Opening", "Receipt", "Sales", "Closing"],
-            dropdownLabel: filterMode === "bond" ? "Bond" : "Warehouse",
-            filterColumnName: filterMode === "bond" ? "Bond" : "Warehouse",
-            theme: "navy",
-            reportColumns: ["Row Labels", "Opening", "Receipt", "Sales", "Closing"]
+            filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_${filterMode}_multi_tab.xlsx`,
+            useWholeNumbers,
+            bondMapping,
+            filterMapping,
+            allShops,
+            shopcodeMapping
           });
+          message.success(`Multi-tab Excel exported successfully for each ${filterMode}!`);
         } catch (e) {
           console.error("Error exporting unified excel:", e);
           message.error("Failed to export unified report");

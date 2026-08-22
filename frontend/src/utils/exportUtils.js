@@ -1,5 +1,5 @@
 export { exportToExcel, exportMultiSheetExcel, exportToPdf, parseLabelToDate } from "./export/core";
-export { exportUnifiedWithDropdown } from "./export/unifiedDropdownExport";
+export { exportUnifiedWithDropdown, exportShopSalesMultiTabExcel } from "./export/unifiedDropdownExport";
 export { exportClusterPdf, exportShopDrilldownPdfByBond } from "./export/shopDrilldownExport";
 export { exportDailySecondaryExcel, exportDailySecondaryPdf } from "./export/dailySecondaryExport";
 export { exportShopSalesExcel, exportShopSalesDailyBondPdf, exportShopSalesPdf } from "./export/shopSalesExport";

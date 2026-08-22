@@ -216,14 +216,27 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                     return [sorted(uploaded_meta, key=lambda x: abs(x["end_day"] - sel_end_day))[0]]
                 return []
 
-        # 2. If requested end day > 16 (e.g. 1-17, 1-25, 1-30, 1-31):
-        # ONLY select a single full-month upload if user requested a full month range (sel_start_day <= 2 and sel_end_day >= 28)
+        # 2. If requested start day > 16 (e.g. 17-19, 17-20, 17-30):
+        if sel_start_day > 16:
+            candidates = [u for u in uploads_meta if u.get("status") == "uploaded" and u["start_day"] >= sel_start_day and u["end_day"] <= sel_end_day]
+            if not candidates:
+                candidates = [u for u in uploads_meta if u.get("status") == "uploaded" and u["start_day"] <= sel_start_day and u["end_day"] >= sel_start_day]
+            
+            if candidates:
+                exact = [u for u in candidates if u["start_day"] == sel_start_day and u["end_day"] == sel_end_day]
+                if exact:
+                    return [sorted(exact, key=lambda x: x["end_day"])[-1]]
+                sorted_cand = sorted(candidates, key=lambda x: (x["start_day"], x["end_day"]))
+                return [sorted_cand[-1]]
+            return []
+
+        # 3. If requested end day > 16 and start day <= 16 (e.g. 1-17, 1-25, 1-30, 1-31):
         if sel_start_day <= 2 and sel_end_day >= 28:
             full_month = [u for u in uploads_meta if u["start_day"] <= sel_start_day and u["end_day"] >= sel_end_day]
             if full_month:
                 return [sorted(full_month, key=lambda x: x["end_day"])[-1]]
 
-        # Otherwise select Set 1 (ending <= sel_end_day, capped at 16) and Set 2 (ending <= sel_end_day)
+        # Select Set 1 (ending <= sel_end_day, capped at 16) and Set 2 (ending <= sel_end_day)
         set1 = [u for u in uploads_meta if u["start_day"] <= 16 and u["end_day"] <= 16]
         set2 = [u for u in uploads_meta if u["start_day"] >= 16 or u["end_day"] > 16]
 
@@ -236,30 +249,19 @@ class CombinedShopwiseMultiReportService(BaseReportService):
                 res.append(sorted(set1, key=lambda x: x["end_day"])[-1])
 
         if set2:
-            # Set 2 upload MUST have end_day <= sel_end_day
-            valid_set2 = [u for u in set2 if u["start_day"] <= sel_end_day and u["end_day"] <= sel_end_day]
+            valid_set2 = [u for u in set2 if u["start_day"] <= sel_end_day]
             if valid_set2:
-                # Check if there is a cumulative upload covering from ~17 to sel_end_day (e.g. 17-18 or 17-31)
                 cum_set2 = [u for u in valid_set2 if u["start_day"] <= 17 and u["end_day"] == sel_end_day]
                 if cum_set2:
                     latest_set2 = sorted(cum_set2, key=lambda x: x["end_day"])[-1]
                     if not res or latest_set2["file"] != res[0]["file"]:
                         res.append(latest_set2)
                 else:
-                    # Collect non-overlapping sequential daily uploads in Set 2 (e.g. 17-17 + 18-18)
                     sorted_set2 = sorted(valid_set2, key=lambda x: (x["start_day"], x["end_day"]))
-                    curr_end = 16
-                    for u in sorted_set2:
-                        if u["start_day"] > curr_end:
-                            if not res or u["file"] != res[0]["file"]:
-                                res.append(u)
-                                curr_end = u["end_day"]
-                        elif u["end_day"] > curr_end:
-                            if res and res[-1]["start_day"] == u["start_day"]:
-                                res[-1] = u
-                            elif not res or u["file"] != res[0]["file"]:
-                                res.append(u)
-                            curr_end = u["end_day"]
+                    match_s2 = [u for u in sorted_set2 if u["end_day"] <= sel_end_day]
+                    best_s2 = match_s2[-1] if match_s2 else sorted_set2[0]
+                    if not res or best_s2["file"] != res[0]["file"]:
+                        res.append(best_s2)
 
         return res
 

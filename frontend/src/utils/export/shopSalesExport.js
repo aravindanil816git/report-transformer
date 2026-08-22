@@ -19,8 +19,6 @@ export const exportShopSalesExcel = async (data, metadata = {}, filename = "shop
   // Set initial row heights
   ws.getRow(1).height = 30;
   ws.getRow(2).height = 20;
-  ws.getRow(3).height = 24;
-  ws.getRow(4).height = 24;
 
   const reportTitle = (metadata.Title || "SHOP SALES CUMULATIVE").toUpperCase();
   const periodStr = (metadata.Period || "").replace(/^COMBINED PERIOD\s*:\s*/i, "").replace(/^Report Period:\s*/i, "").trim();
@@ -54,10 +52,11 @@ export const exportShopSalesExcel = async (data, metadata = {}, filename = "shop
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
   }
 
-  const shopNameStr = (metadata.Shop || metadata.Warehouse || "").replace(/^\d{6}-/, "").toUpperCase();
-  const bondNameStr = (metadata.Bond || "").replace(/\s+BOND$/i, "").replace(/^WH-/i, "").toUpperCase();
+  const shopNameStr = (metadata.Shop || metadata.Warehouse || "").replace(/^\d{6}-/, "").toUpperCase().trim();
+  const bondNameStr = (metadata.Bond || "").replace(/\s+BOND$/i, "").replace(/^WH-/i, "").toUpperCase().trim();
 
-  // Row 3: Shop Name Banner (Shop Name on left, Bond Name on right)
+  // Row 3: Shop Name Banner (Shop Name on left, Bond Name on right) - Restored for Current View
+  ws.getRow(3).height = 24;
   ws.mergeCells("A3:C3");
   ws.mergeCells("D3:E3");
 
@@ -70,7 +69,7 @@ export const exportShopSalesExcel = async (data, metadata = {}, filename = "shop
   const bondCell = ws.getCell("D3");
   bondCell.value = bondNameStr;
   bondCell.font = { name: "Segoe UI", size: 11, bold: true, color: { argb: navyColor } };
-  bondCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
+  bondCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: goldColor } };
   bondCell.alignment = { horizontal: "right", vertical: "middle" };
 
   for (let c = 1; c <= 5; c++) {
@@ -78,7 +77,8 @@ export const exportShopSalesExcel = async (data, metadata = {}, filename = "shop
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: goldColor } };
   }
 
-  // Row 4: Table Column Headers (BRAND/PACK | OPENING | RECEIPT | SALES | CLOSING)
+  // Table Column Headers (BRAND/PACK | OPENING | RECEIPT | SALES | CLOSING)
+  ws.getRow(4).height = 24;
   const headers = ["BRAND/PACK", "OPENING", "RECEIPT", "SALES", "CLOSING"];
   headers.forEach((h, idx) => {
     const cell = ws.getCell(4, idx + 1);
@@ -86,6 +86,12 @@ export const exportShopSalesExcel = async (data, metadata = {}, filename = "shop
     cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
     cell.alignment = { horizontal: idx === 0 ? "left" : "right", vertical: "middle" };
+    cell.border = {
+      top: borderStyle,
+      bottom: borderStyle,
+      left: borderStyle,
+      right: borderStyle
+    };
   });
 
   let totalOpening = 0, totalReceipt = 0, totalSales = 0, totalClosing = 0;
@@ -120,7 +126,7 @@ export const exportShopSalesExcel = async (data, metadata = {}, filename = "shop
     const valCols = [op, rec, sal, clo];
     valCols.forEach((val, cIdx) => {
       const cellV = ws.getCell(rIdx, cIdx + 2);
-      if (isBrandHeader) {
+      if (isBrandHeader || isShopHeader) {
         cellV.value = "";
       } else {
         cellV.value = val;
@@ -148,12 +154,14 @@ export const exportShopSalesExcel = async (data, metadata = {}, filename = "shop
         const cell = ws.getCell(rIdx, c);
         cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: goldColor } };
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navyColor } };
+        cell.border = borderStyle;
       }
-    } else if (isBrandHeader) {
+    } else if (isBrandHeader || isShopHeader) {
       for (let c = 1; c <= 5; c++) {
         const cell = ws.getCell(rIdx, c);
         cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: brandHeaderFg } };
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: brandHeaderBg } };
+        cell.border = borderStyle;
       }
     } else {
       // Leaf pack row only
@@ -164,6 +172,7 @@ export const exportShopSalesExcel = async (data, metadata = {}, filename = "shop
         if (isZebra) {
           cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: zebraBg } };
         }
+        cell.border = borderStyle;
       }
       totalOpening += op;
       totalReceipt += rec;
@@ -213,12 +222,7 @@ export const exportShopSalesExcel = async (data, metadata = {}, filename = "shop
     for (let c = 1; c <= 5; c++) {
       const cell = ws.getCell(r, c);
       if (!cell.border) {
-        cell.border = {
-          top: borderStyle,
-          left: borderStyle,
-          bottom: borderStyle,
-          right: borderStyle
-        };
+        cell.border = borderStyle;
       }
     }
   }
