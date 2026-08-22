@@ -13,6 +13,7 @@ import WarehouseStock from "../pages/WarehouseStock";
 import MonthlySummaryReport from "../pages/MonthlySummaryReport";
 import PiVarianceReport from "../pages/PiVarianceReport";
 import RawDataReport from "../pages/RawDataReport";
+import PermitStatusReport from "./PermitStatusReport";
 
 export const REPORT_REGISTRY = {
   shopwise: {
@@ -99,5 +100,10 @@ export const REPORT_REGISTRY = {
     label: "PI Variance Uploads",
     component: RawDataReport,
     route: "/report/pi_variance_raw/:id"
+  },
+  permit_status: {
+    label: "Permit Status",
+    component: PermitStatusReport,
+    route: "/report/permit_status/:id"
   }
 };

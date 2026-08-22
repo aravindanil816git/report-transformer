@@ -45,6 +45,7 @@ export default function Sidebar() {
         { key: "report-monthly_summary", label: REPORT_REGISTRY.monthly_summary?.label || "Monthly Summary" },
         { key: "report-achieved_target", label: REPORT_REGISTRY.achieved_target?.label || "Target v/s Achieved" },
         { key: "report-pi_variance", label: REPORT_REGISTRY.pi_variance?.label || "PI Variance" },
+        { key: "permit-status-link", label: "Permit Status" },
       ],
     },
     {
@@ -56,6 +57,7 @@ export default function Sidebar() {
   const selectedKey = location.pathname === '/' ? 'status-calendar' :
     location.pathname === '/raw-data-upload' ? 'raw-data-upload' :
     location.pathname === '/item-issue-consolidation' ? 'item-issue-consolidation' :
+    location.pathname === '/permit-status' ? 'permit-status-link' :
     location.pathname === '/reports' && location.search ? `report-${new URLSearchParams(location.search).get('type')}` :
     location.pathname === '/reports' ? 'grp-reports' :
     '';
@@ -71,6 +73,7 @@ export default function Sidebar() {
           if (e.key === "status-calendar") navigate("/");
           if (e.key === "raw-data-upload") navigate("/raw-data-upload");
           if (e.key === "item-issue-consolidation") navigate("/item-issue-consolidation");
+          if (e.key === "permit-status-link") navigate("/permit-status");
            if (e.key.startsWith("report-")) {
              const type = e.key.replace("report-", "");
              navigate(`/reports?type=${type}`);

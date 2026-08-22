@@ -92,3 +92,9 @@ export const getJson = (name) => api.get(`/json/${name}`);
 export const replaceJson = (name, payload) => api.put(`/json/${name}`, payload);
 export const updateJsonKey = (name, key, payload) => api.put(`/json/${name}/${key}`, payload);
 export const deleteJsonKey = (name, key) => api.delete(`/json/${name}/${key}`);
+
+// ================= PERMIT STATUS =================
+export const getPermitStatus = (params = {}) => api.get("/permit-status", { params });
+export const getPermitStatusAllWarehouses = (params = {}) => api.get("/permit-status/all-warehouses", { params });
+export const savePermitStatusConfig = (payload) => api.post("/permit-status/config", payload);
+

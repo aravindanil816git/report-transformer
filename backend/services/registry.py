@@ -15,6 +15,7 @@ from services.reports.warehouse_stock import WarehouseStockService
 from services.reports.monthly_summary import MonthlySummaryReportService
 from services.reports.pi_variance_raw import PiVarianceRawService
 from services.reports.pi_variance import PiVarianceReportService
+from services.reports.permit_status import PermitStatusService
 
 _registry = {
     "shopwise": ShopwiseReportService(),
@@ -37,6 +38,7 @@ _registry = {
     "monthly_summary": MonthlySummaryReportService(),
     "pi_variance_raw": PiVarianceRawService(),
     "pi_variance": PiVarianceReportService(),
+    "permit_status": PermitStatusService(),
 }
 
 def get_service(report_type):

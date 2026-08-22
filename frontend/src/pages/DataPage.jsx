@@ -267,6 +267,8 @@ export default function DataPage() {
                       navigate(`/report/monthly_summary/${r.id}`);
                     } else if (r.type === 'pi_variance') {
                       navigate(`/report/pi_variance/${r.id}`);
+                    } else if (r.type === 'permit_status') {
+                      navigate('/permit-status');
                     } else if (!config?.route && RAW_DATA_TYPES.includes(r.type)) {
                         navigate(`/report/${r.type}/${r.id}`);
                     } else {

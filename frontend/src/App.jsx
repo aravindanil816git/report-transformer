@@ -10,6 +10,7 @@ import JsonCrud from "./pages/JsonCrud";
 import { REPORT_REGISTRY } from "./reports";
 import AchievedTargetReport from "./reports/AchievedTargetReport";
 import RawDataReport from "./pages/RawDataReport";
+import PermitStatusReport from "./reports/PermitStatusReport";
 
 const { Content } = Layout;
 
@@ -21,6 +22,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<StatusCalendar />} />
           <Route path="/reports" element={<DataPage />} />
+          <Route path="/permit-status" element={<PermitStatusReport />} />
           <Route path="/raw-data-upload" element={<RawDataUpload />} />
           <Route path="/item-issue-consolidation" element={<ItemIssueConsolidation />} />
           <Route path="/json-crud" element={<JsonCrud />} />

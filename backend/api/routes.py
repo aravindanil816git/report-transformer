@@ -1424,3 +1424,91 @@ def download_raw(rid: str, key: str = None):
         raise HTTPException(status_code=404, detail="File not found on server")
 
     return FileResponse(path, filename=filename)
+
+
+# ================= PERMIT STATUS ENDPOINTS =================
+@router.get("/permit-status/all-warehouses")
+def get_permit_status_all_warehouses(
+    date: str = None,
+    maint_threshold: float = 40.0,
+    target_threshold: float = 125.0
+):
+    svc = get_service("permit_status")
+    report = {
+        "type": "permit_status",
+        "config": {
+            "date": date,
+            "maint_threshold": maint_threshold,
+            "target_threshold": target_threshold
+        }
+    }
+    saved_reports = get_all_reports(types=["permit_status"])
+    if saved_reports:
+        saved_cfg = saved_reports[0].get("config", {}) or {}
+        if date is None and saved_cfg.get("date"):
+            report["config"]["date"] = saved_cfg.get("date")
+        if saved_cfg.get("pending_permits"):
+            report["config"]["pending_permits"] = saved_cfg.get("pending_permits")
+        if maint_threshold == 40.0 and saved_cfg.get("maint_threshold") is not None:
+            report["config"]["maint_threshold"] = saved_cfg.get("maint_threshold")
+        if target_threshold == 125.0 and saved_cfg.get("target_threshold") is not None:
+            report["config"]["target_threshold"] = saved_cfg.get("target_threshold")
+
+    res = svc.get_all_warehouses_report(report, date=date)
+    return clean_nan(res)
+
+
+@router.get("/permit-status")
+def get_permit_status(
+    date: str = None,
+    warehouse: str = None,
+    maint_threshold: float = 40.0,
+    target_threshold: float = 125.0
+):
+    svc = get_service("permit_status")
+    report = {
+        "type": "permit_status",
+        "config": {
+            "date": date,
+            "warehouse": warehouse,
+            "maint_threshold": maint_threshold,
+            "target_threshold": target_threshold
+        }
+    }
+    saved_reports = get_all_reports(types=["permit_status"])
+    if saved_reports:
+        saved_cfg = saved_reports[0].get("config", {}) or {}
+        if date is None and saved_cfg.get("date"):
+            report["config"]["date"] = saved_cfg.get("date")
+        if warehouse is None and saved_cfg.get("warehouse"):
+            report["config"]["warehouse"] = saved_cfg.get("warehouse")
+        if saved_cfg.get("pending_permits"):
+            report["config"]["pending_permits"] = saved_cfg.get("pending_permits")
+        if maint_threshold == 40.0 and saved_cfg.get("maint_threshold") is not None:
+            report["config"]["maint_threshold"] = saved_cfg.get("maint_threshold")
+        if target_threshold == 125.0 and saved_cfg.get("target_threshold") is not None:
+            report["config"]["target_threshold"] = saved_cfg.get("target_threshold")
+
+    res = svc.get_report(report, date=date, warehouse=warehouse)
+    return clean_nan(res)
+
+
+@router.post("/permit-status/config")
+def save_permit_status_config(payload: dict = Body(...)):
+    saved_reports = get_all_reports(types=["permit_status"])
+    if saved_reports:
+        report = saved_reports[0]
+        cfg = report.get("config", {}) or {}
+        cfg.update(payload)
+        report["config"] = cfg
+        save_report(report)
+    else:
+        report = {
+            "name": "Permit Status Report",
+            "type": "permit_status",
+            "status": "Ready",
+            "config": payload
+        }
+        save_report(report)
+    return {"status": "ok", "config": report.get("config")}
+
