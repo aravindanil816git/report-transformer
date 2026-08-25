@@ -534,6 +534,18 @@ export const exportMonthlySummaryPdf = ({
     }
   });
 
+  // Render header background & gold border for spacer columns (colIdx 5, 10, 15)
+  [5, 10, 15].forEach(colIdx => {
+    const x = colX[colIdx];
+    const w = colWidths[colIdx];
+    doc.setFillColor(...NAVY);
+    doc.rect(x, headerTopY, w, headerHeight, "F");
+    doc.setLineWidth(1.0);
+    doc.setDrawColor(...GOLD);
+    doc.line(x, headerTopY, x, headerTopY + headerHeight);
+    doc.line(x + w, headerTopY, x + w, headerTopY + headerHeight);
+  });
+
   // Table Body Rows
   let currentY = headerTopY + headerHeight;
 

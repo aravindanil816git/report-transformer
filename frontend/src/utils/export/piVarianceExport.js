@@ -27,7 +27,7 @@ export const exportPiVarianceExcel = async ({
 }) => {
   const workbook = new ExcelJS.Workbook();
   const ws = workbook.addWorksheet("PI Variance", {
-    views: [{ state: "frozen", xSplit: 1, ySplit: 5, showGridLines: true }]
+    views: [{ state: "frozen", xSplit: 1, ySplit: comparativeMode ? 5 : 4, showGridLines: true }]
   });
 
   const NAVY = "0B2C52";
