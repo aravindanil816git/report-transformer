@@ -387,7 +387,7 @@ export const exportAchievedTargetExcel = async ({
       displayedBrands.forEach((b, bIdx) => {
         const colLetter = String.fromCharCode(69 + bIdx);
         const cell = ws.getCell(`${colLetter}${rIdx}`);
-        const val = Math.round(row.brands?.[b]?.achieved || 0);
+        const val = fmtVal(row.brands?.[b]?.achieved || 0, useWholeNumbers);
         rowTotal += val;
         shopGrandTotals[b] += val;
 
@@ -672,14 +672,25 @@ export const exportAchievedTargetPdf = ({
         gtAchMap[b] = 0;
       });
 
-      const detailBlocks = blocks.filter(b => !b.isTotalBlock);
-      detailBlocks.forEach(blk => {
-        displayedBrands.forEach(b => {
-          gtTgtMap[b] += blk.tgtMap[b] || 0;
-          gtAchMap[b] += blk.achMap[b] || 0;
-        });
-        gtTgtSum += blk.tgtSum;
-        gtAchSum += blk.achSum;
+      // Sum from raw data rows (excluding cluster total rows) to match UI and Excel exactly
+      data.forEach(row => {
+        if (row.isClusterTotal) return;
+        if (row.type === "Target") {
+          displayedBrands.forEach(b => {
+            const tVal = fmtVal(row.brands?.[b]?.target || 0, useWholeNumbers);
+            gtTgtMap[b] += tVal;
+          });
+        } else {
+          displayedBrands.forEach(b => {
+            const aVal = fmtVal(row.brands?.[b]?.achieved || 0, useWholeNumbers);
+            gtAchMap[b] += aVal;
+          });
+        }
+      });
+
+      displayedBrands.forEach(b => {
+        gtTgtSum += gtTgtMap[b];
+        gtAchSum += gtAchMap[b];
       });
 
       let gtPctStr = "-";
