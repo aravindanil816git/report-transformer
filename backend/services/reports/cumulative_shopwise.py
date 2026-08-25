@@ -100,10 +100,14 @@ class CumulativeShopwiseReportService(BaseReportService):
             bpc_col = "_bpc_temp"
             df[bpc_col] = 1
 
+        closing_case_col = next((c for c in df.columns if "closing" in c and "case" in c), None)
+        closing_bottle_col = next((c for c in df.columns if "closing" in c and "bottle" in c), None)
+
         for col_name, col_var in [
             ("open_case", open_case_col), ("open_bottle", open_bottle_col),
             ("in_case", in_case_col), ("in_bottle", in_bottle_col),
-            ("out_case", out_case_col), ("out_bottle", out_bottle_col)
+            ("out_case", out_case_col), ("out_bottle", out_bottle_col),
+            ("closing_case", closing_case_col), ("closing_bottle", closing_bottle_col)
         ]:
             if col_var and col_var in df.columns:
                 df[col_var] = pd.to_numeric(df[col_var], errors="coerce").fillna(0)
@@ -126,6 +130,16 @@ class CumulativeShopwiseReportService(BaseReportService):
             sc = df[out_case_col] if out_case_col else 0
             sb = df[out_bottle_col] if out_bottle_col else 0
             df["sales"] = ((sc * df[bpc_col]) + sb) / df[bpc_col]
+
+        df["closing"] = 0
+        if closing_case_col or closing_bottle_col:
+            cc = df[closing_case_col] if closing_case_col else 0
+            cb = df[closing_bottle_col] if closing_bottle_col else 0
+            df["closing"] = ((cc * df[bpc_col]) + cb) / df[bpc_col]
+        else:
+            closing_col = next((c for c in df.columns if "closing" in c), None)
+            if closing_col:
+                df["closing"] = pd.to_numeric(df[closing_col], errors="coerce").fillna(0)
 
         # ✅ MAP USING SHOP CODE (KEY FIX)
         df["shop_code"] = df[shop_col]
@@ -165,13 +179,10 @@ class CumulativeShopwiseReportService(BaseReportService):
         # ❗ Remove unmapped rows
         df = df[(df["warehouse"] != "UNKNOWN") | (df["bond"] != "UNKNOWN")]
 
-        # end_time = time.time()
-        # print(f"[_compute] Finished computation in {end_time - start_time:.2f} seconds. Returning DataFrame with {len(df)} rows.")
-
         return df[[
             "warehouse", "warehouse_code",
             "shop_code", "shop_name", "staff",
-            "opening", "receipt", "sales", "bond"
+            "opening", "receipt", "sales", "closing", "bond"
         ]]
 
     def process(self, report):
@@ -382,7 +393,7 @@ class CumulativeShopwiseReportService(BaseReportService):
 
             # ✅ GROUP BY MAPPED WAREHOUSE, BOND, AND SHOP
             grouped = (
-                df_calc.groupby(["warehouse", "bond", "shop_code", "shop_name"])[["opening", "receipt", "sales"]]
+                df_calc.groupby(["warehouse", "bond", "shop_code", "shop_name"])[["opening", "receipt", "sales", "closing"]]
                 .sum()
                 .reset_index()
             )
@@ -401,6 +412,7 @@ class CumulativeShopwiseReportService(BaseReportService):
                 opening = round(float(row.get("opening", 0)), 2)
                 receipt = round(float(row.get("receipt", 0)), 2)
                 sales = round(float(row.get("sales", 0)), 2)
+                closing = round(float(row.get("closing", 0)), 2)
 
                 for store, val in [
                     (daywise_opening, opening),
@@ -412,11 +424,13 @@ class CumulativeShopwiseReportService(BaseReportService):
                     store[group_key][label] = val
 
                 if group_key not in cumulative_map:
-                    cumulative_map[group_key] = {"warehouse": display_wh, "bond": bond, "shop_code": shop_code, "shop_name": shop_name, "opening": opening, "receipt": 0, "sales": 0}
+                    cumulative_map[group_key] = {"warehouse": display_wh, "bond": bond, "shop_code": shop_code, "shop_name": shop_name, "opening": opening, "receipt": 0, "sales": 0, "closing": closing}
 
                 # 🔥 DO NOT sum opening stock across all days! Opening is the stock on day 1.
                 cumulative_map[group_key]["receipt"] += receipt
                 cumulative_map[group_key]["sales"] += sales
+                # Always update closing to the latest day's raw closing stock
+                cumulative_map[group_key]["closing"] = closing
             
             # FREE MEMORY
             del df_calc
@@ -446,7 +460,8 @@ class CumulativeShopwiseReportService(BaseReportService):
             receipt = vals["receipt"]
             sales = vals["sales"]
 
-            closing = opening + receipt - sales
+            # Pure raw closing from the latest date upload
+            closing = vals.get("closing", 0)
             diff = closing - opening
             avg_sales = round(float(sales / num_days), 2)
 

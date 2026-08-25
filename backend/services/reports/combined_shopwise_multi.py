@@ -497,9 +497,6 @@ class CombinedShopwiseMultiReportService(BaseReportService):
             inward_bottles = float(g["_in_total_bottles"].sum())
             outward_bottles = float(g["_out_total_bottles"].sum())
             closing_bottles = float(g["_closing_total_bottles"].iloc[-1])
-            
-            if closing_bottles == 0 and (opening_bottles > 0 or inward_bottles > 0 or outward_bottles > 0):
-                closing_bottles = opening_bottles + inward_bottles - outward_bottles
                 
             s_code_str = str(s_code).strip()
             wh_info = str(g["warehouse_info"].iloc[0]) if "warehouse_info" in g.columns else "Unknown"
