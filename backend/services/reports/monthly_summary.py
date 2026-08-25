@@ -265,7 +265,7 @@ class MonthlySummaryReportService(BaseReportService):
                         if not sc or sc.lower() == "nan": continue
                         
                         outward = float(row.get("outward", 0) or 0)
-                        bond = row.get("bond") or shop_to_bond.get(sc, "UNKNOWN")
+                        bond = shop_to_bond.get(sc) or row.get("bond") or "UNKNOWN"
                         
                         if bond not in bond_data: bond_data[bond] = get_default_metrics()
                         bond_data[bond][period]["shop_liq"] += outward
@@ -279,7 +279,7 @@ class MonthlySummaryReportService(BaseReportService):
                 if not sc or sc.lower() == "nan": continue
                 
                 issues = float(row.get("issues", 0) or 0)
-                bond = row.get("bond") or shop_to_bond.get(sc, "UNKNOWN")
+                bond = shop_to_bond.get(sc) or row.get("bond") or "UNKNOWN"
                 cat = (row.get("category") or shop_categories.get(sc, "KSBC")).upper()
                 
                 if bond not in bond_data: bond_data[bond] = get_default_metrics()
