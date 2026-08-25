@@ -523,6 +523,25 @@ def _load_json(name: str):
     path = ALLOWED_JSON_FILES.get(name)
     if not path:
         raise HTTPException(status_code=404, detail="JSON file not found")
+
+    # Try loading from Supabase first
+    try:
+        res = supabase.table("reports").select("config").eq("type", "app_json_config").eq("name", name).execute()
+        if res.data and len(res.data) > 0:
+            db_config = res.data[0].get("config")
+            if db_config is not None:
+                # Cache/sync locally
+                try:
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    with open(path, "w", encoding="utf-8") as f:
+                        json.dump(db_config, f, ensure_ascii=False, indent=2)
+                except Exception:
+                    pass
+                return db_config
+    except Exception as e:
+        print(f"Warning: Failed to fetch {name} from Supabase: {e}")
+
+    # Fallback to local file
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail=f"File {path} not found")
     with open(path, "r", encoding="utf-8") as f:
@@ -532,10 +551,29 @@ def _save_json(name: str, data):
     path = ALLOWED_JSON_FILES.get(name)
     if not path:
         raise HTTPException(status_code=404, detail="JSON file not found")
-    # Ensure directory exists
+    
+    # Save to local file
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+    # Save to Supabase (app_json_config type in reports table)
+    try:
+        res = supabase.table("reports").select("id").eq("type", "app_json_config").eq("name", name).execute()
+        if res.data and len(res.data) > 0:
+            row_id = res.data[0]["id"]
+            supabase.table("reports").update({"config": data}).eq("id", row_id).execute()
+        else:
+            supabase.table("reports").insert({
+                "id": str(uuid.uuid4()),
+                "name": name,
+                "type": "app_json_config",
+                "status": "Ready",
+                "config": data
+            }).execute()
+    except Exception as e:
+        print(f"Warning: Failed to sync {name} to Supabase: {e}")
+
 
 @router.get("/json/{name}")
 def get_json(name: str = Path(..., description="One of the allowed JSON identifiers")):
