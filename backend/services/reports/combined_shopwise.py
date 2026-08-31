@@ -190,7 +190,7 @@ class CombinedShopwiseReportService(BaseReportService):
             if res.data:
                 source_report = res.data[0]
 
-        # Override warehouses with data from the source report
+        # Override warehouses and mapping with data from the source report
         if source_report:
             source_data = source_report.get("data")
             if not source_data:
@@ -202,8 +202,27 @@ class CombinedShopwiseReportService(BaseReportService):
             if source_data:
                 full_df = pd.DataFrame(source_data)
                 wh_col = find_column(full_df, ["warehouse"])
+                shop_col = find_column(full_df, ["shop_code"]) or "shop_code_internal"
+                if shop_col not in full_df.columns and "shop_code" in full_df.columns:
+                    shop_col = "shop_code"
+                
                 if wh_col:
                     warehouses = sorted(full_df[wh_col].dropna().unique().tolist())
                     filters["warehouses"] = warehouses
+                    
+                    if shop_col in full_df.columns:
+                        # Clean shop codes
+                        df_clean = full_df.dropna(subset=[wh_col, shop_col]).copy()
+                        df_clean[shop_col] = df_clean[shop_col].astype(str).str.replace(".0", "", regex=False).str.strip()
+                        
+                        raw_mapping = (
+                            df_clean.groupby(wh_col)[shop_col]
+                            .apply(lambda s: sorted(list(set(s.dropna().tolist()))))
+                            .to_dict()
+                        )
+                        # Merge raw_mapping into filters["mapping"]
+                        if "mapping" not in filters:
+                            filters["mapping"] = {}
+                        filters["mapping"].update(raw_mapping)
                 
         return filters

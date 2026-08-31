@@ -133,27 +133,7 @@ def get_bond_mapping_data():
 
 @lru_cache(maxsize=1)
 def get_warehouse_mapping_data():
-    """Loads warehouse -> shops mapping from warehouse_mapping.json or builds dynamically."""
-    warehouse_mapping_path = os.path.join(BACKEND_DIR, "warehouse_mapping.json")
-    data = _load_json(warehouse_mapping_path)
-    
-    if data:
-        shop_master = get_shop_master_data()
-        warehouse_master = get_warehouse_master_data()
-        warehouse_map = {}
-        for wh_name, shop_codes in data.items():
-            warehouse_map[wh_name] = {
-                "warehouse_code": warehouse_master.get(wh_name, {}).get("warehouse_code"),
-                "shops": [
-                    {
-                        "shop_code": str(code),
-                        "shop_name": shop_master.get(str(code), {}).get("shop_name", "Unknown")
-                    }
-                    for code in shop_codes
-                ]
-            }
-        return warehouse_map
-
+    """Builds warehouse -> shops mapping dynamically from shop_master and warehouse_master data."""
     shop_master = get_shop_master_data()
     warehouse_master = get_warehouse_master_data()
 
@@ -174,7 +154,7 @@ def get_warehouse_mapping_data():
                 "shop_name": shop_data.get("name", shop_data.get("shop_name", "Unknown"))
             })
             
-    # Fallback to legacy if shops.json hasn't been populated with warehouses yet
+    # Fallback to legacy mapping.json if shops.json doesn't have warehouses yet
     if not any(wh.get("shops") for wh in warehouse_map.values()):
         raw = get_mapping_data()
         for bond_data in raw.get("bonds", {}).values():

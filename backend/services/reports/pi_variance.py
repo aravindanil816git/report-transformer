@@ -180,15 +180,13 @@ class PiVarianceReportService(BaseReportService):
             with open(shops_path, "r", encoding="utf-8") as f:
                 all_shops_data = json.load(f)
 
-            warehouse_mapping_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "frontend", "src", "data", "warehouse_mapping.json")
-            with open(warehouse_mapping_path, "r", encoding="utf-8") as f:
-                warehouse_mapping = json.load(f)
+            from core.mapping_utils import get_shop_to_parent_maps
+            _, shop_to_wh_map = get_shop_to_parent_maps()
+            shop_to_warehouse = {str(k).strip().lstrip('0'): v for k, v in shop_to_wh_map.items()}
 
             shopcode_mapping_path = os.path.join(os.path.dirname(__file__), "..", "..", "shopcode_mapping.json")
             with open(shopcode_mapping_path, "r", encoding="utf-8") as f:
                 shopcode_mapping = json.load(f)
-
-            shop_to_warehouse = {str(shop).strip().lstrip('0'): wh for wh, shops in warehouse_mapping.items() for shop in shops}
             
             shop_to_bond = {}
             for region, shops in shopcode_mapping.items():
@@ -443,15 +441,13 @@ class PiVarianceReportService(BaseReportService):
         
         # Dynamic re-enrichment of warehouse and bond mappings
         try:
-            warehouse_mapping_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "frontend", "src", "data", "warehouse_mapping.json")
-            with open(warehouse_mapping_path, "r", encoding="utf-8") as f:
-                warehouse_mapping = json.load(f)
+            from core.mapping_utils import get_shop_to_parent_maps
+            _, shop_to_wh_map = get_shop_to_parent_maps()
+            shop_to_wh = {str(k).strip().lstrip('0'): v for k, v in shop_to_wh_map.items()}
 
             shopcode_mapping_path = os.path.join(os.path.dirname(__file__), "..", "..", "shopcode_mapping.json")
             with open(shopcode_mapping_path, "r", encoding="utf-8") as f:
                 shopcode_mapping = json.load(f)
-
-            shop_to_wh = {str(shop).strip().lstrip('0'): wh for wh, shops in warehouse_mapping.items() for shop in shops}
             shop_to_bnd = {}
             for region, shops in shopcode_mapping.items():
                 for s in shops:

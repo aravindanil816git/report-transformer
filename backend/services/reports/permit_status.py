@@ -61,16 +61,24 @@ def _load_warehouses_list():
             pass
     return []
 
-def _load_warehouse_mapping():
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    path = os.path.join(base_dir, "warehouse_mapping.json")
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
+def _build_dynamic_warehouse_mapping(all_reports):
+    wh_mapping = {}
+    for r in all_reports:
+        rows = r.get("data") or []
+        if not rows and r.get("uploads"):
+            rows = []
+            for u in r.get("uploads", []):
+                if u.get("data"):
+                    rows.extend(u["data"])
+        for row in rows:
+            if isinstance(row, dict):
+                s_code = str(row.get("shop_code") or row.get("Shop Code") or "").replace(".0", "").strip()
+                r_wh = str(row.get("warehouse") or row.get("Warehouse") or "").strip()
+                if s_code and r_wh:
+                    if r_wh not in wh_mapping:
+                        wh_mapping[r_wh] = set()
+                    wh_mapping[r_wh].add(s_code)
+    return wh_mapping
 
 def match_brand(raw_str):
     if not raw_str:
@@ -306,15 +314,21 @@ class PermitStatusService(BaseReportService):
     def _compute_permit_status(self, config, all_reports):
         logs = []
         warehouses_list = _load_warehouses_list()
-        wh_mapping = _load_warehouse_mapping()
+        wh_mapping = _build_dynamic_warehouse_mapping(all_reports)
 
         selected_wh = config.get("warehouse")
         if not selected_wh and warehouses_list:
             selected_wh = warehouses_list[0]
 
         wh_shops_set = set()
-        if selected_wh and selected_wh in wh_mapping:
-            wh_shops_set = set(str(s).strip() for s in wh_mapping[selected_wh])
+        clean_target_wh = str(selected_wh or "").strip().upper()
+        short_target_wh = clean_target_wh.replace("WH-", "").replace("WH_", "")
+
+        if selected_wh:
+            for w, shops in wh_mapping.items():
+                u_w = str(w).upper()
+                if clean_target_wh in u_w or u_w in clean_target_wh or short_target_wh in u_w:
+                    wh_shops_set.update(shops)
 
         clean_target_wh = str(selected_wh or "").strip().upper()
         short_target_wh = clean_target_wh.replace("WH-", "").replace("WH_", "")
