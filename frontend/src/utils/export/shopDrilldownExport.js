@@ -52,7 +52,9 @@ export const exportShopDrilldownPdfByBond = ({
   allShops,
   useWholeNumbers,
   view,
-  filename
+  filename,
+  entityType = "bond",
+  entityName = null
 }) => {
   const colors = {
     NAVY: [11, 41, 79],        // #0B294F
@@ -131,6 +133,63 @@ export const exportShopDrilldownPdfByBond = ({
     return rows;
   };
 
+  const getEntitySummaryTableRows = (entityData, entityLabel) => {
+    const rows = [];
+    const brands = {};
+    entityData.forEach(row => {
+      const brand = row.brand;
+      if (!brand) return;
+      if (!brands[brand]) brands[brand] = [];
+      brands[brand].push(row);
+    });
+
+    let overallOpening = 0, overallInward = 0, overallOutward = 0, overallClosing = 0;
+
+    Object.entries(brands).forEach(([brand, items]) => {
+      let bOpening = 0, bInward = 0, bOutward = 0, bClosing = 0;
+      items.forEach(item => {
+        bOpening += item.opening || 0;
+        bInward += item.inward || 0;
+        bOutward += item.outward || 0;
+        bClosing += item.closing || 0;
+      });
+
+      rows.push({
+        label: brand,
+        isBrandHeader: true,
+        opening: bOpening,
+        inward: bInward,
+        outward: bOutward,
+        closing: bClosing
+      });
+
+      rows.push({
+        label: `  ${brand} Total`,
+        isBrandTotal: true,
+        opening: bOpening,
+        inward: bInward,
+        outward: bOutward,
+        closing: bClosing
+      });
+
+      overallOpening += bOpening;
+      overallInward += bInward;
+      overallOutward += bOutward;
+      overallClosing += bClosing;
+    });
+
+    rows.push({
+      label: `${entityLabel} TOTAL`,
+      opening: overallOpening,
+      inward: overallInward,
+      outward: overallOutward,
+      closing: overallClosing,
+      isShopTotal: true
+    });
+
+    return rows;
+  };
+
   // 1. Compute dynamic column widths & page width
   const tempDoc = new jsPDF("p", "pt", "a4");
   const getWidth = (text, size, isBold) => {
@@ -164,6 +223,27 @@ export const exportShopDrilldownPdfByBond = ({
       colWidths[4] = Math.max(colWidths[4], getWidth(formatVal(row.closing), 9, true));
     });
   });
+
+  // Include entity summary labels in width calculation
+  const shopCodesList = bondShops.map(s => String(s.shop_code));
+  const entityData = data.filter(d => shopCodesList.includes(String(d.shop_code)));
+  const modeTag = entityType === "warehouse" ? "WAREHOUSE" : "BOND";
+  const cleanEntityName = (entityName || bondName || "").replace(/\s+BOND$/i, "").replace(/\s+WAREHOUSE$/i, "").replace(/^WH-/i, "").trim().toUpperCase();
+  const summaryLabelText = cleanEntityName ? `${cleanEntityName} ${modeTag}` : modeTag;
+
+  if (entityData.length > 0) {
+    const summaryRows = getEntitySummaryTableRows(entityData, summaryLabelText);
+    summaryRows.forEach(row => {
+      const isPack = row.label.startsWith("  ");
+      const indent = isPack ? 12 : 0;
+      maxLabelW = Math.max(maxLabelW, indent + getWidth(row.label.trim(), 9, !isPack));
+
+      colWidths[1] = Math.max(colWidths[1], getWidth(formatVal(row.opening), 9, true));
+      colWidths[2] = Math.max(colWidths[2], getWidth(formatVal(row.inward), 9, true));
+      colWidths[3] = Math.max(colWidths[3], getWidth(formatVal(row.outward), 9, true));
+      colWidths[4] = Math.max(colWidths[4], getWidth(formatVal(row.closing), 9, true));
+    });
+  }
 
   colWidths[0] = maxLabelW + 12.4;
   for (let col = 1; col <= 4; col++) {
@@ -204,7 +284,7 @@ export const exportShopDrilldownPdfByBond = ({
 
   const doc = new jsPDF("p", "pt", [PAGE_WIDTH, 841.890]);
 
-  const drawHeader = (doc, currentTitle, currentPeriod, shopName, bondName = null, pageIndex = 0) => {
+  const drawHeader = (doc, currentTitle, currentPeriod, shopName, headerRightText = null, pageIndex = 0) => {
     if (pageIndex === 0) {
       doc.setFillColor(11, 41, 79); 
       doc.rect(0, 0, PAGE_WIDTH, 45.4, "F");
@@ -226,11 +306,11 @@ export const exportShopDrilldownPdfByBond = ({
       doc.rect(0, 45.4 + 22.7, PAGE_WIDTH, 22.7, "F");
 
       const cleanShopName = (shopName || "").replace(/^\d{6}-/, "").toUpperCase();
-      const cleanBondName = (bondName || "").replace(/\s+BOND$/i, "").replace(/^WH-/i, "").toUpperCase();
+      const rightText = (headerRightText || bondName || "").replace(/\s+BOND$/i, "").replace(/\s+WAREHOUSE$/i, "").replace(/^WH-/i, "").toUpperCase();
 
       doc.text(cleanShopName, 15, 45.4 + 22.7 + 15);
-      if (cleanBondName && cleanBondName !== "CURRENT VIEW") {
-        doc.text(cleanBondName, PAGE_WIDTH - 15, 45.4 + 22.7 + 15, { align: "right" });
+      if (rightText && rightText !== "CURRENT VIEW") {
+        doc.text(rightText, PAGE_WIDTH - 15, 45.4 + 22.7 + 15, { align: "right" });
       }
     } else {
       doc.setFillColor(255, 189, 49); 
@@ -240,11 +320,11 @@ export const exportShopDrilldownPdfByBond = ({
       doc.setFont("helvetica", "bold");
       doc.setTextColor(11, 41, 79); 
       const cleanShopName = (shopName || "").replace(/^\d{6}-/, "").toUpperCase();
-      const cleanBondName = (bondName || "").replace(/\s+BOND$/i, "").replace(/^WH-/i, "").toUpperCase();
+      const rightText = (headerRightText || bondName || "").replace(/\s+BOND$/i, "").replace(/\s+WAREHOUSE$/i, "").replace(/^WH-/i, "").toUpperCase();
 
       doc.text(cleanShopName, 15, 15);
-      if (cleanBondName && cleanBondName !== "CURRENT VIEW") {
-        doc.text(cleanBondName, PAGE_WIDTH - 15, 15, { align: "right" });
+      if (rightText && rightText !== "CURRENT VIEW") {
+        doc.text(rightText, PAGE_WIDTH - 15, 15, { align: "right" });
       }
     }
   };
@@ -326,7 +406,6 @@ export const exportShopDrilldownPdfByBond = ({
           doc.setLineWidth(2.2);
           doc.line(x, y + height - 1.1, x + width, y + height - 1.1);
         } else {
-          // Draw TOTAL row gold rules
           if (rowObj?.isShopTotal && data.section === 'body') {
             doc.setDrawColor(255, 189, 49); // GOLD
             doc.setLineWidth(1.6);
@@ -360,11 +439,9 @@ export const exportShopDrilldownPdfByBond = ({
             cellData.cell.styles.textColor = colors.GOLD;  
             cellData.cell.styles.cellPadding = { left: 6.2, right: 6.2, top: 4, bottom: 4 };
           } else {
-            // Zebra striping for pack rows
             cellData.cell.styles.fillColor = (cellData.row.index % 2 === 0) ? colors.WHITE : colors.ZEBRA;
             cellData.cell.styles.textColor = colors.BLACK;
             
-            // Pack rows: add the 12pt indent only to column 0 left padding
             if (cellData.column.index === 0) {
               cellData.cell.styles.cellPadding = { left: 12 + 6.2, right: 6.2, top: 4, bottom: 4 };
             } else {
@@ -375,6 +452,114 @@ export const exportShopDrilldownPdfByBond = ({
             if (!isNaN(rawVal) && rawVal === 0 && cellData.column.index >= 1) {
               cellData.cell.styles.textColor = colors.DIM;
             }
+          }
+        }
+      }
+    });
+  }
+
+  // --- Render Entity Summary Total (Bond Total / Warehouse Total) Page ---
+  if (entityData.length > 0) {
+    if (pageAdded) {
+      doc.addPage();
+    } else {
+      pageAdded = true;
+    }
+
+    const summaryTitleText = cleanEntityName ? `${cleanEntityName} ${modeTag} TOTAL` : `${modeTag} TOTAL`;
+    const summaryRows = getEntitySummaryTableRows(entityData, summaryLabelText);
+    const summaryTableBody = summaryRows.map(row => [
+      row.label,
+      formatVal(row.opening),
+      formatVal(row.inward),
+      formatVal(row.outward),
+      formatVal(row.closing)
+    ]);
+
+    const isFirstPageOfDoc = (idx === 0);
+    const pageIndexVal = idx;
+    idx++;
+
+    autoTable(doc, {
+      head: [headerLabels],
+      body: summaryTableBody,
+      startY: isFirstPageOfDoc ? 90.8 : 22.7,
+      margin: { top: 22.7, bottom: 26.0, left: 0, right: 0 },
+      theme: "grid",
+      styles: {
+        font: "helvetica",
+        fontSize: 9.0,
+        minCellHeight: derivedRowHeight,
+        valign: "middle",
+        lineWidth: 0,
+        textColor: colors.BLACK
+      },
+      headStyles: {
+        fillColor: colors.NAVY,
+        textColor: colors.GOLD,
+        fontStyle: "bold",
+        fontSize: 9.5,
+        valign: "middle",
+        minCellHeight: 23.4
+      },
+      columnStyles: colStyles,
+      didDrawPage: (data) => {
+        drawHeader(doc, title, periodLabel, summaryTitleText, summaryLabelText, pageIndexVal);
+      },
+      didDrawCell: (data) => {
+        const { x, y, width, height } = data.cell;
+        const rowIndex = data.row.index;
+        const rowObj = summaryRows[rowIndex];
+
+        if (data.section === 'head') {
+          doc.setDrawColor(255, 189, 49); // GOLD
+          if (data.column.index < 4) {
+            doc.setLineWidth(1.6);
+            doc.line(x + width, y, x + width, y + height);
+          }
+          doc.setLineWidth(2.2);
+          doc.line(x, y + height - 1.1, x + width, y + height - 1.1);
+        } else {
+          if (rowObj?.isShopTotal && data.section === 'body') {
+            doc.setDrawColor(255, 189, 49); // GOLD
+            doc.setLineWidth(1.6);
+            doc.line(x, y + 0.8, x + width, y + 0.8);
+            doc.line(x, y + height - 0.8, x + width, y + height - 0.8);
+          }
+        }
+      },
+      didParseCell: (cellData) => {
+        if (cellData.section === 'head') {
+          cellData.cell.styles.fillColor = colors.NAVY;
+          cellData.cell.styles.textColor = colors.GOLD;
+          cellData.cell.styles.fontStyle = "bold";
+        }
+        
+        if (cellData.section !== 'body') return;
+
+        const rowIndex = cellData.row.index;
+        const rowObj = summaryRows[rowIndex];
+        
+        if (rowObj) {
+          if (rowObj.isBrandHeader) {
+            cellData.cell.styles.fontStyle = "bold";
+            cellData.cell.styles.fillColor = colors.NAVY; 
+            cellData.cell.styles.textColor = [255, 255, 255]; 
+            cellData.cell.styles.cellPadding = { left: 6.2, right: 6.2, top: 4, bottom: 4 };
+          } else if (rowObj.isShopTotal) {
+            cellData.cell.styles.fontStyle = "bold";
+            cellData.cell.styles.fontSize = 10.5;
+            cellData.cell.styles.fillColor = colors.NAVY; 
+            cellData.cell.styles.textColor = colors.GOLD;  
+            cellData.cell.styles.cellPadding = { left: 6.2, right: 6.2, top: 4, bottom: 4 };
+          } else if (rowObj.isBrandTotal) {
+            cellData.cell.styles.fontStyle = "bold";
+            cellData.cell.styles.fillColor = colors.ZEBRA;
+            cellData.cell.styles.textColor = colors.BLACK;
+            cellData.cell.styles.cellPadding = { left: 12 + 6.2, right: 6.2, top: 4, bottom: 4 };
+          } else {
+            cellData.cell.styles.fillColor = (cellData.row.index % 2 === 0) ? colors.WHITE : colors.ZEBRA;
+            cellData.cell.styles.textColor = colors.BLACK;
           }
         }
       }

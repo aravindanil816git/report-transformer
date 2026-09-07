@@ -687,7 +687,7 @@ export default function CombinedShopwiseReport() {
         try {
           const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
 
-          const bondName = bond || "Current View";
+          const entityName = bond || warehouse || (filterMode === "warehouse" ? "Warehouse View" : "Bond View");
           // Extract unique shop codes directly from current view's data
           const uniqueShopCodesInData = [...new Set(data.map(d => String(d.shop_code)))];
           const shopsForPdf = uniqueShopCodesInData.map(code => {
@@ -704,11 +704,13 @@ export default function CombinedShopwiseReport() {
             title: reportTitle,
             periodLabel: period,
             data: data,
-            bondName: bondName,
+            bondName: entityName,
             bondShops: shopsForPdf,
             allShops: allShops,
             useWholeNumbers: useWholeNumbers,
             view: view,
+            entityType: filterMode,
+            entityName: entityName,
             filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_current.pdf`
           });
         } catch (e) {
@@ -718,7 +720,7 @@ export default function CombinedShopwiseReport() {
           setLoading(false);
         }
       } else {
-        // Download by bonds
+        // Download by bonds or warehouses depending on filterMode
         setLoading(true);
         try {
           const period = dateRange.length === 2 ? `${dateRange[0].format("D MMMM YYYY")} - ${dateRange[1].format("D MMMM YYYY")}` : "All";
@@ -747,33 +749,78 @@ export default function CombinedShopwiseReport() {
           const res = await getReport(id, null, view, params);
           const fullData = res.data.data || [];
 
-          const activeBonds = bond ? [bond] : Object.keys(shopcodeMapping);
-          for (const bondName of activeBonds) {
-            const bondShops = shopcodeMapping[bondName] || [];
+          if (filterMode === "warehouse") {
+            const activeWarehouses = warehouse ? [warehouse] : (
+              allWarehouses.length > 0 ? allWarehouses.map(w => w.value) : Object.keys(filterMapping)
+            );
 
-            // Check if there is any data for shops in this bond
-            const bondShopCodes = bondShops.map(s => String(s.shop_code));
-            const bondHasData = fullData.some(d => bondShopCodes.includes(String(d.shop_code)));
-
-            if (bondHasData) {
-              await exportShopDrilldownPdfByBond({
-                title: reportTitle,
-                periodLabel: period,
-                data: fullData,
-                bondName: bondName,
-                bondShops: bondShops,
-                allShops: allShops,
-                useWholeNumbers: useWholeNumbers,
-                view: view,
-                filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_bond_${bondName.toLowerCase().replace(/\s+/g, '_')}.pdf`
+            for (const whName of activeWarehouses) {
+              const cleanTarget = String(whName).toUpperCase().replace(/^WH[-_]/, "").trim();
+              const matchKey = Object.keys(filterMapping).find(k => {
+                const cleanK = k.toUpperCase().replace(/^WH[-_]/, "").trim();
+                return cleanK === cleanTarget || cleanK.includes(cleanTarget) || cleanTarget.includes(cleanK);
               });
-              await new Promise(resolve => setTimeout(resolve, 300));
+              const shopCodes = (matchKey ? filterMapping[matchKey] || [] : []).map(String);
+
+              const whShops = shopCodes.map(code => {
+                const shopInfo = allShops.find(s => String(s.value) === code);
+                const rowWithShop = fullData.find(d => String(d.shop_code) === code);
+                return {
+                  shop_code: code,
+                  shop_name: shopInfo?.shopName || rowWithShop?.shop_name || code
+                };
+              });
+
+              const whHasData = fullData.some(d => shopCodes.includes(String(d.shop_code)));
+              if (whHasData) {
+                await exportShopDrilldownPdfByBond({
+                  title: reportTitle,
+                  periodLabel: period,
+                  data: fullData,
+                  bondName: whName,
+                  bondShops: whShops,
+                  allShops: allShops,
+                  useWholeNumbers: useWholeNumbers,
+                  view: view,
+                  entityType: "warehouse",
+                  entityName: whName,
+                  filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_warehouse_${String(whName).toLowerCase().replace(/\s+/g, '_')}.pdf`
+                });
+                await new Promise(resolve => setTimeout(resolve, 300));
+              }
             }
+            message.success("Warehouses PDF export completed!");
+          } else {
+            const activeBonds = bond ? [bond] : Object.keys(shopcodeMapping);
+            for (const bondName of activeBonds) {
+              const bondShops = shopcodeMapping[bondName] || [];
+
+              // Check if there is any data for shops in this bond
+              const bondShopCodes = bondShops.map(s => String(s.shop_code));
+              const bondHasData = fullData.some(d => bondShopCodes.includes(String(d.shop_code)));
+
+              if (bondHasData) {
+                await exportShopDrilldownPdfByBond({
+                  title: reportTitle,
+                  periodLabel: period,
+                  data: fullData,
+                  bondName: bondName,
+                  bondShops: bondShops,
+                  allShops: allShops,
+                  useWholeNumbers: useWholeNumbers,
+                  view: view,
+                  entityType: "bond",
+                  entityName: bondName,
+                  filename: `${reportTitle.toLowerCase().replace(/\s+/g, '_')}_bond_${bondName.toLowerCase().replace(/\s+/g, '_')}.pdf`
+                });
+                await new Promise(resolve => setTimeout(resolve, 300));
+              }
+            }
+            message.success("Bonds PDF export completed!");
           }
-          message.success("Bonds PDF export completed!");
         } catch (e) {
-          console.error("Error exporting bonds PDF:", e);
-          message.error("Failed to export PDF by bonds");
+          console.error("Error exporting PDF:", e);
+          message.error("Failed to export PDF");
         } finally {
           setLoading(false);
         }
@@ -916,7 +963,7 @@ export default function CombinedShopwiseReport() {
                 disabled={tableData.length === 0}
                 showPdf={true}
                 pdfOptions={["current", "cluster"]}
-                clusterLabel="Bond"
+                clusterLabel={filterMode === "bond" ? "Bond" : "Warehouse"}
               />
             )}
           </Col>
