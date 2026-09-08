@@ -122,24 +122,27 @@ export const exportMonthlySummaryExcel = async ({
   ws.mergeCells("K3:K5");
   ws.mergeCells("P3:P5");
 
+  const currMonthShortStr = currMonth.format("MMM").toUpperCase();
+  const prevMonthShortStr = prevMonth.format("MMM").toUpperCase();
+
   // Header Tier 2: Days / Labels
-  ws.getCell("B4").value = `AUG 1–${currDays}`;
-  ws.getCell("C4").value = `JUL 1–${prevDays}`;
+  ws.getCell("B4").value = `${currMonthShortStr} 1–${currDays}`;
+  ws.getCell("C4").value = `${prevMonthShortStr} 1–${prevDays}`;
   ws.mergeCells("D4:D5"); ws.getCell("D4").value = "Δ CASES";
   ws.mergeCells("E4:E5"); ws.getCell("E4").value = "Δ %";
 
-  ws.getCell("G4").value = `AUG 1–${currDays}`;
-  ws.getCell("H4").value = `JUL 1–${prevDays}`;
+  ws.getCell("G4").value = `${currMonthShortStr} 1–${currDays}`;
+  ws.getCell("H4").value = `${prevMonthShortStr} 1–${prevDays}`;
   ws.mergeCells("I4:I5"); ws.getCell("I4").value = "Δ CASES";
   ws.mergeCells("J4:J5"); ws.getCell("J4").value = "Δ %";
 
-  ws.getCell("L4").value = `AUG 1–${currDays}`;
-  ws.getCell("M4").value = `JUL 1–${prevDays}`;
+  ws.getCell("L4").value = `${currMonthShortStr} 1–${currDays}`;
+  ws.getCell("M4").value = `${prevMonthShortStr} 1–${prevDays}`;
   ws.mergeCells("N4:N5"); ws.getCell("N4").value = "Δ CASES";
   ws.mergeCells("O4:O5"); ws.getCell("O4").value = "Δ %";
 
-  ws.getCell("Q4").value = `AUG 1–${currDays}`;
-  ws.getCell("R4").value = `JUL 1–${prevDays}`;
+  ws.getCell("Q4").value = `${currMonthShortStr} 1–${currDays}`;
+  ws.getCell("R4").value = `${prevMonthShortStr} 1–${prevDays}`;
   ws.mergeCells("S4:S5"); ws.getCell("S4").value = "Δ CASES";
   ws.mergeCells("T4:T5"); ws.getCell("T4").value = "Δ %";
 
@@ -478,16 +481,19 @@ export const exportMonthlySummaryPdf = ({
     doc.text(sec.name, x + (w - doc.getTextWidth(sec.name)) / 2, headerTopY + 12);
   });
 
-  // Section Tier 2 Sub-Headers ('AUG', 'JUL', 'Δ CS', 'Δ %')
+  const currMonthShortStr = currMonth.format("MMM").toUpperCase();
+  const prevMonthShortStr = prevMonth.format("MMM").toUpperCase();
+
+  // Section Tier 2 Sub-Headers (e.g. 'SEP', 'AUG', 'Δ CS', 'Δ %')
   const subHeaders = [
     // Shop Liq
-    { c1: "AUG", colIdx: 1 }, { c1: "JUL", colIdx: 2 }, { c1: "Δ CS", isDeltaCs: true, colIdx: 3 }, { c1: "Δ %", isDeltaPct: true, colIdx: 4 },
+    { c1: currMonthShortStr, colIdx: 1 }, { c1: prevMonthShortStr, colIdx: 2 }, { c1: "Δ CS", isDeltaCs: true, colIdx: 3 }, { c1: "Δ %", isDeltaPct: true, colIdx: 4 },
     // Sec Sales
-    { c1: "AUG", colIdx: 6 }, { c1: "JUL", colIdx: 7 }, { c1: "Δ CS", isDeltaCs: true, colIdx: 8 }, { c1: "Δ %", isDeltaPct: true, colIdx: 9 },
+    { c1: currMonthShortStr, colIdx: 6 }, { c1: prevMonthShortStr, colIdx: 7 }, { c1: "Δ CS", isDeltaCs: true, colIdx: 8 }, { c1: "Δ %", isDeltaPct: true, colIdx: 9 },
     // Fed Bar
-    { c1: "AUG", colIdx: 11 }, { c1: "JUL", colIdx: 12 }, { c1: "Δ CS", isDeltaCs: true, colIdx: 13 }, { c1: "Δ %", isDeltaPct: true, colIdx: 14 },
+    { c1: currMonthShortStr, colIdx: 11 }, { c1: prevMonthShortStr, colIdx: 12 }, { c1: "Δ CS", isDeltaCs: true, colIdx: 13 }, { c1: "Δ %", isDeltaPct: true, colIdx: 14 },
     // Total Liq
-    { c1: "AUG", colIdx: 16 }, { c1: "JUL", colIdx: 17 }, { c1: "Δ CS", isDeltaCs: true, colIdx: 18 }, { c1: "Δ %", isDeltaPct: true, colIdx: 19 }
+    { c1: currMonthShortStr, colIdx: 16 }, { c1: prevMonthShortStr, colIdx: 17 }, { c1: "Δ CS", isDeltaCs: true, colIdx: 18 }, { c1: "Δ %", isDeltaPct: true, colIdx: 19 }
   ];
 
   subHeaders.forEach((sh) => {

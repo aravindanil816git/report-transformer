@@ -440,9 +440,36 @@ export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename =
     const totalColWidth = Math.max(wTotalHeader, maxBodyTotalWidth) + 10;
 
     // Compute Column X Offsets
+    let accX = labelColWidth;
+    const dayColOffsets = [];
+    dayColWidths.forEach(w => {
+      accX += w;
+      dayColOffsets.push(accX);
+    });
+
+    const pdfReportTitle = (metadata.Title || "SHOP SALES DAILY").toUpperCase();
+    const startD = days.length > 0 ? days[0].date : dayjs("2026-08-01");
+    const endD = days.length > 0 ? days[days.length - 1].date : dayjs("2026-08-19");
+    const periodStr = `${startD.format("D MMMM YYYY")} - ${endD.format("D MMMM YYYY")}`;
+
+    // Ensure minimum table width so title and periodStr in header band never overlap
+    const minHeaderWidth = getTextWidth(pdfReportTitle, true, 13) + getTextWidth(periodStr, true, 13) + 40;
+    let tableWidth = accX + totalColWidth;
+    if (tableWidth < minHeaderWidth) {
+      const extraNeeded = minHeaderWidth - tableWidth;
+      if (days.length > 0) {
+        const extraPerDay = extraNeeded / days.length;
+        for (let i = 0; i < dayColWidths.length; i++) {
+          dayColWidths[i] += extraPerDay;
+        }
+      } else {
+        labelColWidth += extraNeeded;
+      }
+    }
+
     const colX = [0];
     colX.push(labelColWidth);
-    let accX = labelColWidth;
+    accX = labelColWidth;
     dayColWidths.forEach(w => {
       accX += w;
       colX.push(accX);
@@ -491,17 +518,22 @@ export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename =
     // 2. Title Band (height 26, top Y = 45.4)
     pdf.setFillColor(...GOLD);
     pdf.rect(0, 45.4, pageWidth, 26, "F");
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(13);
-    pdf.setTextColor(...NAVY);
-    const pdfReportTitle = (metadata.Title || "SHOP SALES DAILY").toUpperCase();
-    pdf.text(pdfReportTitle, 12, 45.4 + (26 + 13 * 0.7) / 2);
+    
+    let titleFontSize = 13;
+    let wTitle = getWidth(pdfReportTitle, true, titleFontSize);
+    let wPeriod = getWidth(periodStr, true, titleFontSize);
 
-    const startD = days.length > 0 ? days[0].date : dayjs("2026-08-01");
-    const endD = days.length > 0 ? days[days.length - 1].date : dayjs("2026-08-19");
-    const periodStr = `${startD.format("D MMMM YYYY")} - ${endD.format("D MMMM YYYY")}`;
-    const wPeriod = getWidth(periodStr, true, 13);
-    pdf.text(periodStr, pageWidth - 12 - wPeriod, 45.4 + (26 + 13 * 0.7) / 2);
+    while ((wTitle + wPeriod + 24 > pageWidth) && titleFontSize > 8) {
+      titleFontSize -= 0.5;
+      wTitle = getWidth(pdfReportTitle, true, titleFontSize);
+      wPeriod = getWidth(periodStr, true, titleFontSize);
+    }
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(titleFontSize);
+    pdf.setTextColor(...NAVY);
+    pdf.text(pdfReportTitle, 12, 45.4 + (26 + titleFontSize * 0.7) / 2);
+    pdf.text(periodStr, pageWidth - 12 - wPeriod, 45.4 + (26 + titleFontSize * 0.7) / 2);
 
     // 3. Table Header (height 54 total, top Y = 71.4)
     pdf.setFillColor(...NAVY);
