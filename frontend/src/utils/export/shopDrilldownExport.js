@@ -284,8 +284,8 @@ export const exportShopDrilldownPdfByBond = ({
 
   const doc = new jsPDF("p", "pt", [PAGE_WIDTH, 841.890]);
 
-  const drawHeader = (doc, currentTitle, currentPeriod, shopName, headerRightText = null, pageIndex = 0) => {
-    if (pageIndex === 0) {
+  const drawHeader = (doc, currentTitle, currentPeriod, shopName, headerRightText = null, isPageOne = false) => {
+    if (isPageOne) {
       doc.setFillColor(11, 41, 79); 
       doc.rect(0, 0, PAGE_WIDTH, 45.4, "F");
 
@@ -329,19 +329,6 @@ export const exportShopDrilldownPdfByBond = ({
     }
   };
 
-  const colStyles = {};
-  for (let col = 0; col < 5; col++) {
-    colStyles[col] = {
-      cellWidth: finalColWidths[col],
-      halign: col === 0 ? "left" : "center"
-    };
-    if (col === 0) {
-      colStyles[col].cellPadding = { left: 6.2, right: 6.2, top: 4, bottom: 4 };
-    } else {
-      colStyles[col].cellPadding = { left: 8.0, right: 8.0, top: 4, bottom: 4 };
-    }
-  }
-
   let idx = 0;
   let pageAdded = false;
 
@@ -363,8 +350,39 @@ export const exportShopDrilldownPdfByBond = ({
     });
 
     const isFirstPageOfDoc = (idx === 0);
-    const pageIndexVal = idx;
     idx++;
+
+    // Compute dynamic fit parameters so entire shop table fits on 1 page cleanly without spilling onto an empty page
+    const topHeaderHeight = isFirstPageOfDoc ? 90.8 : 22.7;
+    const availableHeightForBody = 841.890 - topHeaderHeight - 23.4 - 26.0;
+    const numRows = shopRows.length;
+
+    let shopMinCellHeight = 22.8;
+    let shopFontSize = 9.0;
+    let shopPaddingTopBottom = 4.0;
+
+    if (numRows > 0) {
+      const rowSpaceAvailable = availableHeightForBody / numRows;
+      if (rowSpaceAvailable < 22.8) {
+        shopMinCellHeight = Math.max(11.0, rowSpaceAvailable - 0.5);
+        const scaleFactor = shopMinCellHeight / 22.8;
+        shopFontSize = Math.max(7.2, 9.0 * scaleFactor);
+        shopPaddingTopBottom = Math.max(1.0, 4.0 * scaleFactor);
+      }
+    }
+
+    const colStyles = {};
+    for (let col = 0; col < 5; col++) {
+      colStyles[col] = {
+        cellWidth: finalColWidths[col],
+        halign: col === 0 ? "left" : "center"
+      };
+      if (col === 0) {
+        colStyles[col].cellPadding = { left: 6.2, right: 6.2, top: shopPaddingTopBottom, bottom: shopPaddingTopBottom };
+      } else {
+        colStyles[col].cellPadding = { left: 8.0, right: 8.0, top: shopPaddingTopBottom, bottom: shopPaddingTopBottom };
+      }
+    }
 
     autoTable(doc, {
       head: [headerLabels],
@@ -374,8 +392,8 @@ export const exportShopDrilldownPdfByBond = ({
       theme: "grid",
       styles: {
         font: "helvetica",
-        fontSize: 9.0,
-        minCellHeight: derivedRowHeight,
+        fontSize: shopFontSize,
+        minCellHeight: shopMinCellHeight,
         valign: "middle",
         lineWidth: 0,
         textColor: colors.BLACK
@@ -390,7 +408,8 @@ export const exportShopDrilldownPdfByBond = ({
       },
       columnStyles: colStyles,
       didDrawPage: (data) => {
-        drawHeader(doc, title, periodLabel, displayShopName, bondName, pageIndexVal);
+        const isDocPageOne = (data.pageNumber === 1);
+        drawHeader(doc, title, periodLabel, displayShopName, bondName, isDocPageOne);
       },
       didDrawCell: (data) => {
         const { x, y, width, height } = data.cell;
@@ -431,21 +450,21 @@ export const exportShopDrilldownPdfByBond = ({
             cellData.cell.styles.fontStyle = "bold";
             cellData.cell.styles.fillColor = colors.NAVY; 
             cellData.cell.styles.textColor = [255, 255, 255]; 
-            cellData.cell.styles.cellPadding = { left: 6.2, right: 6.2, top: 4, bottom: 4 };
+            cellData.cell.styles.cellPadding = { left: 6.2, right: 6.2, top: shopPaddingTopBottom, bottom: shopPaddingTopBottom };
           } else if (rowObj.isShopTotal) {
             cellData.cell.styles.fontStyle = "bold";
-            cellData.cell.styles.fontSize = 10.5;
+            cellData.cell.styles.fontSize = Math.max(8.5, shopFontSize + 1.5);
             cellData.cell.styles.fillColor = colors.NAVY; 
             cellData.cell.styles.textColor = colors.GOLD;  
-            cellData.cell.styles.cellPadding = { left: 6.2, right: 6.2, top: 4, bottom: 4 };
+            cellData.cell.styles.cellPadding = { left: 6.2, right: 6.2, top: shopPaddingTopBottom, bottom: shopPaddingTopBottom };
           } else {
             cellData.cell.styles.fillColor = (cellData.row.index % 2 === 0) ? colors.WHITE : colors.ZEBRA;
             cellData.cell.styles.textColor = colors.BLACK;
             
             if (cellData.column.index === 0) {
-              cellData.cell.styles.cellPadding = { left: 12 + 6.2, right: 6.2, top: 4, bottom: 4 };
+              cellData.cell.styles.cellPadding = { left: 12 + 6.2, right: 6.2, top: shopPaddingTopBottom, bottom: shopPaddingTopBottom };
             } else {
-              cellData.cell.styles.cellPadding = { left: 8.0, right: 8.0, top: 4, bottom: 4 };
+              cellData.cell.styles.cellPadding = { left: 8.0, right: 8.0, top: shopPaddingTopBottom, bottom: shopPaddingTopBottom };
             }
             
             const rawVal = Number(cellData.cell.raw);
@@ -477,8 +496,38 @@ export const exportShopDrilldownPdfByBond = ({
     ]);
 
     const isFirstPageOfDoc = (idx === 0);
-    const pageIndexVal = idx;
     idx++;
+
+    const topHeaderHeight = isFirstPageOfDoc ? 90.8 : 22.7;
+    const availableHeightForBody = 841.890 - topHeaderHeight - 23.4 - 26.0;
+    const numRows = summaryRows.length;
+
+    let shopMinCellHeight = 22.8;
+    let shopFontSize = 9.0;
+    let shopPaddingTopBottom = 4.0;
+
+    if (numRows > 0) {
+      const rowSpaceAvailable = availableHeightForBody / numRows;
+      if (rowSpaceAvailable < 22.8) {
+        shopMinCellHeight = Math.max(11.0, rowSpaceAvailable - 0.5);
+        const scaleFactor = shopMinCellHeight / 22.8;
+        shopFontSize = Math.max(7.2, 9.0 * scaleFactor);
+        shopPaddingTopBottom = Math.max(1.0, 4.0 * scaleFactor);
+      }
+    }
+
+    const colStyles = {};
+    for (let col = 0; col < 5; col++) {
+      colStyles[col] = {
+        cellWidth: finalColWidths[col],
+        halign: col === 0 ? "left" : "center"
+      };
+      if (col === 0) {
+        colStyles[col].cellPadding = { left: 6.2, right: 6.2, top: shopPaddingTopBottom, bottom: shopPaddingTopBottom };
+      } else {
+        colStyles[col].cellPadding = { left: 8.0, right: 8.0, top: shopPaddingTopBottom, bottom: shopPaddingTopBottom };
+      }
+    }
 
     autoTable(doc, {
       head: [headerLabels],
@@ -488,8 +537,8 @@ export const exportShopDrilldownPdfByBond = ({
       theme: "grid",
       styles: {
         font: "helvetica",
-        fontSize: 9.0,
-        minCellHeight: derivedRowHeight,
+        fontSize: shopFontSize,
+        minCellHeight: shopMinCellHeight,
         valign: "middle",
         lineWidth: 0,
         textColor: colors.BLACK
@@ -504,7 +553,8 @@ export const exportShopDrilldownPdfByBond = ({
       },
       columnStyles: colStyles,
       didDrawPage: (data) => {
-        drawHeader(doc, title, periodLabel, summaryTitleText, summaryLabelText, pageIndexVal);
+        const isDocPageOne = (data.pageNumber === 1);
+        drawHeader(doc, title, periodLabel, summaryTitleText, summaryLabelText, isDocPageOne);
       },
       didDrawCell: (data) => {
         const { x, y, width, height } = data.cell;
@@ -545,18 +595,18 @@ export const exportShopDrilldownPdfByBond = ({
             cellData.cell.styles.fontStyle = "bold";
             cellData.cell.styles.fillColor = colors.NAVY; 
             cellData.cell.styles.textColor = [255, 255, 255]; 
-            cellData.cell.styles.cellPadding = { left: 6.2, right: 6.2, top: 4, bottom: 4 };
+            cellData.cell.styles.cellPadding = { left: 6.2, right: 6.2, top: shopPaddingTopBottom, bottom: shopPaddingTopBottom };
           } else if (rowObj.isShopTotal) {
             cellData.cell.styles.fontStyle = "bold";
-            cellData.cell.styles.fontSize = 10.5;
+            cellData.cell.styles.fontSize = Math.max(8.5, shopFontSize + 1.5);
             cellData.cell.styles.fillColor = colors.NAVY; 
             cellData.cell.styles.textColor = colors.GOLD;  
-            cellData.cell.styles.cellPadding = { left: 6.2, right: 6.2, top: 4, bottom: 4 };
+            cellData.cell.styles.cellPadding = { left: 6.2, right: 6.2, top: shopPaddingTopBottom, bottom: shopPaddingTopBottom };
           } else if (rowObj.isBrandTotal) {
             cellData.cell.styles.fontStyle = "bold";
             cellData.cell.styles.fillColor = colors.ZEBRA;
             cellData.cell.styles.textColor = colors.BLACK;
-            cellData.cell.styles.cellPadding = { left: 12 + 6.2, right: 6.2, top: 4, bottom: 4 };
+            cellData.cell.styles.cellPadding = { left: 12 + 6.2, right: 6.2, top: shopPaddingTopBottom, bottom: shopPaddingTopBottom };
           } else {
             cellData.cell.styles.fillColor = (cellData.row.index % 2 === 0) ? colors.WHITE : colors.ZEBRA;
             cellData.cell.styles.textColor = colors.BLACK;
