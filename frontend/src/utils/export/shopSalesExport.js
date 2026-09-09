@@ -402,7 +402,10 @@ export const exportShopSalesDailyBondPdf = (data = [], metadata = {}, filename =
       block.bondRows.forEach((r, idx) => {
         bodyRows.push({ ...r, blockIndex: block.clusterId, isFirstInBlock: idx === 0 });
       });
-      bodyRows.push(block.clusterRow);
+      // Only include cluster subtotal row if there are multiple clusters
+      if (clusterBlocks.length > 1) {
+        bodyRows.push(block.clusterRow);
+      }
     });
     bodyRows.push(grandTotalRowObj);
 

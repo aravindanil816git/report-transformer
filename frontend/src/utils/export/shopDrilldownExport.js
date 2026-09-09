@@ -163,15 +163,6 @@ export const exportShopDrilldownPdfByBond = ({
         closing: bClosing
       });
 
-      rows.push({
-        label: `  ${brand} Total`,
-        isBrandTotal: true,
-        opening: bOpening,
-        inward: bInward,
-        outward: bOutward,
-        closing: bClosing
-      });
-
       overallOpening += bOpening;
       overallInward += bInward;
       overallOutward += bOutward;
@@ -353,7 +344,7 @@ export const exportShopDrilldownPdfByBond = ({
     idx++;
 
     // Compute dynamic fit parameters so entire shop table fits on 1 page cleanly without spilling onto an empty page
-    const topHeaderHeight = isFirstPageOfDoc ? 90.8 : 22.7;
+    const topHeaderHeight = isFirstPageOfDoc ? 94.0 : 26.0;
     const availableHeightForBody = 841.890 - topHeaderHeight - 23.4 - 26.0;
     const numRows = shopRows.length;
 
@@ -387,8 +378,8 @@ export const exportShopDrilldownPdfByBond = ({
     autoTable(doc, {
       head: [headerLabels],
       body: tableRows,
-      startY: isFirstPageOfDoc ? 90.8 : 22.7,
-      margin: { top: 22.7, bottom: 26.0, left: 0, right: 0 },
+      startY: isFirstPageOfDoc ? 94.0 : 26.0,
+      margin: { top: 26.0, bottom: 26.0, left: 0, right: 0 },
       theme: "grid",
       styles: {
         font: "helvetica",
@@ -498,7 +489,7 @@ export const exportShopDrilldownPdfByBond = ({
     const isFirstPageOfDoc = (idx === 0);
     idx++;
 
-    const topHeaderHeight = isFirstPageOfDoc ? 90.8 : 22.7;
+    const topHeaderHeight = isFirstPageOfDoc ? 94.0 : 26.0;
     const availableHeightForBody = 841.890 - topHeaderHeight - 23.4 - 26.0;
     const numRows = summaryRows.length;
 
@@ -532,8 +523,8 @@ export const exportShopDrilldownPdfByBond = ({
     autoTable(doc, {
       head: [headerLabels],
       body: summaryTableBody,
-      startY: isFirstPageOfDoc ? 90.8 : 22.7,
-      margin: { top: 22.7, bottom: 26.0, left: 0, right: 0 },
+      startY: isFirstPageOfDoc ? 94.0 : 26.0,
+      margin: { top: 26.0, bottom: 26.0, left: 0, right: 0 },
       theme: "grid",
       styles: {
         font: "helvetica",
